@@ -7,7 +7,7 @@ import { Car, Calendar, Users, Settings, Plus } from "lucide-react";
 const navItems = [
   { href: "/dashboard", icon: Car, label: "Cuốc xe" },
   { href: "/dashboard/schedule", icon: Calendar, label: "Lịch" },
-  { href: "/", icon: Plus, label: "Thêm", isFab: true },
+  { href: "/dashboard/schedule/add", icon: Plus, label: "Thêm", isFab: true },
   { href: "/dashboard/customers", icon: Users, label: "Khách" },
   { href: "/dashboard/settings", icon: Settings, label: "Cài đặt" },
 ];

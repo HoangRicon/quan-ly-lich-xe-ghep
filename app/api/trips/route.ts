@@ -71,7 +71,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, departure, destination, departureTime, price, vehicleId, totalSeats } = body;
+    const { 
+      title, description, departure, destination, departureTime, arrivalTime,
+      price, vehicleId, totalSeats, tripType,
+      customerPhone, customerName, customerEmail, customerNotes,
+      seats
+    } = body;
 
     if (!title || !departure || !destination || !departureTime || !price || !vehicleId) {
       return NextResponse.json(
@@ -95,6 +100,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let customerId = null;
+    if (customerPhone) {
+      let customer = await prisma.customer.findUnique({
+        where: { phone: customerPhone },
+      });
+
+      if (!customer) {
+        customer = await prisma.customer.create({
+          data: {
+            phone: customerPhone,
+            name: customerName || "Khách vãng lai",
+            email: customerEmail,
+            notes: customerNotes,
+          },
+        });
+      }
+
+      customerId = customer.id;
+
+      await prisma.customer.update({
+        where: { id: customerId },
+        data: { totalTrips: { increment: 1 } },
+      });
+    }
+
     const trip = await prisma.trip.create({
       data: {
         title,
@@ -102,15 +132,31 @@ export async function POST(request: NextRequest) {
         departure,
         destination,
         departureTime: new Date(departureTime),
+        arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
         price: parseFloat(price),
         vehicleId: parseInt(vehicleId),
         driverId: user.id,
         totalSeats: totalSeats || vehicle.capacity,
-        availableSeats: totalSeats || vehicle.capacity,
+        availableSeats: tripType === "bao" ? 0 : (totalSeats || vehicle.capacity),
         status: "scheduled",
+        ...(customerId ? {
+          customers: {
+            create: {
+              customerId,
+              seats: seats || 1,
+              status: "confirmed",
+              notes: customerNotes,
+            },
+          },
+        } : {}),
       },
       include: {
         vehicle: true,
+        customers: {
+          include: {
+            customer: true,
+          },
+        },
       },
     });
 

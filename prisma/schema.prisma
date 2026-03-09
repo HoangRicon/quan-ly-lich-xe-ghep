@@ -66,6 +66,7 @@ model Trip {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   bookings      Booking[]
+  customers     TripCustomer[]
 
   @@index([driverId], name: "idx_trips_driver")
   @@index([vehicleId], name: "idx_trips_vehicle")
@@ -91,4 +92,35 @@ model Booking {
   @@index([passengerId], name: "idx_bookings_passenger")
   @@index([tripId], name: "idx_bookings_trip")
   @@map("bookings")
+}
+
+model Customer {
+  id          Int       @id @default(autoincrement())
+  phone       String    @unique @db.VarChar(20)
+  name        String    @db.VarChar(255)
+  email       String?   @db.VarChar(255)
+  notes       String?   @db.Text
+  totalTrips  Int       @default(0) @map("total_trips")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  trips       TripCustomer[]
+
+  @@index([phone], name: "idx_customers_phone")
+  @@map("customers")
+}
+
+model TripCustomer {
+  id          Int       @id @default(autoincrement())
+  tripId      Int       @map("trip_id")
+  trip        Trip      @relation(fields: [tripId], references: [id])
+  customerId  Int       @map("customer_id")
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  seats       Int       @default(1)
+  status      String    @default("pending") @db.VarChar(50)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([tripId, customerId], name: "idx_trip_customer_trip_customer")
+  @@map("trip_customers")
 }
