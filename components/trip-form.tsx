@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Search, Car, User, MapPin, ChevronDown, Check } from "lucide-react";
 
 interface Customer {
   id: number;
@@ -16,6 +17,16 @@ interface Vehicle {
   name: string;
   licensePlate: string;
   capacity: number;
+  seats: number;
+  vehicleType: string;
+  brand: string | null;
+  model: string | null;
+  status: string;
+  driver: {
+    id: number;
+    fullName: string;
+    phone: string;
+  } | null;
 }
 
 export default function TripForm() {
@@ -24,7 +35,12 @@ export default function TripForm() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
+  
+  // Vehicle selector state
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   
   const [formData, setFormData] = useState({
     customerPhone: "",
@@ -42,7 +58,8 @@ export default function TripForm() {
   });
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+  const vehicleDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchVehicles();
@@ -50,8 +67,11 @@ export default function TripForm() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target as Node)) {
         setShowCustomerDropdown(false);
+      }
+      if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(event.target as Node)) {
+        setShowVehicleDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -62,10 +82,10 @@ export default function TripForm() {
     const searchCustomer = async () => {
       if (formData.customerPhone.length >= 3) {
         try {
-          const res = await fetch(`/api/customers?phone=${formData.customerPhone}`);
+          const res = await fetch(`/api/customers?search=${formData.customerPhone}`);
           const data = await res.json();
-          setCustomerSuggestions(data.customers || []);
-          setShowCustomerDropdown(data.customers && data.customers.length > 0);
+          setCustomerSuggestions(data.data || []);
+          setShowCustomerDropdown(data.data && data.data.length > 0);
         } catch (error) {
           console.error("Search customer error:", error);
         }
@@ -81,15 +101,27 @@ export default function TripForm() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await fetch("/api/vehicles");
+      const res = await fetch("/api/vehicles?includeInactive=true");
       const data = await res.json();
-      if (data.data) {
+      console.log("Vehicles data:", data); // Debug log
+      if (data.success && data.data) {
         setVehicles(data.data);
       }
     } catch (error) {
       console.error("Fetch vehicles error:", error);
     }
   };
+
+  const filteredVehicles = vehicles.filter((v) => {
+    if (!vehicleSearch) return true;
+    const search = vehicleSearch.toLowerCase();
+    return (
+      v.licensePlate?.toLowerCase().includes(search) ||
+      v.name?.toLowerCase().includes(search) ||
+      v.brand?.toLowerCase().includes(search) ||
+      v.driver?.fullName?.toLowerCase().includes(search)
+    );
+  });
 
   const handlePhoneChange = (value: string) => {
     const cleaned = value.replace(/\D/g, "");
@@ -102,10 +134,10 @@ export default function TripForm() {
 
   const checkDuplicateCustomer = async (phone: string, name: string) => {
     try {
-      const res = await fetch(`/api/customers?phone=${phone}`);
+      const res = await fetch(`/api/customers?search=${phone}`);
       const data = await res.json();
-      if (data.customers && data.customers.length > 0) {
-        const existingCustomer = data.customers[0];
+      if (data.data && data.data.length > 0) {
+        const existingCustomer = data.data[0];
         if (existingCustomer.name !== name) {
           setShowDuplicateWarning(true);
         } else {
@@ -135,6 +167,13 @@ export default function TripForm() {
     });
     setShowCustomerDropdown(false);
     setShowDuplicateWarning(false);
+  };
+
+  const selectVehicle = (vehicle: Vehicle) => {
+    setSelectedVehicle(vehicle);
+    setFormData({ ...formData, vehicleId: vehicle.id.toString() });
+    setVehicleSearch("");
+    setShowVehicleDropdown(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -177,12 +216,22 @@ export default function TripForm() {
     }
   };
 
+  const getVehicleTypeLabel = (type: string) => {
+    switch (type) {
+      case "car": return "4 chỗ";
+      case "suv": return "7 chỗ";
+      case "bus": return "16 chỗ";
+      default: return `${type} chỗ`;
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Customer Info */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Thông tin khách hàng</h3>
         
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative" ref={customerDropdownRef}>
           <label className="block text-sm font-medium text-slate-700 mb-1">
             Số điện thoại <span className="text-red-500">*</span>
           </label>
@@ -276,6 +325,7 @@ export default function TripForm() {
         </div>
       </div>
 
+      {/* Route Info */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Lộ trình</h3>
         
@@ -336,6 +386,7 @@ export default function TripForm() {
         </div>
       </div>
 
+      {/* Trip Type & Vehicle */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Loại hình & Thanh toán</h3>
         
@@ -370,42 +421,141 @@ export default function TripForm() {
           </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Xe <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.vehicleId}
-              onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-              required
-            >
-              <option value="">Chọn xe</option>
-              {vehicles.map((vehicle) => (
-                <option key={vehicle.id} value={vehicle.id}>
-                  {vehicle.name} - {vehicle.licensePlate}
-                </option>
-              ))}
-            </select>
+        {/* Vehicle Combobox */}
+        <div className="relative" ref={vehicleDropdownRef}>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Chọn xe (tài xế) <span className="text-red-500">*</span>
+          </label>
+          
+          {/* Selected Vehicle Display */}
+          <div
+            onClick={() => setShowVehicleDropdown(!showVehicleDropdown)}
+            className={`w-full px-4 py-3 rounded-lg border-2 cursor-pointer transition-colors ${
+              showVehicleDropdown 
+                ? "border-blue-500 bg-blue-50" 
+                : selectedVehicle 
+                  ? "border-green-500 bg-green-50" 
+                  : "border-slate-300 hover:border-slate-400"
+            }`}
+          >
+            {selectedVehicle ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+                    <Car className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-800">
+                      {selectedVehicle.licensePlate}
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      {getVehicleTypeLabel(selectedVehicle.vehicleType)} • {selectedVehicle.driver?.fullName || "Chưa có tài xế"}
+                    </div>
+                  </div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showVehicleDropdown ? "rotate-180" : ""}`} />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Chọn xe và tài xế...</span>
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showVehicleDropdown ? "rotate-180" : ""}`} />
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Giá tiền (VNĐ) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              inputMode="numeric"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              placeholder="150000"
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-              required
-            />
-          </div>
+
+          {/* Dropdown */}
+          {showVehicleDropdown && (
+            <div className="absolute z-20 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-80 overflow-hidden">
+              {/* Search */}
+              <div className="p-3 border-b border-slate-200">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={vehicleSearch}
+                    onChange={(e) => setVehicleSearch(e.target.value)}
+                    placeholder="Tìm biển số, tên xe, tài xế..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Vehicle List */}
+              <div className="max-h-56 overflow-y-auto">
+                {filteredVehicles.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-slate-500">
+                    Không tìm thấy xe
+                  </div>
+                ) : (
+                  filteredVehicles.map((vehicle) => (
+                    <button
+                      key={vehicle.id}
+                      type="button"
+                      onClick={() => selectVehicle(vehicle)}
+                      className={`w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0 ${
+                        selectedVehicle?.id === vehicle.id ? "bg-blue-50" : ""
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        vehicle.status === "available" 
+                          ? "bg-gradient-to-br from-green-500 to-emerald-400" 
+                          : "bg-gradient-to-br from-slate-400 to-slate-500"
+                      }`}>
+                        <Car className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-slate-800">{vehicle.licensePlate}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            vehicle.status === "available" 
+                              ? "bg-green-100 text-green-700" 
+                              : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {vehicle.status === "available" ? "Rảnh" : "Bận"}
+                          </span>
+                        </div>
+                        <div className="text-sm text-slate-500 flex items-center gap-2">
+                          <span>{getVehicleTypeLabel(vehicle.vehicleType)}</span>
+                          {vehicle.driver && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <User className="w-3 h-3" />
+                                {vehicle.driver.fullName}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {selectedVehicle?.id === vehicle.id && (
+                        <Check className="w-5 h-5 text-blue-500" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Giá tiền (VNĐ) <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={formData.price}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+            placeholder="150000"
+            className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
+            required
+          />
         </div>
       </div>
 
+      {/* Submit Buttons */}
       <div className="flex gap-3 pb-24 lg:pb-0">
         <button
           type="button"

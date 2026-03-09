@@ -1,108 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUserFromRequest } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
+    const searchParams = request.nextUrl.searchParams;
+    const search = searchParams.get("search") || "";
+    const includeInactive = searchParams.get("includeInactive") === "true";
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { licensePlate: { contains: search, mode: "insensitive" } },
+        { name: { contains: search, mode: "insensitive" } },
+        { brand: { contains: search, mode: "insensitive" } },
+        { model: { contains: search, mode: "insensitive" } },
+      ];
     }
 
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const skip = (page - 1) * limit;
+    // Use isActive instead of status
+    if (!includeInactive) {
+      where.isActive = true;
+    }
 
-    const [vehicles, total] = await Promise.all([
-      prisma.vehicle.findMany({
-        where: { ownerId: user.id },
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.vehicle.count({
-        where: { ownerId: user.id },
-      }),
-    ]);
-
-    return NextResponse.json({
-      success: true,
-      data: vehicles,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    const vehicles = await prisma.vehicle.findMany({
+      where,
+      include: {
+        owner: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+          },
+        },
       },
+      orderBy: { licensePlate: "asc" },
+      take: 50,
     });
+
+    const formattedVehicles = vehicles.map((v) => ({
+      id: v.id,
+      name: v.name,
+      licensePlate: v.licensePlate,
+      capacity: v.capacity,
+      seats: v.seats,
+      vehicleType: v.vehicleType,
+      brand: v.brand,
+      model: v.model,
+      year: v.year,
+      isActive: v.isActive,
+      status: v.isActive ? "available" : "unavailable",
+      driver: v.owner
+        ? {
+            id: v.owner.id,
+            fullName: v.owner.fullName,
+            phone: v.owner.phone,
+          }
+        : null,
+    }));
+
+    return NextResponse.json({ success: true, data: formattedVehicles });
   } catch (error) {
     console.error("Get vehicles error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getUserFromRequest(request);
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const { name, licensePlate, vehicleType, capacity, color, brand, model, year } = await request.json();
-
-    if (!name || !licensePlate) {
-      return NextResponse.json(
-        { error: "Name and license plate are required" },
-        { status: 400 }
-      );
-    }
-
-    const existingVehicle = await prisma.vehicle.findUnique({
-      where: { licensePlate },
-    });
-
-    if (existingVehicle) {
-      return NextResponse.json(
-        { error: "License plate already exists" },
-        { status: 409 }
-      );
-    }
-
-    const vehicle = await prisma.vehicle.create({
-      data: {
-        name,
-        licensePlate,
-        vehicleType: vehicleType || "car",
-        capacity: capacity || 4,
-        color,
-        brand,
-        model,
-        year: year ? parseInt(year) : null,
-        ownerId: user.id,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: vehicle,
-    });
-  } catch (error) {
-    console.error("Create vehicle error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
