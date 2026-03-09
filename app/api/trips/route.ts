@@ -1,28 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUserFromRequest } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status");
+    const date = searchParams.get("date");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "50");
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    const where: any = {};
+
+    if (status && status !== "all") {
+      where.status = status;
     }
 
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const status = searchParams.get("status");
-    const skip = (page - 1) * limit;
+    if (date) {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      where.departureTime = {
+        gte: startOfDay,
+        lte: endOfDay,
+      };
+    }
 
-    const where = {
-      driverId: user.id,
-      ...(status ? { status } : {}),
-    };
+    const skip = (page - 1) * limit;
 
     const [trips, total] = await Promise.all([
       prisma.trip.findMany({
@@ -30,19 +34,72 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit,
         include: {
-          vehicle: true,
-          _count: {
-            select: { bookings: true },
+          vehicle: {
+            include: {
+              owner: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          driver: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+            },
+          },
+          customers: {
+            include: {
+              customer: true,
+            },
           },
         },
-        orderBy: { departureTime: "desc" },
+        orderBy: { departureTime: "asc" },
       }),
       prisma.trip.count({ where }),
     ]);
 
+    const formattedTrips = trips.map((trip) => {
+      const mainCustomer = trip.customers[0]?.customer;
+      return {
+        id: trip.id,
+        title: trip.title,
+        departure: trip.departure,
+        destination: trip.destination,
+        departureTime: trip.departureTime,
+        arrivalTime: trip.arrivalTime,
+        price: trip.price,
+        status: trip.status,
+        totalSeats: trip.totalSeats,
+        availableSeats: trip.availableSeats,
+        vehicle: trip.vehicle ? {
+          id: trip.vehicle.id,
+          name: trip.vehicle.name,
+          licensePlate: trip.vehicle.licensePlate,
+          vehicleType: trip.vehicle.vehicleType,
+          seats: trip.vehicle.seats,
+        } : null,
+        driver: trip.driver ? {
+          id: trip.driver.id,
+          fullName: trip.driver.fullName,
+          phone: trip.driver.phone,
+        } : null,
+        customer: mainCustomer ? {
+          id: mainCustomer.id,
+          name: mainCustomer.name,
+          phone: mainCustomer.phone,
+        } : null,
+        passengerCount: trip.customers.reduce((sum, c) => sum + c.seats, 0),
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: trips,
+      data: formattedTrips,
       pagination: {
         page,
         limit,
@@ -52,24 +109,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Get trips error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromRequest(request);
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
     const { 
       title, description, departure, destination, departureTime, arrivalTime,
@@ -78,28 +123,14 @@ export async function POST(request: NextRequest) {
       seats
     } = body;
 
-    if (!title || !departure || !destination || !departureTime || !price || !vehicleId) {
+    if (!title || !departure || !destination || !departureTime || !price) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const vehicle = await prisma.vehicle.findFirst({
-      where: {
-        id: parseInt(vehicleId),
-        ownerId: user.id,
-        isActive: true,
-      },
-    });
-
-    if (!vehicle) {
-      return NextResponse.json(
-        { error: "Vehicle not found or not active" },
-        { status: 404 }
-      );
-    }
-
+    // Handle customer - create or get existing
     let customerId = null;
     if (customerPhone) {
       let customer = await prisma.customer.findUnique({
@@ -125,6 +156,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Get default driver if needed
+    let driverId = null;
+    let finalVehicleId = vehicleId;
+    
+    if (vehicleId) {
+      const vehicle = await prisma.vehicle.findUnique({
+        where: { id: vehicleId },
+      });
+      if (vehicle?.ownerId) {
+        driverId = vehicle.ownerId;
+      }
+    }
+
     const trip = await prisma.trip.create({
       data: {
         title,
@@ -134,10 +178,10 @@ export async function POST(request: NextRequest) {
         departureTime: new Date(departureTime),
         arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
         price: parseFloat(price),
-        vehicleId: parseInt(vehicleId),
-        driverId: user.id,
-        totalSeats: totalSeats || vehicle.capacity,
-        availableSeats: tripType === "bao" ? 0 : (totalSeats || vehicle.capacity),
+        vehicleId: finalVehicleId || null,
+        driverId: driverId,
+        totalSeats: totalSeats || 4,
+        availableSeats: tripType === "bao" ? 0 : (totalSeats || 4),
         status: "scheduled",
         ...(customerId ? {
           customers: {
@@ -152,6 +196,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         vehicle: true,
+        driver: true,
         customers: {
           include: {
             customer: true,
@@ -160,9 +205,41 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Format response
+    const mainCustomer = trip.customers[0]?.customer;
+    const formattedTrip = {
+      id: trip.id,
+      title: trip.title,
+      departure: trip.departure,
+      destination: trip.destination,
+      departureTime: trip.departureTime,
+      arrivalTime: trip.arrivalTime,
+      price: trip.price,
+      status: trip.status,
+      totalSeats: trip.totalSeats,
+      availableSeats: trip.availableSeats,
+      vehicle: trip.vehicle ? {
+        id: trip.vehicle.id,
+        name: trip.vehicle.name,
+        licensePlate: trip.vehicle.licensePlate,
+        vehicleType: trip.vehicle.vehicleType,
+        seats: trip.vehicle.seats,
+      } : null,
+      driver: trip.driver ? {
+        id: trip.driver.id,
+        fullName: trip.driver.fullName,
+        phone: trip.driver.phone,
+      } : null,
+      customer: mainCustomer ? {
+        id: mainCustomer.id,
+        name: mainCustomer.name,
+        phone: mainCustomer.phone,
+      } : null,
+    };
+
     return NextResponse.json({
       success: true,
-      data: trip,
+      data: formattedTrip,
     });
   } catch (error) {
     console.error("Create trip error:", error);

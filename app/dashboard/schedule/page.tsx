@@ -1,4 +1,5 @@
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
+import ScheduleList from "@/components/schedule-list";
 
 export default function SchedulePage() {
   return (
@@ -6,10 +7,10 @@ export default function SchedulePage() {
       <Sidebar>
         <Header />
         <div className="p-4 lg:p-6 pb-24 lg:pb-6">
-          <h1 className="text-2xl font-bold text-slate-800 mb-6">Lịch trình</h1>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
-            <p className="text-slate-500">Trang quản lý lịch trình đang được xây dựng...</p>
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-slate-800">Quản lý lịch trình</h1>
           </div>
+          <ScheduleList />
         </div>
       </Sidebar>
       <BottomNav />
