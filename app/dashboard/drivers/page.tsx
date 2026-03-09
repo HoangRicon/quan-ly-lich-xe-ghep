@@ -1,4 +1,5 @@
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
+import DriverList from "@/components/driver-list";
 
 export default function DriversPage() {
   return (
@@ -6,10 +7,10 @@ export default function DriversPage() {
       <Sidebar>
         <Header />
         <div className="p-4 lg:p-6 pb-24 lg:pb-6">
-          <h1 className="text-2xl font-bold text-slate-800 mb-6">Quản lý tài xế</h1>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
-            <p className="text-slate-500">Trang quản lý tài xế đang được xây dựng...</p>
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-slate-800">Quản lý tài xế</h1>
           </div>
+          <DriverList />
         </div>
       </Sidebar>
       <BottomNav />

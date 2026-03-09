@@ -1,0 +1,373 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Search, Plus, Phone, MessageCircle, Star, Car, Filter } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+interface Driver {
+  id: number;
+  fullName: string;
+  email: string;
+  phone: string;
+  avatar: string | null;
+  status: string;
+  rating: number;
+  totalRevenue: number;
+  vehicle: {
+    name: string;
+    licensePlate: string;
+    vehicleType: string;
+    seats: number;
+    brand: string | null;
+    model: string | null;
+    year: number | null;
+  } | null;
+}
+
+const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+  running: { bg: "bg-blue-100", text: "text-blue-700", label: "Đang chạy" },
+  available: { bg: "bg-green-100", text: "text-green-700", label: "Chờ việc" },
+  resting: { bg: "bg-orange-100", text: "text-orange-700", label: "Đang nghỉ" },
+  offline: { bg: "bg-slate-100", text: "text-slate-600", label: "Offline" },
+};
+
+const vehicleTypeLabels: Record<string, string> = {
+  car: "4 chỗ",
+  suv: "7 chỗ",
+  bus: "16 chỗ",
+};
+
+export default function DriverList() {
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    fetchDrivers();
+  }, [statusFilter, vehicleTypeFilter]);
+
+  const fetchDrivers = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (vehicleTypeFilter !== "all") params.set("vehicleType", vehicleTypeFilter);
+
+      const res = await fetch(`/api/drivers?${params}`);
+      const data = await res.json();
+      if (data.data) {
+        setDrivers(data.data);
+      }
+    } catch (error) {
+      console.error("Fetch drivers error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredDrivers = drivers.filter((driver) =>
+    driver.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    driver.phone?.includes(searchTerm) ||
+    driver.vehicle?.licensePlate?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const getVehicleInfo = (driver: Driver) => {
+    if (!driver.vehicle) return "Chưa có xe";
+    const { brand, model, year, seats, licensePlate } = driver.vehicle;
+    const carInfo = [brand, model, year].filter(Boolean).join(" ");
+    return `${carInfo} • ${licensePlate}`;
+  };
+
+  return (
+    <div>
+      {/* Header Actions */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm tài xế, SĐT, biển số..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+            className="lg:hidden"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Lọc
+          </Button>
+          <Link href="/dashboard/drivers/add">
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Thêm tài xế</span>
+              <span className="sm:hidden">Thêm</span>
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Filters - Desktop */}
+      <div className="hidden lg:flex gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1">Trạng thái</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
+          >
+            <option value="all">Tất cả</option>
+            <option value="running">Đang chạy</option>
+            <option value="available">Chờ việc</option>
+            <option value="resting">Đang nghỉ</option>
+            <option value="offline">Offline</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1">Loại xe</label>
+          <select
+            value={vehicleTypeFilter}
+            onChange={(e) => setVehicleTypeFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
+          >
+            <option value="all">Tất cả</option>
+            <option value="car">4 chỗ</option>
+            <option value="suv">7 chỗ</option>
+            <option value="bus">16 chỗ</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Filters - Mobile */}
+      {showFilters && (
+        <div className="lg:hidden mb-4 p-4 bg-white rounded-lg border border-slate-200 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Trạng thái</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
+            >
+              <option value="all">Tất cả</option>
+              <option value="running">Đang chạy</option>
+              <option value="available">Chờ việc</option>
+              <option value="resting">Đang nghỉ</option>
+              <option value="offline">Offline</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Loại xe</label>
+            <select
+              value={vehicleTypeFilter}
+              onChange={(e) => setVehicleTypeFilter(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
+            >
+              <option value="all">Tất cả</option>
+              <option value="car">4 chỗ</option>
+              <option value="suv">7 chỗ</option>
+              <option value="bus">16 chỗ</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Table */}
+      <div className="hidden lg:block bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Tài xế</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Trạng thái</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Phương tiện</th>
+              <th className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Đánh giá</th>
+              <th className="text-right px-4 py-3 text-sm font-semibold text-slate-600">Doanh thu tháng</th>
+              <th className="text-center px-4 py-3 text-sm font-semibold text-slate-600">Liên hệ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  Đang tải...
+                </td>
+              </tr>
+            ) : filteredDrivers.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  Chưa có tài xế nào
+                </td>
+              </tr>
+            ) : (
+              filteredDrivers.map((driver) => (
+                <tr key={driver.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold">
+                        {driver.fullName?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-medium text-slate-800">{driver.fullName}</div>
+                        <div className="text-sm text-slate-500">{driver.phone || "Chưa có SĐT"}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                        statusColors[driver.status]?.bg || statusColors.offline.bg
+                      } ${statusColors[driver.status]?.text || statusColors.offline.text}`}
+                    >
+                      {statusColors[driver.status]?.label || "Offline"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-4 h-4 text-slate-400" />
+                      <div>
+                        <div className="text-sm text-slate-800">
+                          {vehicleTypeLabels[driver.vehicle?.vehicleType || "car"]} • {driver.vehicle?.seats || 4} chỗ
+                        </div>
+                        <div className="text-xs text-slate-500">{getVehicleInfo(driver)}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                      <span className="font-medium">{driver.rating.toFixed(1)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="font-medium text-slate-800">{formatCurrency(driver.totalRevenue)}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2">
+                      {driver.phone && (
+                        <>
+                          <a
+                            href={`tel:${driver.phone}`}
+                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </a>
+                          <a
+                            href={`https://zalo.me/${driver.phone}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Cards */}
+      <div className="lg:hidden space-y-3">
+        {loading ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+            Đang tải...
+          </div>
+        ) : filteredDrivers.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+            Chưa có tài xế nào
+          </div>
+        ) : (
+          filteredDrivers.map((driver) => (
+            <div
+              key={driver.id}
+              className="bg-white rounded-xl border border-slate-200 p-4 space-y-3"
+            >
+              {/* Driver Info & Status */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold text-lg">
+                    {driver.fullName?.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-800">{driver.fullName}</div>
+                    <div className="text-sm text-slate-500">{driver.phone || "Chưa có SĐT"}</div>
+                  </div>
+                </div>
+                <span
+                  className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                    statusColors[driver.status]?.bg || statusColors.offline.bg
+                  } ${statusColors[driver.status]?.text || statusColors.offline.text}`}
+                >
+                  {statusColors[driver.status]?.label || "Offline"}
+                </span>
+              </div>
+
+              {/* Vehicle Info */}
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Car className="w-4 h-4" />
+                <span>
+                  {vehicleTypeLabels[driver.vehicle?.vehicleType || "car"]} • {driver.vehicle?.seats || 4} chỗ
+                </span>
+                <span className="text-slate-400">•</span>
+                <span className="font-medium">{driver.vehicle?.licensePlate || "Chưa có xe"}</span>
+              </div>
+
+              {/* Stats */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-1">
+                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                  <span className="font-medium">{driver.rating.toFixed(1)}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Doanh thu tháng</div>
+                  <div className="font-semibold text-slate-800">{formatCurrency(driver.totalRevenue)}</div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              {driver.phone && (
+                <div className="flex gap-2 pt-2">
+                  <a
+                    href={`tel:${driver.phone}`}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Gọi ngay
+                  </a>
+                  <a
+                    href={`https://zalo.me/${driver.phone}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Zalo
+                  </a>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
