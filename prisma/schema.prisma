@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  fullName     String?   @map("full_name") @db.VarChar(255)
+  role         String    @default("user") @db.VarChar(50)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  vehicles     Vehicle[]
+  trips        Trip[]
+  bookings     Booking[]
+
+  @@index([email], name: "idx_users_email")
+  @@map("users")
+}
+
+model Vehicle {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar(255)
+  licensePlate String   @unique @db.VarChar(50)
+  vehicleType String    @default("car") @map("vehicle_type") @db.VarChar(50)
+  capacity    Int       @default(4)
+  color       String?   @db.VarChar(50)
+  brand       String?   @db.VarChar(100)
+  model       String?   @db.VarChar(100)
+  year        Int?
+  isActive    Boolean   @default(true) @map("is_active")
+  ownerId     Int       @map("owner_id")
+  owner       User      @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  trips       Trip[]
+
+  @@index([ownerId], name: "idx_vehicles_owner")
+  @@index([licensePlate], name: "idx_vehicles_plate")
+  @@map("vehicles")
+}
+
+model Trip {
+  id            Int       @id @default(autoincrement())
+  title         String    @db.VarChar(255)
+  description   String?  @db.Text
+  departure     String    @map("departure") @db.VarChar(255)
+  destination   String    @map("destination") @db.VarChar(255)
+  departureTime DateTime  @map("departure_time") @db.Timestamptz
+  arrivalTime   DateTime? @map("arrival_time") @db.Timestamptz
+  price         Decimal   @db.Decimal(10, 2)
+  availableSeats Int     @default(0) @map("available_seats")
+  totalSeats    Int       @default(4) @map("total_seats")
+  status        String    @default("scheduled") @db.VarChar(50)
+  vehicleId     Int       @map("vehicle_id")
+  vehicle       Vehicle   @relation(fields: [vehicleId], references: [id])
+  driverId      Int       @map("driver_id")
+  driver        User      @relation(fields: [driverId], references: [id])
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  bookings      Booking[]
+
+  @@index([driverId], name: "idx_trips_driver")
+  @@index([vehicleId], name: "idx_trips_vehicle")
+  @@index([departureTime], name: "idx_trips_departure_time")
+  @@index([status], name: "idx_trips_status")
+  @@map("trips")
+}
+
+model Booking {
+  id          Int       @id @default(autoincrement())
+  tripId      Int       @map("trip_id")
+  trip        Trip      @relation(fields: [tripId], references: [id])
+  passengerId Int       @map("passenger_id")
+  passenger   User      @relation(fields: [passengerId], references: [id])
+  seats       Int       @default(1)
+  status      String    @default("pending") @db.VarChar(50)
+  totalPrice  Decimal   @map("total_price") @db.Decimal(10, 2)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([tripId, passengerId], name: "idx_booking_trip_passenger")
+  @@index([passengerId], name: "idx_bookings_passenger")
+  @@index([tripId], name: "idx_bookings_trip")
+  @@map("bookings")
+}
