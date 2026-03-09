@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { 
-  Calendar, Download, Car, Users, DollarSign,
+  Search, Calendar, Download, Car, Users, DollarSign,
   ChevronDown, Filter, RefreshCw
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -46,7 +46,7 @@ interface Vehicle {
   vehicleType: string;
 }
 
-export default function ReportsPage() {
+export default function AnalyticsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -97,9 +97,7 @@ export default function ReportsPage() {
   const stats = useMemo(() => {
     const totalRevenue = trips.reduce((sum, t) => sum + (t.price || 0), 0);
     const totalTrips = trips.length;
-    const uniqueCustomers = new Set(
-      trips.flatMap(t => (t.customers || []).map(c => c.customer?.id)).filter(Boolean)
-    ).size;
+    const uniqueCustomers = new Set(trips.flatMap(t => t.customers.map(c => c.customer.id))).size;
     return { totalRevenue, totalTrips, uniqueCustomers };
   }, [trips]);
 
@@ -116,27 +114,28 @@ export default function ReportsPage() {
       "Loại xe": trip.vehicle?.vehicleType || "-",
       "Giá tiền": trip.price || 0,
       "Trạng thái": trip.status === "completed" ? "Hoàn thành" : trip.status === "in_progress" ? "Đang chạy" : trip.status === "scheduled" ? "Chờ" : "Hủy",
-      "Khách hàng": trip.customers?.[0]?.customer?.name || "-",
-      "SĐT khách": trip.customers?.[0]?.customer?.phone || "-",
+      "Khách hàng": trip.customers[0]?.customer.name || "-",
+      "SĐT khách": trip.customers[0]?.customer.phone || "-",
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Bao cao");
     
+    // Set column widths
     ws["!cols"] = [
-      { wch: 8 },
-      { wch: 12 },
-      { wch: 8 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 20 },
-      { wch: 12 },
+      { wch: 8 },  // Mã cuốc
+      { wch: 12 }, // Ngày đón
+      { wch: 8 },  //ón
+      { Giờ đ wch: 20 }, // Điểm đi
+      { wch: 20 }, // Điểm đến
+      { wch: 15 }, // Tài xế
+      { wch: 25 }, // Xe
+      { wch: 10 }, // Loại xe
+      { wch: 12 }, // Giá tiền
+      { wch: 12 }, // Trạng thái
+      { wch: 20 }, // Khách hàng
+      { wch: 12 }, // SĐT khách
     ];
 
     const fileName = `bao-cao-${startDate || "all"}-${endDate || "all"}.xlsx`;
@@ -388,7 +387,7 @@ export default function ReportsPage() {
                           {getStatusBadge(trip.status)}
                         </td>
                         <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">
-                          {trip.customers?.[0]?.customer?.name || <span className="text-slate-400">-</span>}
+                          {trip.customers[0]?.customer.name || <span className="text-slate-400">-</span>}
                         </td>
                       </tr>
                     ))
