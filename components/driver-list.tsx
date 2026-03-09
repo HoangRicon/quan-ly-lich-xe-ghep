@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Plus, Phone, MessageCircle, Star, Car, Filter } from "lucide-react";
+import { 
+  Search, Plus, Phone, MessageCircle, Star, Car, Filter,
+  Edit2, Trash2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Driver {
@@ -45,6 +48,10 @@ export default function DriverList() {
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Delete modal state
+  const [deletingDriver, setDeletingDriver] = useState<Driver | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchDrivers();
@@ -88,6 +95,33 @@ export default function DriverList() {
     const { brand, model, year, seats, licensePlate } = driver.vehicle;
     const carInfo = [brand, model, year].filter(Boolean).join(" ");
     return `${carInfo} • ${licensePlate}`;
+  };
+
+  const openEditModal = (driver: Driver) => {
+    // Navigate to edit page instead of opening modal
+    window.location.href = `/dashboard/drivers/${driver.id}/edit`;
+  };
+
+  const handleDelete = async () => {
+    if (!deletingDriver) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/drivers/${deletingDriver.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDeletingDriver(null);
+        fetchDrivers();
+      } else {
+        alert(data.error || "Lỗi khi xóa");
+      }
+    } catch (error) {
+      console.error("Delete driver error:", error);
+      alert("Lỗi khi xóa");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -198,18 +232,19 @@ export default function DriverList() {
               <th className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Đánh giá</th>
               <th className="text-right px-4 py-3 text-sm font-semibold text-slate-600">Doanh thu tháng</th>
               <th className="text-center px-4 py-3 text-sm font-semibold text-slate-600">Liên hệ</th>
+              <th className="text-center px-4 py-3 text-sm font-semibold text-slate-600">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   Đang tải...
                 </td>
               </tr>
             ) : filteredDrivers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   Chưa có tài xế nào
                 </td>
               </tr>
@@ -278,6 +313,24 @@ export default function DriverList() {
                       )}
                     </div>
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => openEditModal(driver)}
+                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-600"
+                        title="Sửa"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingDriver(driver)}
+                        className="p-2 rounded-lg hover:bg-red-50 text-red-500"
+                        title="Xóa"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -344,30 +397,87 @@ export default function DriverList() {
               </div>
 
               {/* Action Buttons */}
-              {driver.phone && (
-                <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2">
+                {driver.phone && (
                   <a
                     href={`tel:${driver.phone}`}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"
                   >
                     <Phone className="w-4 h-4" />
-                    Gọi ngay
+                    Gọi
                   </a>
-                  <a
-                    href={`https://zalo.me/${driver.phone}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Zalo
-                  </a>
-                </div>
-              )}
+                )}
+                <a
+                  href={`https://zalo.me/${driver.phone}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Zalo
+                </a>
+              </div>
+
+              {/* Edit/Delete Buttons */}
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => openEditModal(driver)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Sửa thông tin
+                </button>
+                <button
+                  onClick={() => setDeletingDriver(driver)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-500 font-medium"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Xóa
+                </button>
+              </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deletingDriver && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className="text-xl font-semibold text-slate-800 mb-2">Xóa tài xế</h2>
+              <p className="text-slate-600">
+                Bạn có chắc chắn muốn xóa tài xế <strong>{deletingDriver.fullName}</strong> không?
+              </p>
+              {deletingDriver.vehicle && (
+                <p className="text-sm text-slate-500 mt-2">
+                  Xe {deletingDriver.vehicle.licensePlate} cũng sẽ bị xóa.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <Button
+                variant="outline"
+                onClick={() => setDeletingDriver(null)}
+                disabled={deleting}
+                className="flex-1"
+              >
+                Hủy
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+              >
+                {deleting ? "Đang xóa..." : "Xóa"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
