@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
   Search, Plus, Phone, MessageCircle, Star, Car, Filter,
-  Edit2, Trash2
+  Edit2, Trash2, Download, FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -48,6 +48,8 @@ export default function DriverList() {
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   
   // Delete modal state
   const [deletingDriver, setDeletingDriver] = useState<Driver | null>(null);
@@ -56,6 +58,16 @@ export default function DriverList() {
   useEffect(() => {
     fetchDrivers();
   }, [statusFilter, vehicleTypeFilter]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const fetchDrivers = async () => {
     setLoading(true);
@@ -98,7 +110,6 @@ export default function DriverList() {
   };
 
   const openEditModal = (driver: Driver) => {
-    // Navigate to edit page instead of opening modal
     window.location.href = `/dashboard/drivers/${driver.id}/edit`;
   };
 
@@ -124,6 +135,74 @@ export default function DriverList() {
     }
   };
 
+  const exportToCSV = () => {
+    const headers = ["STT", "Họ tên", "Số điện thoại", "Trạng thái", "Loại xe", "Biển số", "Số chỗ", "Đánh giá", "Doanh thu tháng"];
+    const rows = filteredDrivers.map((d, index) => [
+      index + 1,
+      d.fullName,
+      d.phone || "",
+      statusColors[d.status]?.label || "Offline",
+      d.vehicle ? vehicleTypeLabels[d.vehicle.vehicleType] || d.vehicle.vehicleType : "-",
+      d.vehicle?.licensePlate || "-",
+      d.vehicle?.seats || "-",
+      d.rating.toFixed(1),
+      d.totalRevenue,
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(","))
+      .join("\n");
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `tai-xe-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    setShowExportMenu(false);
+  };
+
+  const exportToExcel = () => {
+    const headers = ["STT", "Họ tên", "Số điện thoại", "Trạng thái", "Loại xe", "Biển số", "Số chỗ", "Đánh giá", "Doanh thu tháng"];
+    const rows = filteredDrivers.map((d, index) => [
+      index + 1,
+      d.fullName,
+      d.phone || "",
+      statusColors[d.status]?.label || "Offline",
+      d.vehicle ? vehicleTypeLabels[d.vehicle.vehicleType] || d.vehicle.vehicleType : "-",
+      d.vehicle?.licensePlate || "-",
+      d.vehicle?.seats || "-",
+      d.rating.toFixed(1),
+      d.totalRevenue,
+    ]);
+
+    let xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>';
+    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+    xml += '<Worksheet ss:Name="Tài xế"><Table>';
+    
+    headers.forEach(h => {
+      xml += `<Cell><Data ss:Type="String">${h}</Data></Cell>`;
+    });
+    
+    rows.forEach(row => {
+      xml += "<Row>";
+      row.forEach(cell => {
+        const isNumber = typeof cell === "number";
+        xml += `<Cell><Data ss:Type="${isNumber ? "Number" : "String"}">${cell}</Data></Cell>`;
+      });
+      xml += "</Row>";
+    });
+    
+    xml += '</Table></Worksheet></Workbook>';
+
+    const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `tai-xe-${new Date().toISOString().split("T")[0]}.xls`;
+    link.click();
+    setShowExportMenu(false);
+  };
+
   return (
     <div>
       {/* Header Actions */}
@@ -139,14 +218,34 @@ export default function DriverList() {
           />
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters(!showFilters)}
-            className="lg:hidden"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Lọc
-          </Button>
+          {/* Export Button */}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Xuất</span>
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
+                <button
+                  onClick={exportToCSV}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4 text-green-600" />
+                  Xuất CSV
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4 text-amber-600" />
+                  Xuất Excel
+                </button>
+              </div>
+            )}
+          </div>
           <Link href="/dashboard/drivers/add">
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
@@ -157,69 +256,103 @@ export default function DriverList() {
         </div>
       </div>
 
-      {/* Filters - Desktop */}
-      <div className="hidden lg:flex gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Trạng thái</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
-          >
-            <option value="all">Tất cả</option>
-            <option value="running">Đang chạy</option>
-            <option value="available">Chờ việc</option>
-            <option value="resting">Đang nghỉ</option>
-            <option value="offline">Offline</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Loại xe</label>
-          <select
-            value={vehicleTypeFilter}
-            onChange={(e) => setVehicleTypeFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
-          >
-            <option value="all">Tất cả</option>
-            <option value="car">4 chỗ</option>
-            <option value="suv">7 chỗ</option>
-            <option value="bus">16 chỗ</option>
-          </select>
-        </div>
+      {/* Filter Tabs - Status */}
+      <div className="flex gap-2 overflow-x-auto pb-3 mb-4 -mx-4 px-4">
+        <button
+          onClick={() => setStatusFilter("all")}
+          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+            statusFilter === "all" 
+              ? "bg-blue-600 text-white" 
+              : "bg-white text-slate-600 border border-slate-200"
+          }`}
+        >
+          Tất cả ({drivers.length})
+        </button>
+        <button
+          onClick={() => setStatusFilter("running")}
+          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+            statusFilter === "running" 
+              ? "bg-blue-600 text-white" 
+              : "bg-white text-slate-600 border border-slate-200"
+          }`}
+        >
+          Đang chạy ({drivers.filter(d => d.status === "running").length})
+        </button>
+        <button
+          onClick={() => setStatusFilter("available")}
+          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+            statusFilter === "available" 
+              ? "bg-green-600 text-white" 
+              : "bg-white text-slate-600 border border-slate-200"
+          }`}
+        >
+          Chờ việc ({drivers.filter(d => d.status === "available").length})
+        </button>
+        <button
+          onClick={() => setStatusFilter("resting")}
+          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+            statusFilter === "resting" 
+              ? "bg-orange-500 text-white" 
+              : "bg-white text-slate-600 border border-slate-200"
+          }`}
+        >
+          Nghỉ ({drivers.filter(d => d.status === "resting").length})
+        </button>
+        <button
+          onClick={() => setStatusFilter("offline")}
+          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+            statusFilter === "offline" 
+              ? "bg-slate-600 text-white" 
+              : "bg-white text-slate-600 border border-slate-200"
+          }`}
+        >
+          Offline ({drivers.filter(d => d.status === "offline").length})
+        </button>
       </div>
 
-      {/* Filters - Mobile */}
-      {showFilters && (
-        <div className="lg:hidden mb-4 p-4 bg-white rounded-lg border border-slate-200 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Trạng thái</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
-            >
-              <option value="all">Tất cả</option>
-              <option value="running">Đang chạy</option>
-              <option value="available">Chờ việc</option>
-              <option value="resting">Đang nghỉ</option>
-              <option value="offline">Offline</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Loại xe</label>
-            <select
-              value={vehicleTypeFilter}
-              onChange={(e) => setVehicleTypeFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
-            >
-              <option value="all">Tất cả</option>
-              <option value="car">4 chỗ</option>
-              <option value="suv">7 chỗ</option>
-              <option value="bus">16 chỗ</option>
-            </select>
-          </div>
-        </div>
-      )}
+      {/* Vehicle Type Filter - Horizontal */}
+      <div className="flex gap-2 overflow-x-auto pb-4 mb-4 -mx-4 px-4">
+        <button
+          onClick={() => setVehicleTypeFilter("all")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+            vehicleTypeFilter === "all" 
+              ? "bg-slate-800 text-white" 
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          Tất cả xe
+        </button>
+        <button
+          onClick={() => setVehicleTypeFilter("car")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+            vehicleTypeFilter === "car" 
+              ? "bg-slate-800 text-white" 
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          4 chỗ
+        </button>
+        <button
+          onClick={() => setVehicleTypeFilter("suv")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+            vehicleTypeFilter === "suv" 
+              ? "bg-slate-800 text-white" 
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          7 chỗ
+        </button>
+        <button
+          onClick={() => setVehicleTypeFilter("bus")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${
+            vehicleTypeFilter === "bus" 
+              ? "bg-slate-800 text-white" 
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          16 chỗ
+        </button>
+      </div>
 
       {/* Desktop Table */}
       <div className="hidden lg:block bg-white rounded-xl border border-slate-200 overflow-hidden">

@@ -1,6 +1,20 @@
 import Link from "next/link";
 import { ArrowLeft, Plus } from "lucide-react";
+import { Suspense } from "react";
 import TripForm from "@/components/trip-form";
+
+function TripFormLoader() {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-6 animate-pulse">
+      <div className="h-8 bg-slate-200 rounded w-1/3 mb-6"></div>
+      <div className="space-y-4">
+        <div className="h-12 bg-slate-200 rounded"></div>
+        <div className="h-12 bg-slate-200 rounded"></div>
+        <div className="h-12 bg-slate-200 rounded"></div>
+      </div>
+    </div>
+  );
+}
 
 export default function AddTripPage() {
   return (
@@ -35,7 +49,9 @@ export default function AddTripPage() {
       {/* Form Content */}
       <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-6">
         <div className="max-w-2xl mx-auto">
-          <TripForm />
+          <Suspense fallback={<TripFormLoader />}>
+            <TripForm />
+          </Suspense>
         </div>
       </div>
     </div>

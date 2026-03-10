@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const routeMap = new Map();
+    const routeMap = new Map<number, Record<string, number>>();
     tripCustomerRoutes.forEach((tc) => {
       const route = `${tc.trip.departure} - ${tc.trip.destination}`;
       const current = routeMap.get(tc.customerId) || {};
@@ -75,7 +75,8 @@ export async function GET(request: NextRequest) {
     const customersWithStats = customers.map((customer) => {
       const stats = tripStatsMap.get(customer.id) || { tripCount: 0, totalSeats: 0 };
       const routes = routeMap.get(customer.id) || {};
-      const favoriteRoute = Object.entries(routes).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+      const entries = Object.entries(routes) as [string, number][];
+      const favoriteRoute = entries.length > 0 ? entries.sort((a, b) => b[1] - a[1])[0]?.[0] || null : null;
 
       let badge = "new";
       if (customer.totalTrips > 20) badge = "vip";

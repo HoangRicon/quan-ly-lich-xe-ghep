@@ -6,6 +6,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const date = searchParams.get("date");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const driverId = searchParams.get("driverId");
+    const vehicleType = searchParams.get("vehicleType");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "50");
 
@@ -13,6 +17,16 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== "all") {
       where.status = status;
+    }
+
+    if (driverId) {
+      where.driverId = parseInt(driverId);
+    }
+
+    if (vehicleType) {
+      where.vehicle = {
+        vehicleType: vehicleType,
+      };
     }
 
     if (date) {
@@ -23,6 +37,27 @@ export async function GET(request: NextRequest) {
       where.departureTime = {
         gte: startOfDay,
         lte: endOfDay,
+      };
+    } else if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.departureTime = {
+        gte: start,
+        lte: end,
+      };
+    } else if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      where.departureTime = {
+        gte: start,
+      };
+    } else if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.departureTime = {
+        lte: end,
       };
     }
 
@@ -64,7 +99,6 @@ export async function GET(request: NextRequest) {
     ]);
 
     const formattedTrips = trips.map((trip) => {
-      const mainCustomer = trip.customers[0]?.customer;
       return {
         id: trip.id,
         title: trip.title,
@@ -88,11 +122,20 @@ export async function GET(request: NextRequest) {
           fullName: trip.driver.fullName,
           phone: trip.driver.phone,
         } : null,
-        customer: mainCustomer ? {
-          id: mainCustomer.id,
-          name: mainCustomer.name,
-          phone: mainCustomer.phone,
+        customer: trip.customers[0]?.customer ? {
+          id: trip.customers[0].customer.id,
+          name: trip.customers[0].customer.name,
+          phone: trip.customers[0].customer.phone,
         } : null,
+        customers: trip.customers.map(c => ({
+          customer: c.customer ? {
+            id: c.customer.id,
+            name: c.customer.name,
+            phone: c.customer.phone,
+          } : null,
+          seats: c.seats,
+          status: c.status,
+        })),
         passengerCount: trip.customers.reduce((sum, c) => sum + c.seats, 0),
       };
     });

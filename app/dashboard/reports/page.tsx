@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { 
   Calendar, Download, Car, Users, DollarSign,
-  ChevronDown, Filter, RefreshCw
+  ChevronDown, Filter, RefreshCw, TrendingUp, TrendingDown,
+  Phone, MessageCircle
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
@@ -46,17 +47,47 @@ interface Vehicle {
   vehicleType: string;
 }
 
+type DateFilter = "all" | "today" | "week" | "month" | "custom";
+
 export default function ReportsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedDriver, setSelectedDriver] = useState("");
   const [selectedVehicleType, setSelectedVehicleType] = useState("");
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+
+  // Quick filter buttons
+  const handleQuickFilter = (filter: DateFilter) => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    
+    if (filter === "today") {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (filter === "week") {
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      setStartDate(weekStart.toISOString().split("T")[0]);
+      setEndDate(todayStr);
+    } else if (filter === "month") {
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      setStartDate(monthStart.toISOString().split("T")[0]);
+      setEndDate(todayStr);
+    } else if (filter === "all") {
+      setStartDate("");
+      setEndDate("");
+    }
+    
+    setDateFilter(filter);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -67,19 +98,22 @@ export default function ReportsPage() {
       if (selectedDriver) params.set("driverId", selectedDriver);
       if (selectedVehicleType) params.set("vehicleType", selectedVehicleType);
 
-      const [tripsRes, driversRes, vehiclesRes] = await Promise.all([
+      const [tripsRes, allTripsRes, driversRes, vehiclesRes] = await Promise.all([
         fetch(`/api/trips?${params}&limit=500`),
+        fetch("/api/trips?limit=1000"),
         fetch("/api/drivers"),
         fetch("/api/vehicles"),
       ]);
 
-      const [tripsData, driversData, vehiclesData] = await Promise.all([
+      const [tripsData, allTripsData, driversData, vehiclesData] = await Promise.all([
         tripsRes.json(),
+        allTripsRes.json(),
         driversRes.json(),
         vehiclesRes.json(),
       ]);
 
       if (tripsData.success) setTrips(tripsData.data);
+      if (allTripsData.success) setAllTrips(allTripsData.data);
       if (driversData.success) setDrivers(driversData.data);
       if (vehiclesData.success) setVehicles(vehiclesData.data);
     } catch (error) {
@@ -93,15 +127,52 @@ export default function ReportsPage() {
     fetchData();
   }, [startDate, endDate, selectedDriver, selectedVehicleType]);
 
-  // Computed stats
+  // Computed stats for filtered data
   const stats = useMemo(() => {
-    const totalRevenue = trips.reduce((sum, t) => sum + (t.price || 0), 0);
+    const completedTrips = trips.filter(t => t.status === "completed");
+    const totalRevenue = completedTrips.reduce((sum, t) => {
+      const price = Number(t.price) || 0;
+      return sum + (price > 0 && price < 100000000 ? price : 0);
+    }, 0);
     const totalTrips = trips.length;
     const uniqueCustomers = new Set(
       trips.flatMap(t => (t.customers || []).map(c => c.customer?.id)).filter(Boolean)
     ).size;
-    return { totalRevenue, totalTrips, uniqueCustomers };
-  }, [trips]);
+    const avgTripValue = completedTrips.length > 0 ? totalRevenue / completedTrips.length : 0;
+    
+    // Calculate previous period for comparison
+    let prevPeriodRevenue = 0;
+    let prevPeriodTrips = 0;
+    
+    if (startDate && endDate) {
+      const daysDiff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+      const prevStart = new Date(startDate);
+      prevStart.setDate(prevStart.getDate() - daysDiff - 1);
+      const prevEnd = new Date(startDate);
+      prevEnd.setDate(prevEnd.getDate() - 1);
+      
+      const prevTrips = allTrips.filter(t => {
+        const tripDate = new Date(t.departureTime);
+        return tripDate >= prevStart && tripDate <= prevEnd;
+      });
+      
+      prevPeriodRevenue = prevTrips.filter(t => t.status === "completed").reduce((sum, t) => sum + (t.price || 0), 0);
+      prevPeriodTrips = prevTrips.length;
+    }
+    
+    const revenueChange = prevPeriodRevenue > 0 ? ((totalRevenue - prevPeriodRevenue) / prevPeriodRevenue) * 100 : 0;
+    const tripsChange = prevPeriodTrips > 0 ? ((totalTrips - prevPeriodTrips) / prevPeriodTrips) * 100 : 0;
+
+    return { 
+      totalRevenue, 
+      totalTrips, 
+      uniqueCustomers,
+      avgTripValue,
+      completedTrips: completedTrips.length,
+      revenueChange,
+      tripsChange
+    };
+  }, [trips, allTrips, startDate, endDate]);
 
   // Export to Excel
   const handleExport = () => {
@@ -188,13 +259,77 @@ export default function ReportsPage() {
       <Sidebar>
         <Header />
         <div className="p-4 lg:p-6 pb-24 lg:pb-6 space-y-4">
-          <h1 className="text-2xl font-bold text-slate-800 mb-2">Báo cáo & Thống kê</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-slate-800">Báo cáo & Thống kê</h1>
+            <button
+              onClick={handleExport}
+              disabled={trips.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Xuất</span>
+            </button>
+          </div>
+
+          {/* Quick Date Filter Buttons */}
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+            <button
+              onClick={() => handleQuickFilter("today")}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                dateFilter === "today" 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              Hôm nay
+            </button>
+            <button
+              onClick={() => handleQuickFilter("week")}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                dateFilter === "week" 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              Tuần này
+            </button>
+            <button
+              onClick={() => handleQuickFilter("month")}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                dateFilter === "month" 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              Tháng này
+            </button>
+            <button
+              onClick={() => handleQuickFilter("all")}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                dateFilter === "all" 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              Tất cả
+            </button>
+            <button
+              onClick={() => handleQuickFilter("custom")}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                dateFilter === "custom" 
+                  ? "bg-blue-600 text-white" 
+                  : "bg-white text-slate-600 border border-slate-200"
+              }`}
+            >
+              Tùy chọn
+            </button>
+          </div>
 
           {/* Filter Bar */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <Filter className="w-4 h-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">Bộ lọc</span>
+              <span className="text-sm font-medium text-slate-700">Bộ lọc chi tiết</span>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -206,7 +341,7 @@ export default function ReportsPage() {
                   <input
                     type="date"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => { setStartDate(e.target.value); setDateFilter("custom"); }}
                     className="w-full pl-10 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   />
                 </div>
@@ -219,7 +354,7 @@ export default function ReportsPage() {
                   <input
                     type="date"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => { setEndDate(e.target.value); setDateFilter("custom"); }}
                     className="w-full pl-10 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   />
                 </div>
@@ -273,6 +408,7 @@ export default function ReportsPage() {
                   setEndDate("");
                   setSelectedDriver("");
                   setSelectedVehicleType("");
+                  setDateFilter("all");
                 }}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
               >
@@ -282,55 +418,69 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Revenue */}
             <div className="bg-white rounded-xl p-4 border border-slate-200">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4 text-green-600" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-green-600" />
                 </div>
-                <span className="text-xs text-slate-500">Tổng doanh thu</span>
+                {stats.revenueChange !== 0 && (
+                  <div className={`flex items-center gap-1 text-xs ${stats.revenueChange >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {stats.revenueChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {Math.abs(stats.revenueChange).toFixed(0)}%
+                  </div>
+                )}
               </div>
-              <p className="text-lg font-bold text-slate-800">{formatCurrency(stats.totalRevenue)}</p>
+              <p className="text-xs text-slate-500">Doanh thu</p>
+              <p className="text-xl font-bold text-slate-800">{formatCurrency(stats.totalRevenue)}</p>
             </div>
 
+            {/* Trips */}
             <div className="bg-white rounded-xl p-4 border border-slate-200">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Car className="w-4 h-4 text-blue-600" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Car className="w-5 h-5 text-blue-600" />
                 </div>
-                <span className="text-xs text-slate-500">Tổng cuốc</span>
+                {stats.tripsChange !== 0 && (
+                  <div className={`flex items-center gap-1 text-xs ${stats.tripsChange >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {stats.tripsChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {Math.abs(stats.tripsChange).toFixed(0)}%
+                  </div>
+                )}
               </div>
-              <p className="text-lg font-bold text-slate-800">{stats.totalTrips}</p>
+              <p className="text-xs text-slate-500">Tổng cuốc</p>
+              <p className="text-xl font-bold text-slate-800">{stats.totalTrips}</p>
             </div>
 
+            {/* Completed Trips */}
             <div className="bg-white rounded-xl p-4 border border-slate-200">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-purple-600" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <Car className="w-5 h-5 text-emerald-600" />
                 </div>
-                <span className="text-xs text-slate-500">Khách mới</span>
               </div>
-              <p className="text-lg font-bold text-slate-800">{stats.uniqueCustomers}</p>
+              <p className="text-xs text-slate-500">Đã hoàn thành</p>
+              <p className="text-xl font-bold text-slate-800">{stats.completedTrips}</p>
             </div>
-          </div>
 
-          {/* Export Button */}
-          <div className="flex justify-end">
-            <button
-              onClick={handleExport}
-              disabled={trips.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Xuất Excel
-            </button>
+            {/* Customers */}
+            <div className="bg-white rounded-xl p-4 border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">Khách hàng</p>
+              <p className="text-xl font-bold text-slate-800">{stats.uniqueCustomers}</p>
+            </div>
           </div>
 
           {/* Data Table */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
+              <table className="w-full min-w-[900px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Mã</th>
@@ -338,9 +488,9 @@ export default function ReportsPage() {
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Lộ trình</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Tài xế</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Xe</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Khách hàng</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Giá</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Trạng thái</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Khách</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -358,7 +508,11 @@ export default function ReportsPage() {
                     </tr>
                   ) : (
                     trips.map((trip) => (
-                      <tr key={trip.id} className="hover:bg-slate-50">
+                      <tr 
+                        key={trip.id} 
+                        className="hover:bg-slate-50 cursor-pointer"
+                        onClick={() => setSelectedTrip(trip)}
+                      >
                         <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">#{trip.id}</td>
                         <td className="px-3 py-3 text-sm whitespace-nowrap">
                           <div className="text-slate-800">{formatDate(trip.departureTime)}</div>
@@ -381,14 +535,21 @@ export default function ReportsPage() {
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
+                        <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">
+                          {trip.customers?.[0]?.customer ? (
+                            <div>
+                              <div className="font-medium">{trip.customers[0].customer.name}</div>
+                              <div className="text-xs text-slate-400">{trip.customers[0].customer.phone}</div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">
                           {formatCurrency(trip.price || 0)}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           {getStatusBadge(trip.status)}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">
-                          {trip.customers?.[0]?.customer?.name || <span className="text-slate-400">-</span>}
                         </td>
                       </tr>
                     ))
@@ -400,6 +561,119 @@ export default function ReportsPage() {
         </div>
       </Sidebar>
       <BottomNav />
+
+      {/* Trip Detail Modal */}
+      {selectedTrip && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedTrip(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between rounded-t-2xl">
+              <h2 className="font-semibold text-slate-800">Chi tiết chuyến #{selectedTrip.id}</h2>
+              <button
+                onClick={() => setSelectedTrip(null)}
+                className="p-2 -mr-2 text-slate-500 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* Date & Time */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">Thời gian</p>
+                <p className="font-medium text-slate-800">
+                  {formatDate(selectedTrip.departureTime)} - {formatTime(selectedTrip.departureTime)}
+                </p>
+              </div>
+
+              {/* Route */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-2">Lộ trình</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="text-slate-800">{selectedTrip.departure}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <span className="text-slate-800">{selectedTrip.destination}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">Giá tiền</p>
+                <p className="text-xl font-bold text-slate-800">{formatCurrency(selectedTrip.price || 0)}</p>
+              </div>
+
+              {/* Status */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">Trạng thái</p>
+                {getStatusBadge(selectedTrip.status)}
+              </div>
+
+              {/* Driver */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">Tài xế</p>
+                {selectedTrip.driver ? (
+                  <div>
+                    <p className="font-medium text-slate-800">{selectedTrip.driver.fullName}</p>
+                  </div>
+                ) : (
+                  <p className="text-slate-400">Chưa gán</p>
+                )}
+              </div>
+
+              {/* Vehicle */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-1">Phương tiện</p>
+                {selectedTrip.vehicle ? (
+                  <div>
+                    <p className="font-medium text-slate-800">{selectedTrip.vehicle.name}</p>
+                    <p className="text-sm text-slate-500">{selectedTrip.vehicle.licensePlate} • {selectedTrip.vehicle.vehicleType}</p>
+                  </div>
+                ) : (
+                  <p className="text-slate-400">Chưa gán</p>
+                )}
+              </div>
+
+              {/* Customers */}
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-2">Khách hàng ({selectedTrip.customers?.length || 0})</p>
+                {selectedTrip.customers && selectedTrip.customers.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedTrip.customers.map((c, idx) => (
+                      <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-200 last:border-0">
+                        <div>
+                          <p className="font-medium text-slate-800">{c.customer.name}</p>
+                          <p className="text-sm text-slate-500">{c.customer.phone}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <a
+                            href={`tel:${c.customer.phone}`}
+                            className="p-2 rounded-lg bg-blue-600 text-white"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </a>
+                          <a
+                            href={`https://zalo.me/${c.customer.phone}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg bg-blue-50 text-blue-600"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400">Chưa có khách</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

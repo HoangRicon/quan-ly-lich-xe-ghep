@@ -16,26 +16,26 @@ interface Trip {
   notes?: string;
   driver?: {
     id: number;
-    fullName: string;
-    phone: string;
-  };
+    fullName: string | null;
+    phone: string | null;
+  } | null;
   vehicle?: {
     id: number;
     name: string;
     licensePlate: string;
     vehicleType: string;
-  };
+  } | null;
   customer?: {
     id?: number;
-    name: string;
-    phone: string;
-  };
+    name: string | null;
+    phone: string | null;
+  } | null;
 }
 
 interface Driver {
   id: number;
-  fullName: string;
-  phone: string;
+  fullName: string | null;
+  phone: string | null;
 }
 
 interface RecentTripsProps {
@@ -190,10 +190,11 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
     const time = formatTime(trip.departureTime);
     const route = formatRoute(trip.departure, trip.destination);
     
+    const driverPhone = trip.driver?.phone || "";
     const message = `Nhắc nhở: Tài xế ${driverName}, bạn có lịch đón khách ${customerName} lúc ${time}. Vui lòng xác nhận!`;
     
-    const zaloUrl = `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(trip.driver.phone)}`;
-    const webZaloUrl = `https://zalo.me/${trip.driver.phone}?text=${encodeURIComponent(message)}`;
+    const zaloUrl = driverPhone ? `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(driverPhone)}` : "";
+    const webZaloUrl = driverPhone ? `https://zalo.me/${driverPhone}?text=${encodeURIComponent(message)}` : "";
     
     setRemindedDriver(trip.id);
     setTimeout(() => setRemindedDriver(null), 3000);
@@ -212,10 +213,11 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
     const time = formatTime(selectedTrip.departureTime);
     const route = formatRoute(selectedTrip.departure, selectedTrip.destination);
     
+    const driverPhone = selectedTrip.driver?.phone || "";
     const message = `Nhắc nhở: Tài xế ${driverName}, bạn có lịch đón khách ${customerName} lúc ${time}. Vui lòng xác nhận!`;
     
-    const zaloUrl = `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(selectedTrip.driver.phone)}`;
-    const webZaloUrl = `https://zalo.me/${selectedTrip.driver.phone}?text=${encodeURIComponent(message)}`;
+    const zaloUrl = driverPhone ? `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(driverPhone)}` : "";
+    const webZaloUrl = driverPhone ? `https://zalo.me/${driverPhone}?text=${encodeURIComponent(message)}` : "";
     
     setRemindedDriver(selectedTrip.id);
     setTimeout(() => setRemindedDriver(null), 3000);

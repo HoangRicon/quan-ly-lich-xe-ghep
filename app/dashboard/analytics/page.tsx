@@ -124,18 +124,18 @@ export default function AnalyticsPage() {
     
     // Set column widths
     ws["!cols"] = [
-      { wch: 8 },  // Mã cuốc
-      { wch: 12 }, // Ngày đón
-      { wch: 8 },  //ón
-      { Giờ đ wch: 20 }, // Điểm đi
-      { wch: 20 }, // Điểm đến
-      { wch: 15 }, // Tài xế
+      { wch: 8 },  // Ma cuoc
+      { wch: 12 }, // Ngay don
+      { wch: 8 },  // Gio don
+      { wch: 20 }, // Diem di
+      { wch: 20 }, // Diem den
+      { wch: 15 }, // Tai xe
       { wch: 25 }, // Xe
-      { wch: 10 }, // Loại xe
-      { wch: 12 }, // Giá tiền
-      { wch: 12 }, // Trạng thái
-      { wch: 20 }, // Khách hàng
-      { wch: 12 }, // SĐT khách
+      { wch: 10 }, // Loai xe
+      { wch: 12 }, // Gia tien
+      { wch: 12 }, // Trang thai
+      { wch: 20 }, // Khach hang
+      { wch: 12 }, // SDT khach
     ];
 
     const fileName = `bao-cao-${startDate || "all"}-${endDate || "all"}.xlsx`;
