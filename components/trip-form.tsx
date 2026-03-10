@@ -203,7 +203,7 @@ export default function TripForm() {
             departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
             price: formData.price,
             vehicleId: null,
-            totalSeats: formData.totalSeats || undefined,
+            totalSeats: parseInt(formData.totalSeats) || undefined,
             tripType: formData.tripType,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,

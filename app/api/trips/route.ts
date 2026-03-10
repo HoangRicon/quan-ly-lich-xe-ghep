@@ -166,6 +166,8 @@ export async function POST(request: NextRequest) {
       seats
     } = body;
 
+    const parsedTotalSeats = parseInt(totalSeats) || 4;
+
     if (!title || !departure || !destination || !departureTime || !price) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -223,8 +225,8 @@ export async function POST(request: NextRequest) {
         price: parseFloat(price),
         vehicleId: finalVehicleId || null,
         driverId: driverId,
-        totalSeats: totalSeats || 4,
-        availableSeats: tripType === "bao" ? 0 : (totalSeats || 4),
+        totalSeats: parsedTotalSeats,
+        availableSeats: tripType === "bao" ? 0 : parsedTotalSeats,
         status: "scheduled",
         ...(customerId ? {
           customers: {
