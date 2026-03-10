@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, User, MapPin } from "lucide-react";
 
 interface Customer {
@@ -12,12 +12,32 @@ interface Customer {
   totalTrips: number;
 }
 
+interface TripData {
+  id: number;
+  departure: string;
+  destination: string;
+  departureTime: string;
+  price: number;
+  totalSeats: number;
+  status: string;
+  notes?: string;
+  customer?: {
+    name: string;
+    phone: string;
+  };
+}
+
 export default function TripForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("edit");
+  
   const [loading, setLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
+  const [tripData, setTripData] = useState<TripData | null>(null);
   
   const [formData, setFormData] = useState({
     customerPhone: "",
@@ -35,6 +55,40 @@ export default function TripForm() {
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editId) {
+      setIsEditMode(true);
+      fetchTripData(editId);
+    }
+  }, [editId]);
+
+  const fetchTripData = async (id: string) => {
+    try {
+      const res = await fetch(`/api/trips/${id}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        const trip = data.data;
+        const departureDate = new Date(trip.departureTime);
+        setTripData(trip);
+        setFormData({
+          customerPhone: trip.customer?.phone || "",
+          customerName: trip.customer?.name || "",
+          customerEmail: "",
+          customerNotes: trip.notes || "",
+          departure: trip.departure,
+          destination: trip.destination,
+          departureDate: departureDate.toISOString().split("T")[0],
+          departureTime: departureDate.toTimeString().slice(0, 5),
+          price: trip.price?.toString() || "",
+          totalSeats: trip.totalSeats?.toString() || "1",
+          tripType: "ghep",
+        });
+      }
+    } catch (error) {
+      console.error("Fetch trip error:", error);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -118,36 +172,56 @@ export default function TripForm() {
     setLoading(true);
 
     try {
-      // Create trip without vehicle - will assign later in schedule page
-      const res = await fetch("/api/trips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: `${formData.departure} - ${formData.destination}`,
-          departure: formData.departure,
-          destination: formData.destination,
-          departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
-          price: formData.price,
-          vehicleId: null, // Will be assigned later
-          totalSeats: formData.totalSeats || undefined,
-          tripType: formData.tripType,
-          customerPhone: formData.customerPhone || undefined,
-          customerName: formData.customerName || undefined,
-          customerEmail: formData.customerEmail || undefined,
-          customerNotes: formData.customerNotes || undefined,
-          seats: 1,
-        }),
-      });
+      if (isEditMode && editId) {
+        const res = await fetch(`/api/trips/${editId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            departure: formData.departure,
+            destination: formData.destination,
+            departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
+            price: formData.price,
+            customerPhone: formData.customerPhone || undefined,
+            customerName: formData.customerName || undefined,
+          }),
+        });
 
-      const data = await res.json();
-
-      if (data.success) {
-        router.push("/dashboard/schedule");
+        const data = await res.json();
+        if (data.success) {
+          router.push("/dashboard/schedule");
+        } else {
+          alert(data.error || "Có lỗi xảy ra");
+        }
       } else {
-        alert(data.error || "Có lỗi xảy ra");
+        const res = await fetch("/api/trips", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `${formData.departure} - ${formData.destination}`,
+            departure: formData.departure,
+            destination: formData.destination,
+            departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
+            price: formData.price,
+            vehicleId: null,
+            totalSeats: formData.totalSeats || undefined,
+            tripType: formData.tripType,
+            customerPhone: formData.customerPhone || undefined,
+            customerName: formData.customerName || undefined,
+            customerEmail: formData.customerEmail || undefined,
+            customerNotes: formData.customerNotes || undefined,
+            seats: 1,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          router.push("/dashboard/schedule");
+        } else {
+          alert(data.error || "Có lỗi xảy ra");
+        }
       }
     } catch (error) {
-      console.error("Create trip error:", error);
+      console.error("Submit trip error:", error);
       alert("Có lỗi xảy ra");
     } finally {
       setLoading(false);
@@ -156,6 +230,18 @@ export default function TripForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Header */}
+      {isEditMode && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span className="font-medium text-amber-800">Chế độ chỉnh sửa - Cuốc #{editId}</span>
+          </div>
+        </div>
+      )}
+
       {/* Customer Info */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Thông tin khách hàng</h3>
@@ -209,7 +295,7 @@ export default function TripForm() {
             placeholder={formData.customerPhone.length >= 3 ? "Nhập tên khách mới hoặc chọn từ danh sách" : "Nhập số điện thoại trước"}
             className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
             required
-            disabled={formData.customerPhone.length < 3}
+            disabled={formData.customerPhone.length < 3 && !isEditMode}
           />
         </div>
 
@@ -319,36 +405,38 @@ export default function TripForm() {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Loại hình & Thanh toán</h3>
         
-        <div className="flex gap-4">
-          <label className="flex-1 cursor-pointer">
-            <input
-              type="radio"
-              name="tripType"
-              value="ghep"
-              checked={formData.tripType === "ghep"}
-              onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
-              className="peer sr-only"
-            />
-            <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors">
-              <div className="font-medium text-slate-800">Đi ghép</div>
-              <div className="text-sm text-slate-500">Ghép khách trên đường</div>
-            </div>
-          </label>
-          <label className="flex-1 cursor-pointer">
-            <input
-              type="radio"
-              name="tripType"
-              value="bao"
-              checked={formData.tripType === "bao"}
-              onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
-              className="peer sr-only"
-            />
-            <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors">
-              <div className="font-medium text-slate-800">Bao xe</div>
-              <div className="text-sm text-slate-500">Thuê cả xe</div>
-            </div>
-          </label>
-        </div>
+        {!isEditMode && (
+          <div className="flex gap-4">
+            <label className="flex-1 cursor-pointer">
+              <input
+                type="radio"
+                name="tripType"
+                value="ghep"
+                checked={formData.tripType === "ghep"}
+                onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
+                className="peer sr-only"
+              />
+              <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors">
+                <div className="font-medium text-slate-800">Đi ghép</div>
+                <div className="text-sm text-slate-500">Ghép khách trên đường</div>
+              </div>
+            </label>
+            <label className="flex-1 cursor-pointer">
+              <input
+                type="radio"
+                name="tripType"
+                value="bao"
+                checked={formData.tripType === "bao"}
+                onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
+                className="peer sr-only"
+              />
+              <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors">
+                <div className="font-medium text-slate-800">Bao xe</div>
+                <div className="text-sm text-slate-500">Thuê cả xe</div>
+              </div>
+            </label>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -365,9 +453,11 @@ export default function TripForm() {
           />
         </div>
 
-        <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg">
-          Lưu ý: Sau khi tạo chuyến, bạn có thể gán tài xế và xe trong trang Lịch trình
-        </p>
+        {!isEditMode && (
+          <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg">
+            Lưu ý: Sau khi tạo chuyến, bạn có thể gán tài xế và xe trong trang Lịch trình
+          </p>
+        )}
       </div>
 
       {/* Submit Buttons */}
@@ -390,10 +480,10 @@ export default function TripForm() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
-              Đang lưu...
+              {isEditMode ? "Đang lưu..." : "Đang tạo..."}
             </span>
           ) : (
-            "Lưu cuốc xe"
+            isEditMode ? "Lưu thay đổi" : "Lưu cuốc xe"
           )}
         </button>
       </div>

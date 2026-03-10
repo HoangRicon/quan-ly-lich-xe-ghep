@@ -10,21 +10,32 @@ import {
 } from "@/components/dashboard";
 
 async function getDashboardData() {
-  const [trips, drivers] = await Promise.all([
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const [trips, drivers, vehicles] = await Promise.all([
     prisma.trip.findMany({
-      take: 5,
-      orderBy: { departureTime: "desc" },
+      where: {
+        departureTime: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+      take: 20,
+      orderBy: { departureTime: "asc" },
       include: {
         driver: {
           select: { id: true, fullName: true, phone: true },
         },
         vehicle: {
-          select: { id: true, name: true, licensePlate: true },
+          select: { id: true, name: true, licensePlate: true, vehicleType: true },
         },
         customers: {
           include: {
             customer: {
-              select: { name: true, phone: true },
+              select: { id: true, name: true, phone: true },
             },
           },
           take: 1,
@@ -35,11 +46,15 @@ async function getDashboardData() {
       where: { role: "driver" },
       select: { id: true, fullName: true, phone: true },
     }),
+    prisma.vehicle.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, licensePlate: true, vehicleType: true },
+    }),
   ]);
 
   const [waitingCount, runningCount] = await Promise.all([
-    prisma.trip.count({ where: { status: "scheduled" } }),
-    prisma.trip.count({ where: { status: "in_progress" } }),
+    prisma.trip.count({ where: { status: "scheduled", departureTime: { gte: today, lt: tomorrow } } }),
+    prisma.trip.count({ where: { status: "in_progress", departureTime: { gte: today, lt: tomorrow } } }),
   ]);
 
   const driverAvailable = drivers.length;
@@ -50,6 +65,8 @@ async function getDashboardData() {
     destination: trip.destination,
     departureTime: trip.departureTime.toISOString(),
     status: trip.status,
+    price: Number(trip.price),
+    notes: trip.description || "",
     driver: trip.driver,
     vehicle: trip.vehicle,
     customer: trip.customers[0]?.customer,
@@ -58,6 +75,7 @@ async function getDashboardData() {
   return {
     trips: formattedTrips,
     drivers,
+    vehicles,
     stats: {
       waiting: waitingCount,
       running: runningCount,
@@ -73,7 +91,7 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const { trips, drivers, stats } = await getDashboardData();
+  const { trips, drivers, vehicles, stats } = await getDashboardData();
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -94,6 +112,7 @@ export default async function DashboardPage() {
           <RecentTrips 
             initialTrips={trips}
             drivers={drivers}
+            vehicles={vehicles}
           />
         </div>
       </Sidebar>
