@@ -127,6 +127,7 @@ export default function ScheduleList() {
     customerPhone: "",
     driverId: null as number | null,
     vehicleId: null as number | null,
+    status: "scheduled",
   });
 
   // Reminder state
@@ -425,6 +426,7 @@ export default function ScheduleList() {
       customerPhone: trip.customer?.phone || "",
       driverId: trip.driver?.id || null,
       vehicleId: trip.vehicle?.id || null,
+      status: trip.status || "scheduled",
     });
     // Fetch drivers and vehicles for combobox
     fetchDrivers();
@@ -447,6 +449,7 @@ export default function ScheduleList() {
           customerPhone: editForm.customerPhone,
           driverId: editForm.driverId,
           vehicleId: editForm.vehicleId,
+          status: editForm.status,
         }),
       });
       const data = await res.json();
@@ -546,137 +549,111 @@ export default function ScheduleList() {
         ))}
       </div>
 
-      {/* Mobile DataTable View - Compact horizontal scroll */}
-      <div className="lg:hidden">
+      {/* Mobile DataTable View - Optimized for iPhone - No horizontal scroll */}
+      <div className="lg:hidden -mx-4">
         {loading ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 mx-4">
             Đang tải...
           </div>
         ) : filteredTrips.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 mx-4">
             Chưa có chuyến xe nào
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto -mx-4 px-4">
-            <table className="w-full min-w-[600px]">
-              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
-                <tr>
-                  <th className="text-left px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">Giờ</th>
-                  <th className="text-left px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">Tuyến</th>
-                  <th className="text-left px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">Khách</th>
-                  <th className="text-left px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">Tài xế</th>
-                  <th className="text-left px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">Trạng thái</th>
-                  <th className="text-right px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">Giá</th>
-                  <th className="text-center px-2 py-2 text-xs font-semibold text-slate-600 whitespace-nowrap">@</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTrips.map((trip) => (
-                  <tr 
-                    key={trip.id} 
-                    onClick={() => openEditSheet(trip)}
-                    className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${isOverdue(trip.departureTime, trip.status) ? "bg-red-50" : ""}`}
-                  >
-                    {/* Time */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-sm font-bold text-slate-800">{formatTime(trip.departureTime)}</div>
-                      <div className="text-xs text-slate-400">{formatDate(trip.departureTime)}</div>
-                    </td>
-                    
-                    {/* Route */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-sm text-slate-800 max-w-[100px] truncate">{trip.departure}</div>
-                      <div className="text-xs text-slate-400">→ {trip.destination}</div>
-                    </td>
-                    
+          <div className="space-y-2 px-4">
+            {filteredTrips.map((trip) => (
+              <div
+                key={trip.id}
+                onClick={() => openEditSheet(trip)}
+                className={`bg-white rounded-xl border border-slate-200 p-3 cursor-pointer ${
+                  isOverdue(trip.departureTime, trip.status) ? "border-red-300" : ""
+                }`}
+              >
+                {/* Row 1: Time - Status - Price */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span className="font-bold text-slate-800">{formatTime(trip.departureTime)}</span>
+                    <span className="text-xs text-slate-400">{formatDate(trip.departureTime)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}>
+                      {statusConfig[trip.status]?.label}
+                    </span>
+                    <span className="font-bold text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
+                  </div>
+                </div>
+
+                {/* Row 2: Route */}
+                <div className="flex items-center gap-2 mb-2">
+                  <MapPin className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-slate-800 truncate">{trip.departure}</div>
+                    <div className="text-xs text-slate-400">→ {trip.destination}</div>
+                  </div>
+                </div>
+
+                {/* Row 3: Customer - Driver - Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     {/* Customer */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="text-sm text-slate-800">{trip.customer?.name || "Khách"}</div>
-                      <div className="text-xs text-slate-400">{trip.customer?.phone || ""}</div>
-                    </td>
-                    
+                    <div className="flex items-center gap-1 min-w-0">
+                      <User className="w-3 h-3 text-slate-400" />
+                      <span className="text-xs text-slate-600 truncate">{trip.customer?.name || "Khách"}</span>
+                    </div>
                     {/* Driver */}
-                    <td className="px-2 py-2 align-top">
+                    <div className="flex items-center gap-1 min-w-0">
                       {trip.driver ? (
-                        <div className="text-sm text-green-600">{trip.driver.fullName}</div>
+                        <>
+                          <Car className="w-3 h-3 text-green-500" />
+                          <span className="text-xs text-green-600 truncate">{trip.driver.fullName}</span>
+                        </>
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); openDriverModal(trip.id); }}
                           className="text-xs text-blue-600 font-medium"
                         >
-                          + Gán
+                          + Gán TX
                         </button>
                       )}
-                    </td>
-                    
-                    {/* Status */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="relative" ref={statusMenuRef}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}
-                        >
-                          {statusConfig[trip.status]?.label}
-                        </button>
-                        {openStatusMenu === trip.id && statusConfig[trip.status]?.next.length > 0 && (
-                          <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 py-1 min-w-[100px]">
-                            {statusConfig[trip.status]?.next.map((nextStatus) => (
-                              <button
-                                key={nextStatus}
-                                onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, nextStatus); }}
-                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 text-slate-700"
-                              >
-                                {statusLabels[nextStatus]}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    
-                    {/* Price */}
-                    <td className="px-2 py-2 align-top text-right">
-                      <div className="text-sm font-bold text-slate-800">{formatCurrency(trip.price)}</div>
-                    </td>
-                    
-                    {/* Actions */}
-                    <td className="px-2 py-2 align-top">
-                      <div className="flex items-center gap-1">
-                        {trip.customer?.phone && (
-                          <a
-                            href={`tel:${trip.customer.phone}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-1.5 rounded bg-blue-600 text-white"
-                          >
-                            <Phone className="w-3 h-3" />
-                          </a>
-                        )}
-                        {trip.driver && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleRemindDriver(trip); }}
-                            className={`p-1.5 rounded ${remindedDriver === trip.id ? "bg-green-100 text-green-600" : "bg-purple-50 text-purple-600"}`}
-                          >
-                            {remindedDriver === trip.id ? <Check className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
-                          className="p-1.5 rounded hover:bg-red-50 text-red-500"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {trip.customer?.phone && (
+                      <a
+                        href={`tel:${trip.customer.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1.5 rounded bg-blue-600 text-white"
+                      >
+                        <Phone className="w-3 h-3" />
+                      </a>
+                    )}
+                    {trip.driver && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRemindDriver(trip); }}
+                        className={`p-1.5 rounded ${remindedDriver === trip.id ? "bg-green-100 text-green-600" : "bg-purple-50 text-purple-600"}`}
+                      >
+                        {remindedDriver === trip.id ? <Check className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
+                      className="p-1.5 rounded hover:bg-red-50 text-red-500"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
         
         {/* Mobile Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-3 px-2">
+          <div className="flex items-center justify-between mt-3 px-4">
             <span className="text-xs text-slate-500">
               {filteredTrips.length} chuyến
             </span>
@@ -803,29 +780,12 @@ export default function ScheduleList() {
                       )}
                     </TableCell>
                     <TableCell className="px-4 py-3">
-                      <div className="relative" ref={statusMenuRef}>
-                        <button
-                          onClick={() => setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id)}
-                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}
-                        >
-                          {statusConfig[trip.status]?.label}
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-                        
-                        {openStatusMenu === trip.id && statusConfig[trip.status]?.next.length > 0 && (
-                          <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 py-1 min-w-[120px]">
-                            {statusConfig[trip.status]?.next.map((nextStatus) => (
-                              <button
-                                key={nextStatus}
-                                onClick={() => updateStatus(trip.id, nextStatus)}
-                                className="w-full px-3 py-2 text-left text-xs hover:bg-slate-50 text-slate-700"
-                              >
-                                {statusLabels[nextStatus]}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => openEditSheet(trip)}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}
+                      >
+                        {statusConfig[trip.status]?.label}
+                      </button>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-right">
                       <span className="font-medium text-slate-800">{formatCurrency(trip.price)}</span>
@@ -1183,11 +1143,8 @@ export default function ScheduleList() {
                   {Object.entries(statusConfig).map(([key, config]) => (
                     <button
                       key={key}
-                      onClick={() => {
-                        // Update status via API
-                        updateStatus(editingTrip.id, key);
-                      }}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium ${statusConfig[editingTrip.status]?.label === config.label ? "ring-2 ring-blue-500" : ""} ${config.bg} ${config.text}`}
+                      onClick={() => setEditForm({ ...editForm, status: key })}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium ${editForm.status === key ? "ring-2 ring-blue-500" : ""} ${config.bg} ${config.text}`}
                     >
                       {config.label}
                     </button>
