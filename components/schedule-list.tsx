@@ -121,6 +121,7 @@ export default function ScheduleList() {
   const [editForm, setEditForm] = useState({
     departure: "",
     destination: "",
+    departureDate: "",
     departureTime: "",
     price: "",
     customerName: "",
@@ -128,6 +129,7 @@ export default function ScheduleList() {
     driverId: null as number | null,
     vehicleId: null as number | null,
     status: "scheduled",
+    notes: "",
   });
 
   // Reminder state
@@ -420,6 +422,7 @@ export default function ScheduleList() {
     setEditForm({
       departure: trip.departure,
       destination: trip.destination,
+      departureDate: deptDate.toISOString().split("T")[0],
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: trip.price?.toString() || "",
       customerName: trip.customer?.name || "",
@@ -427,6 +430,7 @@ export default function ScheduleList() {
       driverId: trip.driver?.id || null,
       vehicleId: trip.vehicle?.id || null,
       status: trip.status || "scheduled",
+      notes: (trip as any).notes || "",
     });
     // Fetch drivers and vehicles for combobox
     fetchDrivers();
@@ -437,19 +441,24 @@ export default function ScheduleList() {
   const handleSaveEdit = async () => {
     if (!editingTrip) return;
     try {
+      const departureDateTime = editForm.departureDate && editForm.departureTime 
+        ? `${editForm.departureDate}T${editForm.departureTime}:00`
+        : undefined;
+        
       const res = await fetch(`/api/trips/${editingTrip.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           departure: editForm.departure,
           destination: editForm.destination,
-          departureTime: editForm.departureTime,
+          departureTime: departureDateTime,
           price: editForm.price,
           customerName: editForm.customerName,
           customerPhone: editForm.customerPhone,
           driverId: editForm.driverId,
           vehicleId: editForm.vehicleId,
           status: editForm.status,
+          notes: editForm.notes || null,
         }),
       });
       const data = await res.json();
@@ -1078,6 +1087,15 @@ export default function ScheduleList() {
                     />
                   </div>
                   <div>
+                    <label className="block text-xs text-slate-500 mb-1">Ngày đi</label>
+                    <input
+                      type="date"
+                      value={editForm.departureDate}
+                      onChange={(e) => setEditForm({ ...editForm, departureDate: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-xs text-slate-500 mb-1">Giờ đi (HH:MM)</label>
                     <input
                       type="time"
@@ -1150,6 +1168,18 @@ export default function ScheduleList() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Notes */}
+              <div className="bg-slate-50 rounded-xl p-3">
+                <p className="text-sm font-medium text-slate-700 mb-3">Ghi chú</p>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  placeholder="Nhập ghi chú..."
+                  rows={3}
+                />
               </div>
             </div>
 

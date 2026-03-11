@@ -110,6 +110,7 @@ export async function GET(request: NextRequest) {
         status: trip.status,
         totalSeats: trip.totalSeats,
         availableSeats: trip.availableSeats,
+        notes: trip.notes,
         vehicle: trip.vehicle ? {
           id: trip.vehicle.id,
           name: trip.vehicle.name,
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { 
       title, description, departure, destination, departureTime, arrivalTime,
-      price, vehicleId, totalSeats, tripType,
+      price, vehicleId, totalSeats, tripType, notes,
       customerPhone, customerName, customerEmail, customerNotes,
       seats
     } = body;
@@ -223,11 +224,12 @@ export async function POST(request: NextRequest) {
         departureTime: new Date(departureTime),
         arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
         price: parseFloat(price),
-        vehicleId: finalVehicleId || null,
-        driverId: driverId,
+        ...(finalVehicleId ? { vehicleId: finalVehicleId } : {}),
+        ...(driverId ? { driverId } : {}),
         totalSeats: parsedTotalSeats,
         availableSeats: tripType === "bao" ? 0 : parsedTotalSeats,
         status: "scheduled",
+        ...(notes ? { notes } : {}),
         ...(customerId ? {
           customers: {
             create: {

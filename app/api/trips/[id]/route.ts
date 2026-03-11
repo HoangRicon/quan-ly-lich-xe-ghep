@@ -55,6 +55,7 @@ export async function GET(
       status: trip.status,
       totalSeats: trip.totalSeats,
       availableSeats: trip.availableSeats,
+      notes: trip.notes,
       vehicle: trip.vehicle ? {
         id: trip.vehicle.id,
         name: trip.vehicle.name,
@@ -89,12 +90,20 @@ export async function PUT(
     const { id } = await params;
     const tripId = parseInt(id);
 
-    const { status, driverId, departure, destination, price } = await request.json();
+    const { 
+      status, driverId, departure, destination, price, 
+      title, departureTime, totalSeats, notes, vehicleId,
+      customerPhone, customerName, customerEmail, customerNotes
+    } = await request.json();
 
     const updateData: any = {};
 
     if (status) {
       updateData.status = status;
+    }
+
+    if (title !== undefined) {
+      updateData.title = title;
     }
 
     if (driverId !== undefined) {
@@ -122,6 +131,25 @@ export async function PUT(
 
     if (price !== undefined) {
       updateData.price = parseFloat(price);
+    }
+
+    if (departureTime !== undefined && departureTime) {
+      const parsedDate = new Date(departureTime);
+      if (!isNaN(parsedDate.getTime())) {
+        updateData.departureTime = parsedDate;
+      }
+    }
+
+    if (totalSeats !== undefined) {
+      updateData.totalSeats = parseInt(totalSeats);
+    }
+
+    if (notes !== undefined) {
+      updateData.notes = notes || null;
+    }
+
+    if (vehicleId !== undefined) {
+      updateData.vehicleId = vehicleId ? parseInt(vehicleId) : null;
     }
 
     const trip = await prisma.trip.update({

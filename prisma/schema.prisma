@@ -66,6 +66,7 @@ model Trip {
   availableSeats Int     @default(0) @map("available_seats")
   totalSeats    Int       @default(4) @map("total_seats")
   status        String    @default("scheduled") @db.VarChar(50)
+  notes         String?   @db.Text
   vehicleId     Int?      @map("vehicle_id")
   vehicle       Vehicle?  @relation(fields: [vehicleId], references: [id])
   driverId      Int?      @map("driver_id")

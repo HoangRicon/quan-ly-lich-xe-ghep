@@ -46,11 +46,12 @@ export default function TripForm() {
     customerNotes: "",
     departure: "",
     destination: "",
-    departureDate: "",
-    departureTime: "",
+    departureDate: new Date().toISOString().split("T")[0],
+    departureTime: new Date().toTimeString().slice(0, 5),
     price: "",
     totalSeats: "",
     tripType: "ghep",
+    notes: "",
   });
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
@@ -83,6 +84,7 @@ export default function TripForm() {
           price: trip.price?.toString() || "",
           totalSeats: trip.totalSeats?.toString() || "1",
           tripType: "ghep",
+          notes: trip.notes || "",
         });
       }
     } catch (error) {
@@ -177,12 +179,17 @@ export default function TripForm() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            title: `${formData.departure} - ${formData.destination}`,
             departure: formData.departure,
             destination: formData.destination,
             departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
             price: formData.price,
+            totalSeats: parseInt(formData.totalSeats) || 4,
+            notes: formData.notes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
+            customerEmail: formData.customerEmail || undefined,
+            customerNotes: formData.customerNotes || undefined,
           }),
         });
 
@@ -203,8 +210,9 @@ export default function TripForm() {
             departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
             price: formData.price,
             vehicleId: null,
-            totalSeats: parseInt(formData.totalSeats) || undefined,
+            totalSeats: parseInt(formData.totalSeats) || 4,
             tripType: formData.tripType,
+            notes: formData.notes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
             customerEmail: formData.customerEmail || undefined,
@@ -450,6 +458,20 @@ export default function TripForm() {
             placeholder="150000"
             className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
             required
+          />
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Ghi chú
+          </label>
+          <textarea
+            value={formData.notes}
+            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            placeholder="Nhập ghi chú cho chuyến xe..."
+            rows={3}
+            className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base resize-none"
           />
         </div>
 

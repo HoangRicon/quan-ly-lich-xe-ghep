@@ -16,6 +16,7 @@ interface Trip {
   departureTime: string;
   status: string;
   price: number;
+  notes?: string;
   driver?: {
     id: number;
     fullName: string;
@@ -610,6 +611,15 @@ export default function ReportsPage() {
                 <p className="text-xs text-slate-500 mb-1">Trạng thái</p>
                 {getStatusBadge(selectedTrip.status)}
               </div>
+
+              {/* Notes */}
+              {/* Notes */}
+              {selectedTrip.notes && (
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs text-slate-500 mb-1">Ghi chú</p>
+                  <p className="text-sm text-slate-800">{selectedTrip.notes}</p>
+                </div>
+              )}
 
               {/* Driver */}
               <div className="bg-slate-50 rounded-lg p-3">
