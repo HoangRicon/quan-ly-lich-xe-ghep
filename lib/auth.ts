@@ -59,10 +59,17 @@ export async function getUserFromRequest(request: NextRequest): Promise<UserPayl
 export async function setSession(user: UserPayload): Promise<void> {
   const cookieStore = await cookies();
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  // In production, only mark cookies as Secure when the request is actually over HTTPS.
+  // Browsers may accept Secure cookies on http://localhost, but will reject them on http://<LAN IP>.
+  const h = await headers();
+  const forwardedProto = h.get("x-forwarded-proto");
+  const isHttps = forwardedProto === "https";
+
   cookieStore.set("session", await encrypt(user), {
     expires,
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" ? isHttps : false,
     sameSite: "lax",
     path: "/",
   });
