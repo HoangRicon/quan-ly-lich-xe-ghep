@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { 
   Clock, Phone, Car, User, MapPin, DollarSign, FileText,
-  ChevronUp, X, Bell, Edit, RefreshCw, Check
+  ChevronUp, X, Bell, Edit, RefreshCw, Check, Copy
 } from "lucide-react";
 
 interface Trip {
@@ -52,9 +52,10 @@ interface Vehicle {
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; next: string[] }> = {
-  scheduled: { label: "Chờ", color: "text-red-600", bg: "bg-red-50 border-red-200", next: ["in_progress"] },
-  in_progress: { label: "Đang đi", color: "text-blue-600", bg: "bg-blue-50 border-blue-200", next: ["completed"] },
-  completed: { label: "Hoàn thành", color: "text-green-600", bg: "bg-green-50 border-green-200", next: [] },
+  scheduled: { label: "Chờ", color: "text-red-600", bg: "bg-red-50 border-red-200", next: ["confirmed", "running"] },
+  confirmed: { label: "Đã gán", color: "text-blue-600", bg: "bg-blue-50 border-blue-200", next: ["running", "completed", "cancelled"] },
+  running: { label: "Đang đi", color: "text-green-600", bg: "bg-green-50 border-green-200", next: ["completed", "cancelled"] },
+  completed: { label: "Hoàn thành", color: "text-slate-600", bg: "bg-slate-50 border-slate-200", next: [] },
   cancelled: { label: "Hủy", color: "text-slate-500", bg: "bg-slate-50 border-slate-200", next: [] },
 };
 
@@ -68,7 +69,7 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState<number | null>(null);
   const [showDriverMenu, setShowDriverMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [remindedDriver, setRemindedDriver] = useState<number | null>(null);
@@ -132,6 +133,20 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
   };
 
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert(`${label} đã được sao chép!`);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    }
+  };
+
+  const copyTripInfo = (trip: Trip) => {
+    const info = `Điểm đón: ${trip.departure}, Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`;
+    copyToClipboard(info, "Thông tin chuyến xe");
+  };
+
   const openSheet = (trip: Trip) => {
     setSelectedTrip(trip);
     setIsSheetOpen(true);
@@ -154,7 +169,26 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
       console.error("Error updating status:", error);
     } finally {
       setLoading(false);
-      setShowStatusMenu(false);
+      setShowStatusMenu(null);
+    }
+  };
+
+  const handleQuickStatusChange = async (tripId: number, newStatus: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/trips/${tripId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        setTrips(trips.map(t => t.id === tripId ? { ...t, status: newStatus } : t));
+        setShowStatusMenu(null);
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -358,41 +392,85 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-800 truncate">
-                        {trip.customer?.name || "Khách"}
-                      </span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${status.bg} ${status.color}`}>
-                        {status.label}
-                      </span>
+                    {/* Route - Equal font for pickup and dropoff */}
+                    <div className="text-sm font-medium text-slate-800">
+                      <span className="font-semibold">Điểm đón:</span> {trip.departure}
                     </div>
-                    <p className="text-xs text-slate-500 truncate mt-0.5">
-                      {formatRoute(trip.departure, trip.destination)}
-                    </p>
+                    <div className="text-sm font-medium text-slate-800">
+                      <span className="font-semibold">Điểm đến:</span> {trip.destination}
+                    </div>
+                    
+                    {/* Phone with copy */}
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Phone className="w-3 h-3 text-blue-500" />
+                      <span className="text-xs text-blue-600 font-medium">{trip.customer?.phone || "Không có SDT"}</span>
+                      {trip.customer?.phone && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.customer?.phone || "", "Số điện thoại"); }}
+                          className="p-1 rounded hover:bg-slate-100 text-slate-400"
+                          title="Copy SDT"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Quick Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {/* Remind Driver Button - Outside */}
-                    {trip.driver && (
+                  {/* Status + Quick Actions */}
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="relative">
                       <button
-                        onClick={(e) => handleRemindDriver(trip, e)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          remindedDriver === trip.id
-                            ? "bg-green-100"
-                            : "bg-purple-50 hover:bg-purple-100"
-                        }`}
-                        title="Nhắc tài xế"
+                        onClick={(e) => { e.stopPropagation(); setSelectedTrip(trip); setShowStatusMenu(showStatusMenu === trip.id ? null : trip.id); }}
+                        className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer hover:opacity-80 ${status.bg} ${status.color}`}
                       >
-                        {remindedDriver === trip.id ? (
-                          <Check className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <Bell className="w-4 h-4 text-purple-600" />
-                        )}
+                        {status.label}
                       </button>
-                    )}
+                      {showStatusMenu === trip.id && status.next.length > 0 && (
+                        <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 z-20 min-w-[100px]">
+                          {status.next.map(nextStatus => (
+                            <button
+                              key={nextStatus}
+                              onClick={(e) => { e.stopPropagation(); handleQuickStatusChange(trip.id, nextStatus); }}
+                              className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
+                            >
+                              {statusConfig[nextStatus]?.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     
-                    <ChevronUp className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                    <div className="flex items-center gap-1">
+                      {/* Copy Trip Info */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyTripInfo(trip); }}
+                        className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500"
+                        title="Copy thông tin"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      
+                      {/* Remind Driver */}
+                      {trip.driver && (
+                        <button
+                          onClick={(e) => handleRemindDriver(trip, e)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            remindedDriver === trip.id
+                              ? "bg-green-100"
+                              : "bg-purple-50 hover:bg-purple-100"
+                          }`}
+                          title="Nhắc tài xế"
+                        >
+                          {remindedDriver === trip.id ? (
+                            <Check className="w-3.5 h-3.5 text-green-600" />
+                          ) : (
+                            <Bell className="w-3.5 h-3.5 text-purple-600" />
+                          )}
+                        </button>
+                      )}
+                      
+                      <ChevronUp className="w-4 h-4 text-slate-300" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -541,24 +619,53 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                       <div className="flex-1">
                         <p className="text-xs text-slate-400">Khách hàng</p>
                         <p className="font-medium text-slate-800">{selectedTrip.customer?.name || "Khách"}</p>
-                        <p className="text-sm text-slate-500">{selectedTrip.customer?.phone || "Chưa có SĐT"}</p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-sm text-slate-500">{selectedTrip.customer?.phone || "Chưa có SĐT"}</p>
+                          {selectedTrip.customer?.phone && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(selectedTrip.customer?.phone || "", "Số điện thoại"); }}
+                              className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-blue-600"
+                              title="Copy SDT"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Route */}
-                  <div className="flex items-start gap-3 p-3">
-                    <MapPin className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-400 mb-1">Điểm đón</p>
-                      <p className="font-medium text-slate-800">{selectedTrip.departure}</p>
+                  {/* Route - Equal font display */}
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-slate-400">Điểm đón:</p>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(selectedTrip.departure, "Điểm đón"); }}
+                            className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-blue-600"
+                            title="Copy điểm đón"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="font-semibold text-slate-800">{selectedTrip.departure}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3 px-3">
-                    <MapPin className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-400 mb-1">Điểm đến</p>
-                      <p className="font-medium text-slate-800">{selectedTrip.destination}</p>
+                    <div className="flex items-start gap-3 mt-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-slate-400">Điểm đến:</p>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(selectedTrip.destination, "Điểm đến"); }}
+                            className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-blue-600"
+                            title="Copy điểm đến"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="font-semibold text-slate-800">{selectedTrip.destination}</p>
+                      </div>
                     </div>
                   </div>
 
@@ -651,7 +758,7 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                   {/* Đổi trạng thái */}
                   <div className="relative">
                     <button
-                      onClick={() => setShowStatusMenu(!showStatusMenu)}
+                      onClick={() => setShowStatusMenu(showStatusMenu ? null : selectedTrip?.id || null)}
                       disabled={nextStatuses.length === 0}
                       className="w-full flex items-center justify-center gap-2 py-3 bg-amber-100 hover:bg-amber-200 disabled:bg-slate-100 disabled:text-slate-400 text-amber-700 rounded-xl font-medium transition-colors"
                     >

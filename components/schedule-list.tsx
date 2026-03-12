@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
-  Search, Plus, MapPin, Clock, Phone, MessageCircle, Car, User, 
+  Search, Plus, MapPin, Clock, Phone, MessageCircle, Car, 
   ChevronDown, Check, X, Edit2, Trash2, MoreHorizontal, ArrowRight,
-  Bell, Calendar, ChevronLeft, ChevronRight, ArrowUpDown
+  Bell, Calendar, ChevronLeft, ChevronRight, ArrowUpDown, Copy, FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -24,6 +24,8 @@ interface Trip {
   status: string;
   totalSeats: number;
   availableSeats: number;
+  createdAt: string;
+  notes: string | null;
   vehicle: {
     id: number;
     name: string;
@@ -40,6 +42,7 @@ interface Trip {
     id: number;
     name: string;
     phone: string;
+    email?: string;
   } | null;
   passengerCount: number;
 }
@@ -66,12 +69,12 @@ interface Vehicle {
   seats: number;
 }
 
-const statusConfig: Record<string, { label: string; bg: string; text: string; next: string[] }> = {
-  scheduled: { label: "Chờ gán", bg: "bg-orange-100", text: "text-orange-700", next: ["confirmed", "running", "completed", "cancelled"] },
-  confirmed: { label: "Đã gán", bg: "bg-blue-100", text: "text-blue-700", next: ["running", "completed", "cancelled"] },
-  running: { label: "Đang đi", bg: "bg-green-100", text: "text-green-700", next: ["completed", "cancelled"] },
-  completed: { label: "Hoàn thành", bg: "bg-slate-100", text: "text-slate-700", next: [] },
-  cancelled: { label: "Đã hủy", bg: "bg-red-100", text: "text-red-700", next: [] },
+const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; next: string[] }> = {
+  scheduled: { label: "Chờ gán", bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-200", next: ["confirmed", "running", "completed", "cancelled"] },
+  confirmed: { label: "Đã gán", bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-200", next: ["running", "completed", "cancelled"] },
+  running: { label: "Đang đi", bg: "bg-green-100", text: "text-green-700", border: "border-green-200", next: ["completed", "cancelled"] },
+  completed: { label: "Hoàn thành", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200", next: [] },
+  cancelled: { label: "Đã hủy", bg: "bg-red-100", text: "text-red-700", border: "border-red-200", next: [] },
 };
 
 const statusLabels: Record<string, string> = {
@@ -98,6 +101,9 @@ export default function ScheduleList() {
   // Status dropdown state
   const [openStatusMenu, setOpenStatusMenu] = useState<number | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   
   // Driver modal state
   const [showDriverModal, setShowDriverModal] = useState(false);
@@ -132,8 +138,6 @@ export default function ScheduleList() {
     notes: "",
   });
 
-  // Reminder state
-  const [remindedDriver, setRemindedDriver] = useState<number | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -344,12 +348,49 @@ export default function ScheduleList() {
     return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
   };
 
+  const formatFullDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast({ message: `${label} đã sao chép!`, type: "success" });
+      setTimeout(() => setToast(null), 2000);
+    } catch (err) {
+      console.error("Copy failed:", err);
+      setToast({ message: "Sao chép thất bại", type: "error" });
+      setTimeout(() => setToast(null), 2000);
+    }
+  };
+
+  const sendNotification = async (trip: Trip, type: "zalo" | "email" | "system") => {
+    const customer = trip.customer;
+    if (!customer) {
+      alert("Không có thông tin khách hàng");
+      return;
+    }
+
+    const message = `Chuyến xe ${trip.id}: ${trip.departure} → ${trip.destination}, ${formatTime(trip.departureTime)} ngày ${formatFullDate(trip.departureTime)}. Trạng thái: ${statusConfig[trip.status]?.label}`;
+
+    if (type === "zalo") {
+      const zaloUrl = `https://zalo.me/${customer.phone}?text=${encodeURIComponent(message)}`;
+      window.open(zaloUrl, "_blank");
+    } else if (type === "email" && customer.email) {
+      const mailUrl = `mailto:${customer.email}?subject=Thông báo chuyến xe&body=${encodeURIComponent(message)}`;
+      window.location.href = mailUrl;
+    } else if (type === "system") {
+      alert(`Thông báo: ${message}`);
+    }
   };
 
   const isOverdue = (departureTime: string, status: string) => {
@@ -474,80 +515,66 @@ export default function ScheduleList() {
     }
   };
 
-  const handleRemindDriver = async (trip: Trip) => {
-    if (!trip.driver) return;
-    
-    const driverName = trip.driver.fullName;
-    const customerName = trip.customer?.name || "Khách";
-    const time = formatTime(trip.departureTime);
-    const route = `${trip.departure} → ${trip.destination}`;
-    
-    const message = `Nhắc nhở: Tài xế ${driverName}, bạn có lịch đón khách ${customerName} lúc ${time}. Tuyến: ${route}. Vui lới xác nhận!`;
-    
-    const zaloUrl = `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(trip.driver.phone)}`;
-    const webZaloUrl = `https://zalo.me/${trip.driver.phone}?text=${encodeURIComponent(message)}`;
-    
-    setRemindedDriver(trip.id);
-    setTimeout(() => setRemindedDriver(null), 3000);
-    
-    window.location.href = zaloUrl;
-    setTimeout(() => {
-      window.open(webZaloUrl, "_blank");
-    }, 500);
-  };
-
   return (
     <div>
-      {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${
+          toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Compact Header Actions */}
+      <div className="flex flex-col sm:flex-row gap-1.5 mb-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm chuyến, khách hàng, tài xế..."
+            placeholder="Tìm..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
+            className="w-full pl-10 pr-4 py-1.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {/* Today Button */}
-          <Button
-            variant={dateFilter === new Date().toISOString().split("T")[0] ? "default" : "outline"}
-            onClick={handleTodayFilter}
-            className={dateFilter === new Date().toISOString().split("T")[0] ? "bg-green-600 hover:bg-green-700" : ""}
+        <div className="flex gap-1 items-center">
+          <button
+            onClick={() => { setDateFilter(new Date().toISOString().split("T")[0]); setCurrentPage(1); }}
+            className={`px-2 py-1.5 rounded-lg text-xs font-medium ${
+              dateFilter === new Date().toISOString().split("T")[0] 
+                ? "bg-green-600 text-white" 
+                : "bg-white border border-slate-200 text-slate-600"
+            }`}
           >
-            <Calendar className="w-4 h-4 mr-2" />
             Hôm nay
-          </Button>
+          </button>
           <input
             type="date"
             value={dateFilter}
             onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
-            placeholder="Chọn ngày"
-            className="px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-base"
+            className="px-2 py-1.5 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-xs w-[110px]"
           />
           {dateFilter && (
-            <Button variant="ghost" onClick={() => { setDateFilter(""); setCurrentPage(1); }}>
-              <X className="w-4 h-4" />
-            </Button>
+            <button onClick={() => { setDateFilter(""); setCurrentPage(1); }} className="p-1.5 text-slate-400 hover:text-slate-600">
+              <X className="w-3 h-3" />
+            </button>
           )}
           <Link href="/dashboard/schedule/add">
-            <Button className="bg-blue-600 hover:bg-blue-700 min-h-[44px]">
-              <Plus className="w-5 h-5 mr-2" />
-              <span className="hidden sm:inline">Thêm cuốc</span>
+            <Button className="bg-blue-600 hover:bg-blue-700 py-1.5">
+              <Plus className="w-3 h-3" />
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Status Filter Pills */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Very Compact Status Filter Pills */}
+      <div className="flex flex-wrap gap-1 mb-2">
         {["all", "scheduled", "confirmed", "running", "completed", "cancelled"].map((status) => (
           <button
             key={status}
             onClick={() => { setStatusFilter(status); setCurrentPage(1); }}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors min-h-[44px] ${
+            className={`px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
               statusFilter === status
                 ? "bg-blue-600 text-white"
                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -561,95 +588,172 @@ export default function ScheduleList() {
       {/* Mobile DataTable View - Optimized for iPhone - No horizontal scroll */}
       <div className="lg:hidden -mx-4">
         {loading ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 mx-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500 mx-4">
             Đang tải...
           </div>
         ) : filteredTrips.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 mx-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500 mx-4">
             Chưa có chuyến xe nào
           </div>
         ) : (
-          <div className="space-y-2 px-4">
+          <div className="space-y-1.5 px-3">
             {filteredTrips.map((trip) => (
               <div
                 key={trip.id}
                 onClick={() => openEditSheet(trip)}
-                className={`bg-white rounded-xl border border-slate-200 p-3 cursor-pointer ${
+                className={`bg-white rounded-lg border border-slate-200 p-2 cursor-pointer ${
                   isOverdue(trip.departureTime, trip.status) ? "border-red-300" : ""
                 }`}
               >
-                {/* Row 1: Time - Status - Price */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-slate-400" />
-                    <span className="font-bold text-slate-800">{formatTime(trip.departureTime)}</span>
-                    <span className="text-xs text-slate-400">{formatDate(trip.departureTime)}</span>
+                {/* Compact Row 1: Time - Full Date - Status - Price */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-slate-800 text-xs">{formatTime(trip.departureTime)}</span>
+                    <span className="text-[10px] text-slate-400" title={`Ngày đi: ${formatFullDate(trip.departureTime)}`}>{formatDate(trip.departureTime)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}>
                       {statusConfig[trip.status]?.label}
                     </span>
-                    <span className="font-bold text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
+                    <span className="font-bold text-slate-800 text-xs">{formatCurrency(trip.price)}</span>
                   </div>
                 </div>
 
-                {/* Row 2: Route */}
-                <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                {/* Compact Row 2: Route - Equal font with copy */}
+                <div className="flex items-start gap-1 mt-1">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-slate-800 truncate">{trip.departure}</div>
-                    <div className="text-xs text-slate-400">→ {trip.destination}</div>
+                    <div className="text-xs font-semibold text-slate-800 flex items-center gap-1" title="Điểm đón">
+                      <MapPin className="w-2.5 h-2.5 text-green-500 flex-shrink-0" />
+                      <span className="font-normal truncate">{trip.departure}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.departure, "Điểm đón"); }}
+                        className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
+                        title="Copy điểm đón"
+                      >
+                        <Copy className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-800 flex items-center gap-1" title="Điểm đến">
+                      <MapPin className="w-2.5 h-2.5 text-red-500 flex-shrink-0" />
+                      <span className="font-normal truncate">{trip.destination}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.destination, "Điểm đến"); }}
+                        className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
+                        title="Copy điểm đến"
+                      >
+                        <Copy className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Row 3: Customer - Driver - Actions */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {/* Customer */}
+                {/* Row 3: Customer - Driver - Notes - Actions */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                    {/* Customer Phone */}
                     <div className="flex items-center gap-1 min-w-0">
-                      <User className="w-3 h-3 text-slate-400" />
-                      <span className="text-xs text-slate-600 truncate">{trip.customer?.name || "Khách"}</span>
+                      <span className="text-xs text-blue-600 truncate">{trip.customer?.phone || "Khách"}</span>
+                      {trip.customer?.phone && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.customer?.phone || "", "Số điện thoại"); }}
+                          className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
+                          title="Copy SDT"
+                        >
+                          <Copy className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                     {/* Driver */}
                     <div className="flex items-center gap-1 min-w-0">
                       {trip.driver ? (
-                        <>
-                          <Car className="w-3 h-3 text-green-500" />
-                          <span className="text-xs text-green-600 truncate">{trip.driver.fullName}</span>
-                        </>
+                        <span className="text-xs text-green-600 truncate">{trip.driver.fullName}</span>
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); openDriverModal(trip.id); }}
-                          className="text-xs text-blue-600 font-medium"
+                          className="text-[10px] text-blue-600 font-medium"
                         >
-                          + Gán TX
+                          + TX
                         </button>
                       )}
+                    </div>
+                    {/* Booking Date */}
+                    <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                      <Calendar className="w-2.5 h-2.5" />
+                      <span>{formatFullDate(trip.createdAt)}</span>
                     </div>
                   </div>
 
                   {/* Quick Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {/* Copy Notes - Always visible */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
+                      className={`p-1 rounded ${trip.notes ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`}
+                      title={trip.notes ? "Copy ghi chú" : "Không có ghi chú"}
+                    >
+                      <FileText className="w-3 h-3" />
+                    </button>
+                    {/* Quick Status Dropdown - All statuses */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
+                        className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}
+                      >
+                        {statusConfig[trip.status]?.label}
+                      </button>
+                      {openStatusMenu === trip.id && (
+                        <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-xl border border-slate-200 z-30 min-w-[100px]">
+                          {[
+                            { key: "scheduled", label: "Chờ gán", bg: "bg-white", text: "text-slate-600", border: "border-slate-200" },
+                            { key: "confirmed", label: "Đã gán", bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
+                            { key: "running", label: "Đang đi", bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200" },
+                            { key: "completed", label: "Hoàn thành", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" },
+                            { key: "cancelled", label: "Đã hủy", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" }
+                          ].map(status => (
+                            <button
+                              key={status.key}
+                              onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, status.key); setOpenStatusMenu(null); }}
+                              className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-slate-50 ${trip.status === status.key ? `${status.bg} ${status.text} font-semibold` : 'text-slate-700'}`}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${status.bg.replace('bg-', 'bg-')}`}></span>
+                              {status.label}
+                            </button>
+                          ))}
+                          {/* Copy Notes Option */}
+                          {trip.notes && (
+                            <div className="border-t border-slate-100 mt-1 pt-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
+                                className="w-full px-3 py-2 text-left text-xs hover:bg-slate-50 text-amber-600 flex items-center gap-2"
+                              >
+                                <FileText className="w-3 h-3" />
+                                Copy ghi chú
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {trip.customer?.phone && (
                       <a
                         href={`tel:${trip.customer.phone}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 rounded bg-blue-600 text-white"
+                        className="p-1 rounded bg-blue-600 text-white"
                       >
                         <Phone className="w-3 h-3" />
                       </a>
                     )}
-                    {trip.driver && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleRemindDriver(trip); }}
-                        className={`p-1.5 rounded ${remindedDriver === trip.id ? "bg-green-100 text-green-600" : "bg-purple-50 text-purple-600"}`}
-                      >
-                        {remindedDriver === trip.id ? <Check className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
-                      </button>
-                    )}
+                    {/* Copy Trip Info */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); copyToClipboard(`Điểm đón: ${trip.departure}, Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`, "Thông tin chuyến"); }}
+                      className="p-1 rounded bg-slate-100 text-slate-500"
+                      title="Copy thông tin"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
-                      className="p-1.5 rounded hover:bg-red-50 text-red-500"
+                      className="p-1 rounded hover:bg-red-50 text-red-500"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -695,162 +799,240 @@ export default function ScheduleList() {
           <Table>
             <TableHeader className="bg-slate-50 border-b border-slate-200">
               <TableRow>
-                <TableHead className="text-left px-4 py-3 text-sm font-semibold text-slate-600">
+                <TableHead className="text-left px-2 py-2 text-xs font-semibold text-slate-600 w-[70px]">
                   <button 
                     onClick={() => handleSort("departureTime")}
                     className="flex items-center gap-1 hover:text-blue-600"
                   >
-                    Thời gian
-                    <ArrowUpDown className="w-4 h-4" />
+                    Giờ
+                    <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </TableHead>
-                <TableHead className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Khách hàng</TableHead>
-                <TableHead className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Lộ trình</TableHead>
-                <TableHead className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Tài xế / Xe</TableHead>
-                <TableHead className="text-left px-4 py-3 text-sm font-semibold text-slate-600">
+                <TableHead className="text-left px-2 py-2 text-xs font-semibold text-slate-600 w-[80px]">
+                  Ngày đặt
+                </TableHead>
+                <TableHead className="text-left px-2 py-2 text-xs font-semibold text-slate-600 w-[100px]">KH</TableHead>
+                <TableHead className="text-left px-2 py-2 text-xs font-semibold text-slate-600 min-w-[150px]">Lộ trình</TableHead>
+                <TableHead className="text-left px-2 py-2 text-xs font-semibold text-slate-600 w-[120px]">Tài xế</TableHead>
+                <TableHead className="text-left px-2 py-2 text-xs font-semibold text-slate-600 w-[90px]">
                   <button 
                     onClick={() => handleSort("status")}
                     className="flex items-center gap-1 hover:text-blue-600"
                   >
                     Trạng thái
-                    <ArrowUpDown className="w-4 h-4" />
+                    <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </TableHead>
-                <TableHead className="text-right px-4 py-3 text-sm font-semibold text-slate-600">
+                <TableHead className="text-right px-2 py-2 text-xs font-semibold text-slate-600 w-[70px]">
                   <button 
                     onClick={() => handleSort("price")}
                     className="flex items-center gap-1 ml-auto hover:text-blue-600"
                   >
                     Giá
-                    <ArrowUpDown className="w-4 h-4" />
+                    <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </TableHead>
-                <TableHead className="text-center px-4 py-3 text-sm font-semibold text-slate-600">Hành động</TableHead>
+                <TableHead className="text-center px-1 py-2 text-xs font-semibold text-slate-600 w-[100px]">Hành động</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  <TableCell colSpan={8} className="px-3 py-6 text-center text-slate-500">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : paginatedTrips.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                  <TableCell colSpan={8} className="px-3 py-6 text-center text-slate-500">
                     Chưa có chuyến xe nào
                   </TableCell>
                 </TableRow>
               ) : (
                 paginatedTrips.map((trip) => (
                   <TableRow key={trip.id} className={`${isOverdue(trip.departureTime, trip.status) ? "bg-red-50" : ""}`}>
-                    <TableCell className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-slate-400" />
+                    <TableCell className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
                         <div>
-                          <div className="font-medium text-slate-800">{formatTime(trip.departureTime)}</div>
+                          <div className="font-medium text-slate-800 text-sm">{formatTime(trip.departureTime)}</div>
                           <div className="text-xs text-slate-500">{formatDate(trip.departureTime)}</div>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <div>
-                        <div className="font-medium text-slate-800">{trip.customer?.name || "Khách vãng lai"}</div>
-                        <div className="text-sm text-slate-500">{trip.customer?.phone || ""}</div>
+                    <TableCell className="px-3 py-2">
+                      <div className="text-xs text-slate-500">{formatFullDate(trip.createdAt)}</div>
+                    </TableCell>
+                    <TableCell className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        {trip.customer?.phone ? (
+                          <>
+                            <span className="text-sm text-slate-800">{trip.customer.phone}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.customer?.phone || "", "Số điện thoại"); }}
+                              className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
+                              title="Copy phone"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <div className="flex items-center gap-2 max-w-[200px]">
-                        <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <div className="truncate">
-                          <div className="text-sm text-slate-800">{trip.departure}</div>
-                          <div className="text-xs text-slate-500">→ {trip.destination}</div>
+                    <TableCell className="px-3 py-2">
+                      <div className="flex items-start gap-1.5 max-w-[180px]">
+                        <MapPin className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
+                        <div className="truncate min-w-0 w-full">
+                          <div className="text-sm font-semibold text-slate-800 flex items-center gap-1">
+                            <span>Điểm đón:</span>
+                            <span className="font-normal truncate">{trip.departure}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.departure, "Điểm đón"); }}
+                              className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600 flex-shrink-0"
+                              title="Copy điểm đón"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div className="text-sm font-semibold text-slate-800 flex items-center gap-1">
+                            <span>Điểm đến:</span>
+                            <span className="font-normal truncate">{trip.destination}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.destination, "Điểm đến"); }}
+                              className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600 flex-shrink-0"
+                              title="Copy điểm đến"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="px-3 py-2">
                       {trip.driver ? (
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white text-sm font-medium">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white text-xs font-medium">
                             {trip.driver.fullName?.charAt(0)}
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-slate-800">{trip.driver.fullName}</div>
-                            <div className="text-xs text-slate-500">{trip.vehicle?.licensePlate || "Chưa có xe"}</div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium text-slate-800 truncate">{trip.driver.fullName}</div>
+                            <div className="text-xs text-slate-500 truncate">{trip.vehicle?.licensePlate || "Chưa xe"}</div>
                           </div>
                         </div>
                       ) : (
                         <button
                           onClick={() => openDriverModal(trip.id)}
-                          className="text-sm text-blue-600 font-medium hover:underline"
+                          className="text-xs text-blue-600 font-medium hover:underline"
                         >
-                          + Gán tài xế
+                          + Gán TX
                         </button>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <button
-                        onClick={() => openEditSheet(trip)}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}
-                      >
-                        {statusConfig[trip.status]?.label}
-                      </button>
+                    <TableCell className="px-3 py-2">
+                      <div className="relative">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}
+                        >
+                          {statusConfig[trip.status]?.label}
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                        {openStatusMenu === trip.id && (
+                          <div className="absolute z-20 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[120px]">
+                            {statusConfig[trip.status]?.next.map((nextStatus) => (
+                              <button
+                                key={nextStatus}
+                                onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, nextStatus); }}
+                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
+                              >
+                                {statusConfig[nextStatus]?.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-right">
-                      <span className="font-medium text-slate-800">{formatCurrency(trip.price)}</span>
+                    <TableCell className="px-3 py-2 text-right">
+                      <span className="font-medium text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
                     </TableCell>
-                    <TableCell className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
+                    <TableCell className="px-2 py-2">
+                      <div className="flex items-center justify-center gap-0.5 flex-wrap">
                         {trip.customer?.phone && (
                           <>
                             <a
                               href={`tel:${trip.customer.phone}`}
-                              className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white"
                               title="Gọi điện"
                             >
-                              <Phone className="w-4 h-4" />
+                              <Phone className="w-3.5 h-3.5" />
                             </a>
                             <a
                               href={`https://zalo.me/${trip.customer.phone}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"
                               title="Zalo"
                             >
-                              <MessageCircle className="w-4 h-4" />
+                              <MessageCircle className="w-3.5 h-3.5" />
                             </a>
                           </>
                         )}
-                        {trip.driver && (
+                        {/* Notification Buttons */}
+                        {trip.customer && (
+                          <div className="relative group">
+                            <button
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600"
+                              title="Gửi thông báo"
+                            >
+                              <Bell className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[140px] hidden group-hover:block z-20">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); sendNotification(trip, "zalo"); }}
+                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <MessageCircle className="w-3 h-3 text-blue-500" />
+                                Zalo
+                              </button>
+                              {trip.customer.email && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); sendNotification(trip, "email"); }}
+                                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
+                                >
+                                  <Bell className="w-3 h-3 text-amber-500" />
+                                  Email
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); sendNotification(trip, "system"); }}
+                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <Bell className="w-3 h-3 text-purple-500" />
+                                Hệ thống
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {trip.notes && (
                           <button
-                            onClick={() => handleRemindDriver(trip)}
-                            className={`p-2 rounded-lg ${
-                              remindedDriver === trip.id
-                                ? "bg-green-100 text-green-600"
-                                : "bg-purple-50 hover:bg-purple-100 text-purple-600"
-                            }`}
-                            title="Nhắc tài xế"
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
+                            className="p-1.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-600"
+                            title="Copy ghi chú"
                           >
-                            {remindedDriver === trip.id ? (
-                              <Check className="w-4 h-4" />
-                            ) : (
-                              <Bell className="w-4 h-4" />
-                            )}
+                            <Copy className="w-3.5 h-3.5" />
                           </button>
                         )}
                         <button
-                          onClick={() => openEditSheet(trip)}
-                          className="p-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600"
-                          title="Sửa thông tin"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeletingTrip(trip)}
-                          className="p-2 rounded-lg hover:bg-red-50 text-red-500"
+                          onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
+                          className="p-1.5 rounded hover:bg-red-50 text-red-500"
                           title="Xóa"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </TableCell>

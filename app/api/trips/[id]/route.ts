@@ -56,6 +56,7 @@ export async function GET(
       totalSeats: trip.totalSeats,
       availableSeats: trip.availableSeats,
       notes: trip.notes,
+      createdAt: trip.createdAt,
       vehicle: trip.vehicle ? {
         id: trip.vehicle.id,
         name: trip.vehicle.name,
@@ -166,7 +167,41 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({ success: true, data: trip });
+    const mainCustomer = trip.customers[0]?.customer;
+    const formattedTrip = {
+      id: trip.id,
+      title: trip.title,
+      departure: trip.departure,
+      destination: trip.destination,
+      departureTime: trip.departureTime,
+      arrivalTime: trip.arrivalTime,
+      price: trip.price,
+      status: trip.status,
+      totalSeats: trip.totalSeats,
+      availableSeats: trip.availableSeats,
+      notes: trip.notes,
+      createdAt: trip.createdAt,
+      vehicle: trip.vehicle ? {
+        id: trip.vehicle.id,
+        name: trip.vehicle.name,
+        licensePlate: trip.vehicle.licensePlate,
+        vehicleType: trip.vehicle.vehicleType,
+        seats: trip.vehicle.seats,
+      } : null,
+      driver: trip.driver ? {
+        id: trip.driver.id,
+        fullName: trip.driver.fullName,
+        phone: trip.driver.phone,
+      } : null,
+      customer: mainCustomer ? {
+        id: mainCustomer.id,
+        name: mainCustomer.name,
+        phone: mainCustomer.phone,
+        email: mainCustomer.email,
+      } : null,
+    };
+
+    return NextResponse.json({ success: true, data: formattedTrip });
   } catch (error) {
     console.error("Update trip error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

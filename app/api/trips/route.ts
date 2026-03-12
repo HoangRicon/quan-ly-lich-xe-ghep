@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
         totalSeats: trip.totalSeats,
         availableSeats: trip.availableSeats,
         notes: trip.notes,
+        createdAt: trip.createdAt,
         vehicle: trip.vehicle ? {
           id: trip.vehicle.id,
           name: trip.vehicle.name,
@@ -127,6 +128,7 @@ export async function GET(request: NextRequest) {
           id: trip.customers[0].customer.id,
           name: trip.customers[0].customer.name,
           phone: trip.customers[0].customer.phone,
+          email: trip.customers[0].customer.email,
         } : null,
         customers: trip.customers.map(c => ({
           customer: c.customer ? {
@@ -281,7 +283,9 @@ export async function POST(request: NextRequest) {
         id: mainCustomer.id,
         name: mainCustomer.name,
         phone: mainCustomer.phone,
+        email: mainCustomer.email,
       } : null,
+      createdAt: trip.createdAt,
     };
 
     return NextResponse.json({

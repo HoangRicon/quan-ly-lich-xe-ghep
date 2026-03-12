@@ -54,7 +54,7 @@ async function getDashboardData() {
 
   const [waitingCount, runningCount] = await Promise.all([
     prisma.trip.count({ where: { status: "scheduled", departureTime: { gte: today, lt: tomorrow } } }),
-    prisma.trip.count({ where: { status: "in_progress", departureTime: { gte: today, lt: tomorrow } } }),
+    prisma.trip.count({ where: { status: "running", departureTime: { gte: today, lt: tomorrow } } }),
   ]);
 
   const driverAvailable = drivers.length;
