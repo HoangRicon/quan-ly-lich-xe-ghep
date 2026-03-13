@@ -607,9 +607,9 @@ export default function ScheduleList() {
               >
                 {/* Compact Row 1: Time - Full Date - Status - Price */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-800 text-xs">{formatTime(trip.departureTime)}</span>
-                    <span className="text-[10px] text-slate-400" title={`Ngày đi: ${formatFullDate(trip.departureTime)}`}>{formatDate(trip.departureTime)}</span>
+                    <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded" title={`Ngày đi: ${formatFullDate(trip.departureTime)}`}>{formatFullDate(trip.departureTime)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}>
