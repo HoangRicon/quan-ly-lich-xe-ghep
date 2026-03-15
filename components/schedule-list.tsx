@@ -362,10 +362,37 @@ export default function ScheduleList() {
   };
 
   const copyToClipboard = async (text: string, label: string) => {
+    // Try Clipboard API first
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+        setToast({ message: `${label} đã sao chép!`, type: "success" });
+        setTimeout(() => setToast(null), 2000);
+        return;
+      } catch (err) {
+        console.warn("Clipboard API failed, trying fallback:", err);
+      }
+    }
+    
+    // Fallback for HTTP/non-secure contexts
     try {
-      await navigator.clipboard.writeText(text);
-      setToast({ message: `${label} đã sao chép!`, type: "success" });
-      setTimeout(() => setToast(null), 2000);
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textArea);
+      
+      if (success) {
+        setToast({ message: `${label} đã sao chép!`, type: "success" });
+        setTimeout(() => setToast(null), 2000);
+      } else {
+        setToast({ message: "Sao chép thất bại", type: "error" });
+        setTimeout(() => setToast(null), 2000);
+      }
     } catch (err) {
       console.error("Copy failed:", err);
       setToast({ message: "Sao chép thất bại", type: "error" });
@@ -373,16 +400,57 @@ export default function ScheduleList() {
     }
   };
 
-  const sendNotification = async (trip: Trip, type: "zalo" | "email" | "system") => {
+  const sendZNS = async (phone: string, templateId: string, data: Record<string, string>) => {
+    try {
+      const res = await fetch("/api/zns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phone,
+          templateId: templateId,
+          data: data,
+          oaId: localStorage.getItem("zalo_oa_id") || "",
+          accessToken: localStorage.getItem("zalo_access_token") || "",
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setToast({ message: "Gửi ZNS thành công!", type: "success" });
+      } else {
+        setToast({ message: result.error || "Gửi ZNS thất bại", type: "error" });
+      }
+    } catch (err) {
+      console.error("ZNS error:", err);
+      setToast({ message: "Gửi ZNS thất bại", type: "error" });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const sendNotification = async (trip: Trip, type: "zalo" | "zns" | "email" | "system") => {
     const customer = trip.customer;
     if (!customer) {
       alert("Không có thông tin khách hàng");
       return;
     }
 
-    const message = `Chuyến xe ${trip.id}: ${trip.departure} → ${trip.destination}, ${formatTime(trip.departureTime)} ngày ${formatFullDate(trip.departureTime)}. Trạng thái: ${statusConfig[trip.status]?.label}`;
+    const departureDate = new Date(trip.departureTime);
+    const dateStr = departureDate.toLocaleDateString("vi-VN");
+    const timeStr = formatTime(trip.departureTime);
+    const statusLabel = statusConfig[trip.status]?.label || trip.status;
 
-    if (type === "zalo") {
+    const message = `Chuyến xe ${trip.id}: ${trip.departure} → ${trip.destination}, ${timeStr} ngày ${dateStr}. Trạng thái: ${statusLabel}`;
+
+    if (type === "zns") {
+      // Gửi ZNS qua API
+      await sendZNS(customer.phone, "trip_reminder", {
+        departure: trip.departure,
+        destination: trip.destination,
+        date: dateStr,
+        time: timeStr,
+        status: statusLabel,
+      });
+    } else if (type === "zalo") {
+      // Mở Zalo chat (cũ)
       const zaloUrl = `https://zalo.me/${customer.phone}?text=${encodeURIComponent(message)}`;
       window.open(zaloUrl, "_blank");
     } else if (type === "email" && customer.email) {
@@ -991,13 +1059,20 @@ export default function ScheduleList() {
                             >
                               <Bell className="w-3.5 h-3.5" />
                             </button>
-                            <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[140px] hidden group-hover:block z-20">
+                            <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[160px] hidden group-hover:block z-20">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); sendNotification(trip, "zns"); }}
+                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <MessageCircle className="w-3 h-3 text-green-500" />
+                                ZNS (Zalo OA)
+                              </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); sendNotification(trip, "zalo"); }}
                                 className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
                               >
                                 <MessageCircle className="w-3 h-3 text-blue-500" />
-                                Zalo
+                                Zalo Chat
                               </button>
                               {trip.customer.email && (
                                 <button

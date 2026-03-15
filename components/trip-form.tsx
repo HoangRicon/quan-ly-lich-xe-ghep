@@ -292,43 +292,19 @@ export default function TripForm() {
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Tên khách hàng <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={formData.customerName}
-            onChange={(e) => handleNameChange(e.target.value)}
-            placeholder={formData.customerPhone.length >= 3 ? "Nhập tên khách mới hoặc chọn từ danh sách" : "Nhập số điện thoại trước"}
-            className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-            required
-            disabled={formData.customerPhone.length < 3 && !isEditMode}
-          />
-        </div>
-
-        {showDuplicateWarning && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-            <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div className="text-sm text-amber-800">
-              Khách hàng này đã có trong hệ thống, bạn có muốn cập nhật thông tin không?
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Email (không bắt buộc)
+              Tên khách hàng <span className="text-red-500">*</span>
             </label>
             <input
-              type="email"
-              value={formData.customerEmail}
-              onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
-              placeholder="email@example.com"
+              type="text"
+              value={formData.customerName}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder={formData.customerPhone.length >= 3 ? "Nhập tên khách mới" : "Nhập SĐT trước"}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
+              required
+              disabled={formData.customerPhone.length < 3 && !isEditMode}
             />
           </div>
           <div>
@@ -346,6 +322,17 @@ export default function TripForm() {
             />
           </div>
         </div>
+
+        {showDuplicateWarning && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+            <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="text-sm text-amber-800">
+              Khách hàng này đã có trong hệ thống, bạn có muốn cập nhật thông tin không?
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Route Info */}

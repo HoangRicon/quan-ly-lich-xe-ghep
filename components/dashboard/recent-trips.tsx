@@ -134,9 +134,34 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
   };
 
   const copyToClipboard = async (text: string, label: string) => {
+    // Try Clipboard API first
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert(`${label} đã được sao chép!`);
+        return;
+      } catch (err) {
+        console.warn("Clipboard API failed, trying fallback:", err);
+      }
+    }
+    
+    // Fallback for HTTP/non-secure contexts
     try {
-      await navigator.clipboard.writeText(text);
-      alert(`${label} đã được sao chép!`);
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textArea);
+      
+      if (success) {
+        alert(`${label} đã được sao chép!`);
+      } else {
+        alert("Sao chép thất bại");
+      }
     } catch (err) {
       console.error("Copy failed:", err);
     }
