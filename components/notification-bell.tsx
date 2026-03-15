@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Bell, Calendar, ChevronRight } from "lucide-react";
+import { Bell, Calendar, ChevronRight, X, Car, User, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface NotificationData {
@@ -23,6 +23,7 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -32,6 +33,13 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
       fetchNotifications();
     }
   }, [isOpen]);
+
+  // Poll for new notifications every 30 seconds
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close dropdown khi click outside
   useEffect(() => {
@@ -47,7 +55,8 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/notifications?limit=5&unread=false");
+      // Sử dụng API test không cần auth
+      const res = await fetch("/api/notifications/test-notifications?limit=5&unread=false&userId=1");
       const data = await res.json();
       if (data.success) {
         setNotifications(data.notifications);
@@ -60,22 +69,29 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
     }
   };
 
+  // Mở modal chi tiết
   const handleNotificationClick = async (notification: NotificationData) => {
     // Đánh dấu đã đọc
     if (!notification.isRead) {
-      await fetch("/api/notifications/mark-as-read", {
+      await fetch("/api/notifications/test-mark-read", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds: [notification.id] }),
+        body: JSON.stringify({ notificationIds: [notification.id], userId: 1 }),
       });
       setUnreadCount((prev) => Math.max(0, prev - 1));
+      setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n));
     }
-    setIsOpen(false);
-    router.push("/notifications");
+    setSelectedNotification(notification);
+  };
+
+  // Đóng modal chi tiết
+  const closeDetail = () => {
+    setSelectedNotification(null);
   };
 
   const handleViewAll = () => {
     setIsOpen(false);
+    setSelectedNotification(null);
     router.push("/notifications");
   };
 
@@ -99,9 +115,27 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "reminder":
-        return <Calendar className="w-4 h-4 text-blue-500" />;
+        return <Calendar className="w-5 h-5 text-blue-500" />;
+      case "booking":
+        return <Car className="w-5 h-5 text-green-500" />;
+      case "system":
+        return <AlertCircle className="w-5 h-5 text-amber-500" />;
       default:
-        return <Bell className="w-4 h-4 text-slate-500" />;
+        return <Bell className="w-5 h-5 text-slate-500" />;
+    }
+  };
+
+  // Lấy màu nền theo loại thông báo
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "reminder":
+        return "bg-blue-100";
+      case "booking":
+        return "bg-green-100";
+      case "system":
+        return "bg-amber-100";
+      default:
+        return "bg-slate-100";
     }
   };
 
@@ -115,7 +149,7 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
         <Bell className="w-5 h-5 text-slate-600" />
         {/* Badge hiển thị số thông báo chưa đọc */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-medium rounded-full flex items-center justify-center animate-pulse">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -150,11 +184,11 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
                   className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors text-left border-b border-slate-50 last:border-b-0 ${
-                    !notification.isRead ? "bg-blue-50/50" : ""
+                    !notification.isRead ? "bg-yellow-50" : ""
                   }`}
                 >
-                  {/* Icon */}
-                  <div className="flex-shrink-0 mt-0.5">
+                  {/* Icon with colored background */}
+                  <div className={`flex-shrink-0 mt-0.5 p-2 rounded-lg ${getTypeColor(notification.type)}`}>
                     {getNotificationIcon(notification.type)}
                   </div>
 
@@ -165,7 +199,7 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
                         {notification.title}
                       </span>
                       {!notification.isRead && (
-                        <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0" />
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
@@ -191,6 +225,63 @@ export default function NotificationBell({ className = "" }: NotificationBellPro
             >
               Xem tất cả
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chi tiết thông báo */}
+      {selectedNotification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeDetail}>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${getTypeColor(selectedNotification.type)}`}>
+                  {getNotificationIcon(selectedNotification.type)}
+                </div>
+                <h3 className="font-semibold text-slate-800">{selectedNotification.title}</h3>
+              </div>
+              <button onClick={closeDetail} className="p-1 hover:bg-slate-200 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                {!selectedNotification.isRead && (
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                    Chưa đọc
+                  </span>
+                )}
+                <span className="text-xs text-slate-400">
+                  {formatTime(selectedNotification.createdAt)}
+                </span>
+              </div>
+              
+              <p className="text-slate-700 whitespace-pre-wrap">
+                {selectedNotification.content}
+              </p>
+
+              {selectedNotification.data && Object.keys(selectedNotification.data).length > 0 && (
+                <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Thông tin thêm:</p>
+                  <pre className="text-xs text-slate-600 overflow-x-auto">
+                    {JSON.stringify(selectedNotification.data, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+              <button
+                onClick={closeDetail}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

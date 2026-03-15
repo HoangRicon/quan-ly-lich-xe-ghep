@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Filter, Check, CheckCheck, Calendar, Car, User, AlertCircle, ArrowLeft } from "lucide-react";
+import { Bell, Filter, Check, CheckCheck, Calendar, Car, User, AlertCircle, ArrowLeft, X } from "lucide-react";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 
 interface Notification {
@@ -35,7 +35,8 @@ export default function NotificationsPage() {
     setLoading(true);
     try {
       const unreadParam = filter === "unread" ? "true" : "false";
-      const res = await fetch(`/api/notifications?page=1&limit=100&unread=${unreadParam}`);
+      // Sử dụng API test không cần auth
+      const res = await fetch(`/api/notifications/test-notifications?page=1&limit=100&unread=${unreadParam}&userId=1`);
       const data = await res.json();
       
       if (data.success) {
@@ -63,12 +64,12 @@ export default function NotificationsPage() {
 
   const markAsRead = async (ids: number[]) => {
     try {
-      await fetch("/api/notifications/mark-as-read", {
+      await fetch("/api/notifications/test-mark-read", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds: ids }),
+        body: JSON.stringify({ notificationIds: ids, userId: 1 }),
       });
-      
+
       setNotifications((prev) =>
         prev.map((n) => (ids.includes(n.id) ? { ...n, isRead: true } : n))
       );
@@ -82,10 +83,10 @@ export default function NotificationsPage() {
   const markAllAsRead = async () => {
     try {
       const allIds = notifications.map((n) => n.id);
-      await fetch("/api/notifications/mark-as-read", {
+      await fetch("/api/notifications/test-mark-read", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds: allIds }),
+        body: JSON.stringify({ notificationIds: allIds, userId: 1 }),
       });
       
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
@@ -138,11 +139,41 @@ export default function NotificationsPage() {
         return <AlertCircle className="w-5 h-5 text-amber-500" />;
       case "trip":
         return <Car className="w-5 h-5 text-green-500" />;
+      case "booking":
+        return <Car className="w-5 h-5 text-green-500" />;
       case "customer":
         return <User className="w-5 h-5 text-purple-500" />;
       default:
         return <Bell className="w-5 h-5 text-slate-500" />;
     }
+  };
+
+  // Lấy màu nền theo loại thông báo
+  const getTypeBgColor = (type: string, isRead: boolean) => {
+    if (isRead) return "bg-slate-100";
+    switch (type) {
+      case "reminder":
+        return "bg-blue-100";
+      case "system":
+        return "bg-amber-100";
+      case "trip":
+      case "booking":
+        return "bg-green-100";
+      case "customer":
+        return "bg-purple-100";
+      default:
+        return "bg-slate-100";
+    }
+  };
+
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+
+  const openDetail = (notification: Notification) => {
+    setSelectedNotification(notification);
+  };
+
+  const closeDetail = () => {
+    setSelectedNotification(null);
   };
 
   const filterOptions: { value: FilterType; label: string; count?: number }[] = [
@@ -270,12 +301,13 @@ export default function NotificationsPage() {
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`bg-white rounded-xl border transition-all ${
+                  onClick={() => openDetail(notification)}
+                  className={`bg-white rounded-xl border cursor-pointer transition-all hover:shadow-md ${
                     selectedNotifications.includes(notification.id)
                       ? "border-blue-500 ring-2 ring-blue-100"
                       : notification.isRead
                       ? "border-slate-200"
-                      : "border-blue-200 bg-blue-50/30"
+                      : "border-yellow-200 bg-yellow-50"
                   }`}
                 >
                   <div className="p-4">
@@ -283,12 +315,16 @@ export default function NotificationsPage() {
                       <input
                         type="checkbox"
                         checked={selectedNotifications.includes(notification.id)}
-                        onChange={() => toggleSelect(notification.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelect(notification.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                         className="w-4 h-4 mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
 
                       <div className={`flex-shrink-0 p-2 rounded-lg ${
-                        notification.isRead ? "bg-slate-100" : "bg-blue-100"
+                        getTypeBgColor(notification.type, notification.isRead)
                       }`}>
                         {getNotificationIcon(notification.type)}
                       </div>
@@ -301,7 +337,7 @@ export default function NotificationsPage() {
                             {notification.title}
                           </h3>
                           {!notification.isRead && (
-                            <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
+                            <span className="w-2 h-2 bg-yellow-500 rounded-full flex-shrink-0" />
                           )}
                         </div>
                         <p className="mt-1 text-sm text-slate-600">{notification.content}</p>
@@ -334,6 +370,64 @@ export default function NotificationsPage() {
           )}
         </div>
       </Sidebar>
+
+      {/* Modal Chi tiết thông báo */}
+      {selectedNotification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeDetail}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${getTypeBgColor(selectedNotification.type, selectedNotification.isRead)}`}>
+                  {getNotificationIcon(selectedNotification.type)}
+                </div>
+                <h3 className="font-semibold text-slate-800">{selectedNotification.title}</h3>
+              </div>
+              <button onClick={closeDetail} className="p-1 hover:bg-slate-200 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[50vh]">
+              <div className="flex items-center gap-2 mb-4">
+                {!selectedNotification.isRead && (
+                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                    Chưa đọc
+                  </span>
+                )}
+                <span className="text-xs text-slate-400">
+                  {formatTime(selectedNotification.createdAt)}
+                </span>
+              </div>
+              
+              <p className="text-slate-700 whitespace-pre-wrap">
+                {selectedNotification.content}
+              </p>
+
+              {selectedNotification.data && Object.keys(selectedNotification.data).length > 0 && (
+                <div className="mt-4 p-3 bg-slate-50 rounded-lg">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Thông tin thêm:</p>
+                  <pre className="text-xs text-slate-600 overflow-x-auto">
+                    {JSON.stringify(selectedNotification.data, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+              <button
+                onClick={closeDetail}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   );

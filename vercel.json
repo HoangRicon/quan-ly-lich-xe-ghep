@@ -3,6 +3,10 @@
     {
       "path": "/api/notifications/create-reminders",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/push/send-unread",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

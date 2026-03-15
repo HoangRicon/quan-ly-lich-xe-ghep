@@ -187,3 +187,18 @@ model UserSettings {
 
   @@map("user_settings")
 }
+
+// Bảng lưu cấu hình hệ thống (Zalo OA, Email SMTP, etc)
+model SystemSettings {
+  id                    Int       @id @default(autoincrement())
+  key                   String    @unique @db.VarChar(100)
+  value                 String?   @db.Text
+  description           String?   @map("description") @db.VarChar(500)
+  category              String    @default("general") @map("category") @db.VarChar(50) // 'zalo', 'email', 'general'
+  isSecret              Boolean   @default(false) @map("is_secret") // ẩn giá trị nhạy cảm
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([category], name: "idx_system_settings_category")
+  @@map("system_settings")
+}

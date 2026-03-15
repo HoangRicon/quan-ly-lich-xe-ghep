@@ -30,6 +30,9 @@ import {
   Mail,
   Moon,
   Sun,
+  Network,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 // Toast Component
@@ -120,31 +123,147 @@ function fallbackCopy(text: string, onSuccess?: () => void, onError?: () => void
 }
 
 // Tab Components
-function ZaloOASettings() {
-  const [config, setConfig] = useState({
+function ConnectionSettings() {
+  const [zaloConfig, setZaloConfig] = useState({
     oaId: "",
     appId: "",
     secretKey: "",
     accessToken: "",
   });
-  const [connectionStatus, setConnectionStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
+  const [emailConfig, setEmailConfig] = useState({
+    smtpHost: "",
+    smtpPort: "",
+    smtpUser: "",
+    smtpPassword: "",
+    fromEmail: "",
+    fromName: "",
+  });
+  const [zaloStatus, setZaloStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
-  const handleTestConnection = async () => {
-    if (!config.oaId || !config.accessToken) {
+  const showToast = (message: string, type: "success" | "error" | "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Load settings from database on mount
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/system-settings?category=zalo");
+      const data = await res.json();
+      if (data.success && data.settings) {
+        const settings: Record<string, string> = {};
+        data.settings.forEach((s: { key: string; value: string }) => {
+          settings[s.key] = s.value;
+        });
+        setZaloConfig({
+          oaId: settings.zalo_oa_id || "",
+          appId: settings.zalo_app_id || "",
+          secretKey: settings.zalo_secret_key || "",
+          accessToken: settings.zalo_access_token || "",
+        });
+      }
+
+      const emailRes = await fetch("/api/system-settings?category=email");
+      const emailData = await emailRes.json();
+      if (emailData.success && emailData.settings) {
+        const settings: Record<string, string> = {};
+        emailData.settings.forEach((s: { key: string; value: string }) => {
+          settings[s.key] = s.value;
+        });
+        setEmailConfig({
+          smtpHost: settings.smtp_host || "",
+          smtpPort: settings.smtp_port || "587",
+          smtpUser: settings.smtp_user || "",
+          smtpPassword: settings.smtp_password || "",
+          fromEmail: settings.from_email || "",
+          fromName: settings.from_name || "Xe Ghép",
+        });
+      }
+    } catch (error) {
+      console.error("Load settings error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveZalo = async () => {
+    setSaving(true);
+    try {
+      const keys = [
+        { key: "zalo_oa_id", value: zaloConfig.oaId, category: "zalo" },
+        { key: "zalo_app_id", value: zaloConfig.appId, category: "zalo" },
+        { key: "zalo_secret_key", value: zaloConfig.secretKey, category: "zalo", isSecret: true },
+        { key: "zalo_access_token", value: zaloConfig.accessToken, category: "zalo", isSecret: true },
+      ];
+
+      for (const k of keys) {
+        await fetch("/api/system-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(k),
+        });
+      }
+      showToast("Đã lưu cấu hình Zalo", "success");
+    } catch (error) {
+      showToast("Lỗi khi lưu cấu hình", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveEmail = async () => {
+    setSaving(true);
+    try {
+      const keys = [
+        { key: "smtp_host", value: emailConfig.smtpHost, category: "email" },
+        { key: "smtp_port", value: emailConfig.smtpPort, category: "email" },
+        { key: "smtp_user", value: emailConfig.smtpUser, category: "email" },
+        { key: "smtp_password", value: emailConfig.smtpPassword, category: "email", isSecret: true },
+        { key: "from_email", value: emailConfig.fromEmail, category: "email" },
+        { key: "from_name", value: emailConfig.fromName, category: "email" },
+      ];
+
+      for (const k of keys) {
+        await fetch("/api/system-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(k),
+        });
+      }
+      showToast("Đã lưu cấu hình Email", "success");
+    } catch (error) {
+      showToast("Lỗi khi lưu cấu hình", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestZalo = async () => {
+    if (!zaloConfig.oaId || !zaloConfig.accessToken) {
       setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Lỗi: Vui lòng nhập đầy đủ OA ID và Access Token`]);
-      setConnectionStatus("error");
+      setZaloStatus("error");
       return;
     }
 
-    setConnectionStatus("checking");
+    setZaloStatus("checking");
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Đang kiểm tra kết nối...`]);
 
     // Simulate API call
     setTimeout(() => {
       const isSuccess = Math.random() > 0.3;
       if (isSuccess) {
-        setConnectionStatus("success");
+        setZaloStatus("success");
         setLogs((prev) => [
           ...prev,
           `[${new Date().toLocaleTimeString()}] ✓ Kết nối thành công!`,
@@ -153,7 +272,7 @@ function ZaloOASettings() {
           `[${new Date().toLocaleTimeString()}] Hạn mức ZNS còn lại: 955/1000`,
         ]);
       } else {
-        setConnectionStatus("error");
+        setZaloStatus("error");
         setLogs((prev) => [
           ...prev,
           `[${new Date().toLocaleTimeString()}] ✗ Lỗi kết nối: Invalid access token`,
@@ -163,90 +282,122 @@ function ZaloOASettings() {
     }, 2000);
   };
 
-  const handleSave = () => {
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ✓ Lưu cấu hình thành công`]);
+  const handleTestEmail = async () => {
+    if (!emailConfig.smtpHost || !emailConfig.smtpUser) {
+      showToast("Vui lòng nhập đầy đủ thông tin SMTP", "error");
+      return;
+    }
+
+    setEmailStatus("testing");
+    try {
+      const res = await fetch("/api/notifications/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "booking_confirmation",
+          email: "test@example.com",
+          data: {
+            customer_name: "Test User",
+            pickup_location: "Hà Nội",
+            dropoff_location: "Hải Phòng",
+            price: "150.000",
+            booking_time: "15:00 - 15/03/2026"
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmailStatus("success");
+        showToast("Email test đã được gửi (log trong console)", "success");
+      } else {
+        setEmailStatus("error");
+        showToast("Gửi email thất bại", "error");
+      }
+    } catch (error) {
+      setEmailStatus("error");
+      showToast("Lỗi kết nối", "error");
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Connection Status Banner */}
-      <div
-        className={`rounded-xl p-4 border ${
-          connectionStatus === "success"
-            ? "bg-green-50 border-green-200"
-            : connectionStatus === "error"
-            ? "bg-red-50 border-red-200"
-            : connectionStatus === "checking"
-            ? "bg-blue-50 border-blue-200"
-            : "bg-slate-50 border-slate-200"
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {connectionStatus === "checking" ? (
-              <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-            ) : connectionStatus === "success" ? (
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
-            ) : connectionStatus === "error" ? (
-              <XCircle className="w-6 h-6 text-red-600" />
-            ) : (
-              <Settings className="w-6 h-6 text-slate-400" />
-            )}
-            <div>
-              <p className="font-semibold text-slate-800">
-                {connectionStatus === "checking"
-                  ? "Đang kiểm tra kết nối..."
-                  : connectionStatus === "success"
-                  ? "Đã kết nối"
-                  : connectionStatus === "error"
-                  ? "Lỗi kết nối"
-                  : "Chưa kết nối"}
-              </p>
-              <p className="text-sm text-slate-500">
-                {connectionStatus === "success"
-                  ? "Zalo OA hoạt động bình thường"
-                  : connectionStatus === "error"
-                  ? "Vui lòng kiểm tra lại thông tin cấu hình"
-                  : "Nhập thông tin OA để kết nối"}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant={connectionStatus === "success" ? "outline" : "default"}
-            size="sm"
-            onClick={handleTestConnection}
-            disabled={connectionStatus === "checking"}
-          >
-            {connectionStatus === "checking" ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Kiểm tra...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Kiểm tra kết nối
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* API Configuration Form */}
+      {/* Zalo OA Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Cấu hình API Zalo OA</CardTitle>
-          <CardDescription>Nhập thông tin xác thực từ Zalo Developer Console</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Network className="w-5 h-5" />
+            Cấu hình Zalo OA
+          </CardTitle>
+          <CardDescription>Kết nối với Zalo Official Account để gửi tin nhắn ZNS</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Status Banner */}
+          <div
+            className={`rounded-xl p-4 border ${
+              zaloStatus === "success"
+                ? "bg-green-50 border-green-200"
+                : zaloStatus === "error"
+                ? "bg-red-50 border-red-200"
+                : zaloStatus === "checking"
+                ? "bg-blue-50 border-blue-200"
+                : "bg-slate-50 border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {zaloStatus === "checking" ? (
+                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                ) : zaloStatus === "success" ? (
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                ) : zaloStatus === "error" ? (
+                  <XCircle className="w-6 h-6 text-red-600" />
+                ) : (
+                  <Settings className="w-6 h-6 text-slate-400" />
+                )}
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {zaloStatus === "checking"
+                      ? "Đang kiểm tra..."
+                      : zaloStatus === "success"
+                      ? "Đã kết nối"
+                      : zaloStatus === "error"
+                      ? "Lỗi kết nối"
+                      : "Chưa kết nối"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant={zaloStatus === "success" ? "outline" : "default"}
+                size="sm"
+                onClick={handleTestZalo}
+                disabled={zaloStatus === "checking"}
+              >
+                {zaloStatus === "checking" ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang kiểm tra...</>
+                ) : (
+                  <><RefreshCw className="w-4 h-4 mr-2" /> Kiểm tra</>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Form */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="oaId">OA ID</Label>
               <Input
                 id="oaId"
                 placeholder="VD: 1234567890"
-                value={config.oaId}
-                onChange={(e) => setConfig({ ...config, oaId: e.target.value })}
+                value={zaloConfig.oaId}
+                onChange={(e) => setZaloConfig({ ...zaloConfig, oaId: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -254,8 +405,8 @@ function ZaloOASettings() {
               <Input
                 id="appId"
                 placeholder="VD: 1234567890123456789"
-                value={config.appId}
-                onChange={(e) => setConfig({ ...config, appId: e.target.value })}
+                value={zaloConfig.appId}
+                onChange={(e) => setZaloConfig({ ...zaloConfig, appId: e.target.value })}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
@@ -264,8 +415,8 @@ function ZaloOASettings() {
                 id="secretKey"
                 type="password"
                 placeholder="Nhập Secret Key"
-                value={config.secretKey}
-                onChange={(e) => setConfig({ ...config, secretKey: e.target.value })}
+                value={zaloConfig.secretKey}
+                onChange={(e) => setZaloConfig({ ...zaloConfig, secretKey: e.target.value })}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
@@ -274,15 +425,151 @@ function ZaloOASettings() {
                 id="accessToken"
                 type="password"
                 placeholder="Nhập Access Token"
-                value={config.accessToken}
-                onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
+                value={zaloConfig.accessToken}
+                onChange={(e) => setZaloConfig({ ...zaloConfig, accessToken: e.target.value })}
               />
             </div>
           </div>
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleSave}>
-              <Settings className="w-4 h-4 mr-2" />
-              Lưu cấu hình
+          <div className="flex justify-end">
+            <Button onClick={handleSaveZalo} disabled={saving}>
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Đang lưu..." : "Lưu cấu hình Zalo"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Email SMTP Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="w-5 h-5" />
+            Cấu hình Email SMTP
+          </CardTitle>
+          <CardDescription>Cấu hình SMTP để gửi email thông báo</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Status */}
+          <div
+            className={`rounded-xl p-4 border ${
+              emailStatus === "success"
+                ? "bg-green-50 border-green-200"
+                : emailStatus === "error"
+                ? "bg-red-50 border-red-200"
+                : emailStatus === "testing"
+                ? "bg-blue-50 border-blue-200"
+                : "bg-slate-50 border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {emailStatus === "testing" ? (
+                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                ) : emailStatus === "success" ? (
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                ) : emailStatus === "error" ? (
+                  <XCircle className="w-6 h-6 text-red-600" />
+                ) : (
+                  <Mail className="w-6 h-6 text-slate-400" />
+                )}
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {emailStatus === "testing"
+                      ? "Đang gửi test..."
+                      : emailStatus === "success"
+                      ? "Sẵn sàng gửi"
+                      : emailStatus === "error"
+                      ? "Lỗi kết nối"
+                      : "Chưa cấu hình"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant={emailStatus === "success" ? "outline" : "default"}
+                size="sm"
+                onClick={handleTestEmail}
+                disabled={emailStatus === "testing"}
+              >
+                {emailStatus === "testing" ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang gửi...</>
+                ) : (
+                  <><Mail className="w-4 h-4 mr-2" /> Gửi test</>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* SMTP Form */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="smtpHost">SMTP Host</Label>
+              <Input
+                id="smtpHost"
+                placeholder="VD: smtp.gmail.com"
+                value={emailConfig.smtpHost}
+                onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="smtpPort">SMTP Port</Label>
+              <Input
+                id="smtpPort"
+                placeholder="VD: 587"
+                value={emailConfig.smtpPort}
+                onChange={(e) => setEmailConfig({ ...emailConfig, smtpPort: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="smtpUser">SMTP Username</Label>
+              <Input
+                id="smtpUser"
+                placeholder="Email đăng nhập SMTP"
+                value={emailConfig.smtpUser}
+                onChange={(e) => setEmailConfig({ ...emailConfig, smtpUser: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="smtpPassword">SMTP Password</Label>
+              <div className="relative">
+                <Input
+                  id="smtpPassword"
+                  type={showEmailPassword ? "text" : "password"}
+                  placeholder="Mật khẩu SMTP"
+                  value={emailConfig.smtpPassword}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEmailPassword(!showEmailPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fromEmail">Email người gửi</Label>
+              <Input
+                id="fromEmail"
+                placeholder="VD: noreply@xeghep.com"
+                value={emailConfig.fromEmail}
+                onChange={(e) => setEmailConfig({ ...emailConfig, fromEmail: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fromName">Tên người gửi</Label>
+              <Input
+                id="fromName"
+                placeholder="VD: Xe Ghép"
+                value={emailConfig.fromName}
+                onChange={(e) => setEmailConfig({ ...emailConfig, fromName: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={handleSaveEmail} disabled={saving}>
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Đang lưu..." : "Lưu cấu hình Email"}
             </Button>
           </div>
         </CardContent>
@@ -305,6 +592,9 @@ function ZaloOASettings() {
           </CardContent>
         </Card>
       )}
+
+      {/* Toast */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
@@ -836,6 +1126,12 @@ function NotificationSettingsTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const REMINDER_OPTIONS = [
     { value: 15, label: "15 phút" },
@@ -939,6 +1235,37 @@ function NotificationSettingsTab() {
                   />
                 </button>
               </div>
+              {settings.pushEnabled && (
+                <div className="mt-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/push/test", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            title: "Test Thông báo đẩy",
+                            message: "Đây là tin nhắn test từ hệ thống Xe Ghép!"
+                          })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          showToast(data.message || "Đã gửi thông báo test!", "success");
+                        } else {
+                          showToast(data.error || "Gửi thất bại", "error");
+                        }
+                      } catch (err) {
+                        showToast("Lỗi kết nối", "error");
+                      }
+                    }}
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    Gửi test
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -968,6 +1295,44 @@ function NotificationSettingsTab() {
                   />
                 </button>
               </div>
+              {settings.emailEnabled && (
+                <div className="mt-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/notifications/test-email", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            type: "booking_confirmation",
+                            email: "test@example.com",
+                            data: {
+                              customer_name: "Nguyễn Văn Test",
+                              pickup_location: "Hà Nội",
+                              dropoff_location: "Hải Phòng",
+                              price: "150.000",
+                              booking_time: "15:00 - 15/03/2026"
+                            }
+                          })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          showToast("Email test đã được gửi!", "success");
+                        } else {
+                          showToast("Gửi email thất bại", "error");
+                        }
+                      } catch (err) {
+                        showToast("Lỗi kết nối", "error");
+                      }
+                    }}
+                  >
+                    <Mail className="w-4 h-4 mr-2" />
+                    Gửi email test
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1123,13 +1488,16 @@ function NotificationSettingsTab() {
           </div>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
 
 // Main Settings Page
 export default function NotificationSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"zalo" | "templates" | "triggers" | "notifications">("zalo");
+  const [activeTab, setActiveTab] = useState<"connections" | "templates" | "triggers" | "notifications">("connections");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
@@ -1138,9 +1506,9 @@ export default function NotificationSettingsPage() {
   };
 
   const tabs = [
-    { id: "zalo", label: "Cấu hình Zalo OA", icon: Settings },
+    { id: "connections", label: "Cấu hình kết nối", icon: Settings },
     { id: "templates", label: "Quản lý Template", icon: MessageSquare },
-    { id: "triggers", label: "Thiết lập gửi tin", icon: Bell },
+    // { id: "triggers", label: "Thiết lập gửi tin", icon: Bell },
     { id: "notifications", label: "Cài đặt thông báo", icon: Smartphone },
   ] as const;
 
@@ -1174,9 +1542,9 @@ export default function NotificationSettingsPage() {
           </div>
 
           {/* Tab Content */}
-          {activeTab === "zalo" && <ZaloOASettings />}
+          {activeTab === "connections" && <ConnectionSettings />}
           {activeTab === "templates" && <ZNSTemplates />}
-          {activeTab === "triggers" && <AutoSendTriggers />}
+          {/* {activeTab === "triggers" && <AutoSendTriggers />} */}
           {activeTab === "notifications" && <NotificationSettingsTab />}
         </div>
       </Sidebar>
