@@ -12,9 +12,11 @@ import {
   LogOut,
   Menu,
   X,
+  Bell,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import NotificationBell from "@/components/notification-bell";
 
 interface SidebarProps {
   children?: React.ReactNode;
@@ -23,6 +25,7 @@ interface SidebarProps {
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/dashboard/schedule", icon: Calendar, label: "Lịch trình" },
+  { href: "/notifications", icon: Bell, label: "Thông báo" },
   { href: "/dashboard/drivers", icon: Users, label: "Quản lý tài xế" },
   { href: "/dashboard/customers", icon: Car, label: "Quản lý khách hàng" },
   { href: "/dashboard/reports", icon: BarChart3, label: "Báo cáo" },
@@ -136,7 +139,7 @@ export function Sidebar({ children }: SidebarProps) {
             </div>
             <span className="font-bold text-slate-800">Xe Ghép</span>
           </div>
-          <div className="w-10" />
+          <NotificationBell />
         </header>
 
         {/* Page Content */}

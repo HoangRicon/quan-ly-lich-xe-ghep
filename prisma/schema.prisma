@@ -23,6 +23,8 @@ model User {
   vehicles     Vehicle[]
   trips        Trip[]
   bookings     Booking[]
+  notifications Notification[]
+  settings     UserSettings?
 
   @@index([email], name: "idx_users_email")
   @@index([phone], name: "idx_users_phone")
@@ -132,4 +134,50 @@ model TripCustomer {
 
   @@unique([tripId, customerId], name: "idx_trip_customer_trip_customer")
   @@map("trip_customers")
+}
+
+model PushSubscription {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @map("user_id")
+  endpoint      String    @db.VarChar(500)
+  p256dh        String    @map("p256dh") @db.VarChar(200)
+  auth          String    @db.VarChar(100)
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([userId], name: "idx_push_subscriptions_user")
+  @@unique([endpoint], name: "idx_push_subscriptions_endpoint")
+  @@map("push_subscriptions")
+}
+
+// Bảng lưu thông báo của người dùng
+model Notification {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String    @default("reminder") @db.VarChar(50) // reminder, system, trip_update
+  title       String    @db.VarChar(255)
+  content     String    @db.Text
+  data        Json?     // Dữ liệu bổ sung: { tripId, departureTime, ... }
+  isRead      Boolean   @default(false) @map("is_read")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, isRead], name: "idx_notifications_user_read")
+  @@index([userId, createdAt], name: "idx_notifications_user_date")
+  @@map("notifications")
+}
+
+// Bảng lưu cài đặt thông báo của người dùng
+model UserSettings {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @unique @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushEnabled           Boolean   @default(true) @map("push_enabled")
+  reminderOffset        Int       @default(60) @map("reminder_offset") // Phút trước khi nhắc (mặc định 60 phút)
+  emailEnabled          Boolean   @default(true) @map("email_enabled")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("user_settings")
 }
