@@ -22,6 +22,7 @@ model User {
 
   vehicles     Vehicle[]
   trips        Trip[]
+  createdTrips Trip[]      @relation("CreatedTrips")
   bookings     Booking[]
   notifications Notification[]
   settings     UserSettings?
@@ -73,6 +74,8 @@ model Trip {
   vehicle       Vehicle?  @relation(fields: [vehicleId], references: [id])
   driverId      Int?      @map("driver_id")
   driver        User?     @relation(fields: [driverId], references: [id])
+  createdById   Int?      @map("created_by_id")
+  createdBy     User?     @relation("CreatedTrips", fields: [createdById], references: [id])
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -176,6 +179,9 @@ model UserSettings {
   pushEnabled           Boolean   @default(true) @map("push_enabled")
   reminderOffset        Int       @default(60) @map("reminder_offset") // Phút trước khi nhắc (mặc định 60 phút)
   emailEnabled          Boolean   @default(true) @map("email_enabled")
+  notificationHour      Int       @default(8) @map("notification_hour") // Giờ gửi thông báo tự động (0-23)
+  quietHoursStart      Int?      @map("quiet_hours_start") // Bắt đầu giờ yên lặng
+  quietHoursEnd        Int?      @map("quiet_hours_end") // Kết thúc giờ yên lặng
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 

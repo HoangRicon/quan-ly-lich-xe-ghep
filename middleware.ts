@@ -8,6 +8,7 @@ export async function middleware(request: NextRequest) {
   const publicPaths = [
     "/api/auth/login",
     "/api/auth/register",
+    "/api/notifications", // Allow creating notifications without auth (for cron job)
     "/login",
     "/register",
     "/",

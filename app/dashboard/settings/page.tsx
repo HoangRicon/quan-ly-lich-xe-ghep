@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,9 @@ import {
   RefreshCw,
   Zap,
   Save,
+  Mail,
+  Moon,
+  Sun,
 } from "lucide-react";
 
 // Toast Component
@@ -819,9 +822,314 @@ function AutoSendTriggers() {
   );
 }
 
+// Notification Settings Tab Component
+function NotificationSettingsTab() {
+  const [settings, setSettings] = useState({
+    pushEnabled: true,
+    reminderOffset: 60,
+    emailEnabled: true,
+    notificationHour: 8,
+    quietHoursStart: null as number | null,
+    quietHoursEnd: null as number | null,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const REMINDER_OPTIONS = [
+    { value: 15, label: "15 phút" },
+    { value: 30, label: "30 phút" },
+    { value: 60, label: "1 tiếng" },
+    { value: 120, label: "2 tiếng" },
+    { value: 300, label: "5 tiếng" },
+    { value: 1440, label: "1 ngày" },
+  ];
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/notifications/settings");
+      const data = await res.json();
+      if (data.success) {
+        setSettings(data.settings);
+      }
+    } catch (err) {
+      console.error("Failed to fetch settings:", err);
+      setError("Không thể tải cài đặt");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/notifications/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        setError(data.error || "Lỗi khi lưu cài đặt");
+      }
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+      setError("Lỗi khi lưu cài đặt");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePushToggle = async (enabled: boolean) => {
+    if (enabled && "Notification" in window) {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setError("Bạn cần cho phép thông báo trong trình duyệt");
+        return;
+      }
+    }
+    setSettings((prev) => ({ ...prev, pushEnabled: enabled }));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Settings Card */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        {/* Push Notifications */}
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Smartphone className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-800">Thông báo đẩy</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">Nhận thông báo trên trình duyệt</p>
+                </div>
+                <button
+                  onClick={() => handlePushToggle(!settings.pushEnabled)}
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
+                    settings.pushEnabled ? "bg-blue-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.pushEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Email Notifications */}
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Mail className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-800">Thông báo Email</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">Nhận thông báo qua email</p>
+                </div>
+                <button
+                  onClick={() => setSettings((prev) => ({ ...prev, emailEnabled: !prev.emailEnabled }))}
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
+                    settings.emailEnabled ? "bg-blue-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.emailEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Reminder Time */}
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Clock className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <div>
+                <h3 className="font-semibold text-slate-800">Thời gian nhắc hẹn</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Nhắc trước khi chuyến xe khởi hành</p>
+              </div>
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {REMINDER_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSettings((prev) => ({ ...prev, reminderOffset: option.value }))}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      settings.reminderOffset === option.value
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Notification Hour */}
+        <div className="p-6 border-b border-slate-100">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Sun className="w-5 h-5 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <div>
+                <h3 className="font-semibold text-slate-800">Giờ gửi thông báo</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Thời điểm gửi thông báo tự động trong ngày</p>
+              </div>
+              <div className="mt-4">
+                <select
+                  value={settings.notificationHour}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, notificationHour: parseInt(e.target.value) }))}
+                  className="px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quiet Hours */}
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Moon className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-800">Giờ yên lặng</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">Tắt thông báo trong khung giờ này</p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (settings.quietHoursStart !== null) {
+                      setSettings((prev) => ({ ...prev, quietHoursStart: null, quietHoursEnd: null }));
+                    } else {
+                      setSettings((prev) => ({ ...prev, quietHoursStart: 22, quietHoursEnd: 7 }));
+                    }
+                  }}
+                  className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
+                    settings.quietHoursStart !== null ? "bg-blue-600" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.quietHoursStart !== null ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+              {settings.quietHoursStart !== null && (
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">Từ</span>
+                    <select
+                      value={settings.quietHoursStart ?? 22}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, quietHoursStart: parseInt(e.target.value) }))}
+                      className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">đến</span>
+                    <select
+                      value={settings.quietHoursEnd ?? 7}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, quietHoursEnd: parseInt(e.target.value) }))}
+                      className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i.toString().padStart(2, "0")}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>
+      )}
+
+      {/* Save Button */}
+      <div className="flex items-center gap-4">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Đang lưu...</> :
+           saved ? <><Check className="w-4 h-4 mr-2" /> Đã lưu</> :
+           <><Save className="w-4 h-4 mr-2" /> Lưu cài đặt</>}
+        </Button>
+        <Button variant="outline" onClick={fetchSettings}>
+          <RefreshCw className="w-4 h-4 mr-2" /> Khôi phục
+        </Button>
+      </div>
+
+      {/* Info Box */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-start gap-3">
+          <Bell className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-blue-800">
+            <p className="font-medium mb-1">Lưu ý:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Thông báo đẩy chỉ hoạt động trên trình duyệt hỗ trợ</li>
+              <li>Bạn cần cho phép thông báo trong trình duyệt</li>
+              <li>Thông báo sẽ được gửi tự động khi có lịch hẹn mới</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Main Settings Page
 export default function NotificationSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"zalo" | "templates" | "triggers">("zalo");
+  const [activeTab, setActiveTab] = useState<"zalo" | "templates" | "triggers" | "notifications">("zalo");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
@@ -833,6 +1141,7 @@ export default function NotificationSettingsPage() {
     { id: "zalo", label: "Cấu hình Zalo OA", icon: Settings },
     { id: "templates", label: "Quản lý Template", icon: MessageSquare },
     { id: "triggers", label: "Thiết lập gửi tin", icon: Bell },
+    { id: "notifications", label: "Cài đặt thông báo", icon: Smartphone },
   ] as const;
 
   return (
@@ -868,6 +1177,7 @@ export default function NotificationSettingsPage() {
           {activeTab === "zalo" && <ZaloOASettings />}
           {activeTab === "templates" && <ZNSTemplates />}
           {activeTab === "triggers" && <AutoSendTriggers />}
+          {activeTab === "notifications" && <NotificationSettingsTab />}
         </div>
       </Sidebar>
       <BottomNav />

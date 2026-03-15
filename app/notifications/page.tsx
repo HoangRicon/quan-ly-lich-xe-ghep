@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bell, Calendar, Check, CheckCheck, Trash2, Filter } from "lucide-react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Bell, Filter, Check, CheckCheck, Calendar, Car, User, AlertCircle, ArrowLeft } from "lucide-react";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 
-interface NotificationData {
+interface Notification {
   id: number;
   type: string;
   title: string;
@@ -15,29 +15,43 @@ interface NotificationData {
   data?: Record<string, unknown>;
 }
 
+type FilterType = "all" | "unread" | "reminder" | "system";
+type SortType = "newest" | "oldest";
+
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const router = useRouter();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [sort, setSort] = useState<SortType>("newest");
+  const [selectedNotifications, setSelectedNotifications] = useState<number[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Fetch notifications
   useEffect(() => {
     fetchNotifications();
-  }, [filter, page]);
+  }, [filter, sort]);
 
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/notifications?page=${page}&limit=20&unread=${filter === "unread"}`
-      );
+      const unreadParam = filter === "unread" ? "true" : "false";
+      const res = await fetch(`/api/notifications?page=1&limit=100&unread=${unreadParam}`);
       const data = await res.json();
+      
       if (data.success) {
-        setNotifications(data.notifications);
-        setTotalPages(data.totalPages);
+        let filteredNotifications = data.notifications;
+        
+        if (filter === "reminder") {
+          filteredNotifications = filteredNotifications.filter((n: Notification) => n.type === "reminder");
+        } else if (filter === "system") {
+          filteredNotifications = filteredNotifications.filter((n: Notification) => n.type === "system");
+        }
+        
+        if (sort === "oldest") {
+          filteredNotifications = filteredNotifications.reverse();
+        }
+        
+        setNotifications(filteredNotifications);
         setUnreadCount(data.unreadCount);
       }
     } catch (error) {
@@ -47,31 +61,33 @@ export default function NotificationsPage() {
     }
   };
 
-  // Đánh dấu một thông báo đã đọc
-  const handleMarkAsRead = async (id: number) => {
+  const markAsRead = async (ids: number[]) => {
     try {
       await fetch("/api/notifications/mark-as-read", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds: [id] }),
+        body: JSON.stringify({ notificationIds: ids }),
       });
+      
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        prev.map((n) => (ids.includes(n.id) ? { ...n, isRead: true } : n))
       );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      setUnreadCount((prev) => Math.max(0, prev - ids.length));
+      setSelectedNotifications([]);
     } catch (error) {
       console.error("Failed to mark as read:", error);
     }
   };
 
-  // Đánh dấu tất cả đã đọc
-  const handleMarkAllAsRead = async () => {
+  const markAllAsRead = async () => {
     try {
+      const allIds = notifications.map((n) => n.id);
       await fetch("/api/notifications/mark-as-read", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markAllRead: true }),
+        body: JSON.stringify({ notificationIds: allIds }),
       });
+      
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {
@@ -79,23 +95,20 @@ export default function NotificationsPage() {
     }
   };
 
-  // Xóa thông báo
-  const handleDelete = async (id: number) => {
-    try {
-      await fetch(`/api/notifications?id=${id}`, { method: "DELETE" });
-      setNotifications((prev) => {
-        const deleted = prev.find((n) => n.id === id);
-        if (deleted && !deleted.isRead) {
-          setUnreadCount((c) => Math.max(0, c - 1));
-        }
-        return prev.filter((n) => n.id !== id);
-      });
-    } catch (error) {
-      console.error("Failed to delete notification:", error);
+  const toggleSelect = (id: number) => {
+    setSelectedNotifications((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedNotifications.length === notifications.length) {
+      setSelectedNotifications([]);
+    } else {
+      setSelectedNotifications(notifications.map((n) => n.id));
     }
   };
 
-  // Format thời gian hiển thị
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -108,211 +121,219 @@ export default function NotificationsPage() {
     if (minutes < 60) return `${minutes} phút trước`;
     if (hours < 24) return `${hours} tiếng trước`;
     if (days < 7) return `${days} ngày trước`;
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
+    return date.toLocaleDateString("vi-VN", { 
+      day: "2-digit", 
+      month: "2-digit", 
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
     });
   };
 
-  // Lấy icon theo loại thông báo
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "reminder":
         return <Calendar className="w-5 h-5 text-blue-500" />;
-      case "trip_update":
-        return <Calendar className="w-5 h-5 text-green-500" />;
+      case "system":
+        return <AlertCircle className="w-5 h-5 text-amber-500" />;
+      case "trip":
+        return <Car className="w-5 h-5 text-green-500" />;
+      case "customer":
+        return <User className="w-5 h-5 text-purple-500" />;
       default:
         return <Bell className="w-5 h-5 text-slate-500" />;
     }
   };
 
-  // Lấy màu border theo loại
-  const getBorderColor = (type: string, isRead: boolean) => {
-    if (isRead) return "border-slate-200";
-    switch (type) {
-      case "reminder":
-        return "border-l-blue-500";
-      case "trip_update":
-        return "border-l-green-500";
-      default:
-        return "border-l-slate-500";
-    }
-  };
+  const filterOptions: { value: FilterType; label: string; count?: number }[] = [
+    { value: "all", label: "Tất cả" },
+    { value: "unread", label: "Chưa đọc", count: unreadCount },
+    { value: "reminder", label: "Nhắc nhở" },
+    { value: "system", label: "Hệ thống" },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
-      <div className="lg:ml-64">
+      <Sidebar>
         <Header />
-        <main className="pb-20 lg:pb-8">
-          <div className="max-w-3xl mx-auto px-4 py-4">
-            {/* Page Header */}
-            <div className="mb-4">
-              <h1 className="text-2xl font-bold text-slate-800">Thông báo</h1>
-              <p className="text-sm text-slate-500 mt-1">
-                {unreadCount > 0
-                  ? `${unreadCount} thông báo chưa đọc`
-                  : "Tất cả đã đọc"}
-              </p>
+        <div className="p-4 lg:p-6 pb-24 lg:pb-6">
+          {/* Header Card */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-slate-600" />
+                </button>
+                <h1 className="text-xl font-bold text-slate-800">Thông báo</h1>
+                {unreadCount > 0 && (
+                  <span className="bg-blue-100 text-blue-700 text-sm font-medium px-2 py-0.5 rounded-full">
+                    {unreadCount} mới
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedNotifications.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => markAsRead(selectedNotifications)}
+                      className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Check className="w-4 h-4" />
+                      Đánh dấu đã đọc
+                    </button>
+                    <button
+                      onClick={() => setSelectedNotifications([])}
+                      className="px-3 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      Hủy
+                    </button>
+                  </>
+                )}
+                {selectedNotifications.length === 0 && unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                    Đánh dấu tất cả đã đọc
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex gap-2">
+            <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
+              <Filter className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              {filterOptions.map((option) => (
                 <button
-                  onClick={() => {
-                    setFilter("all");
-                    setPage(1);
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === "all"
+                  key={option.value}
+                  onClick={() => setFilter(option.value)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors ${
+                    filter === option.value
                       ? "bg-blue-600 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  Tất cả
-                </button>
-                <button
-                  onClick={() => {
-                    setFilter("unread");
-                    setPage(1);
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    filter === "unread"
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  <Filter className="w-4 h-4" />
-                  Chưa đọc
-                  {unreadCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">
-                      {unreadCount}
+                  {option.label}
+                  {option.count !== undefined && option.count > 0 && (
+                    <span className="ml-1.5 bg-white/20 px-1.5 rounded-full text-xs">
+                      {option.count}
                     </span>
                   )}
                 </button>
-              </div>
-              {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <CheckCheck className="w-4 h-4" />
-                  Đánh dấu đã đọc
-                </button>
-              )}
-            </div>
+              ))}
 
-            {/* Notification List */}
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto" />
-                <p className="text-slate-500 mt-3">Đang tải...</p>
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-                <Bell className="w-12 h-12 text-slate-300 mx-auto" />
-                <p className="text-slate-500 mt-3">Không có thông báo nào</p>
-                <Link
-                  href="/dashboard"
-                  className="text-blue-600 text-sm font-medium hover:underline mt-2 inline-block"
+              <div className="ml-auto flex items-center gap-2">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortType)}
+                  className="text-sm border-0 bg-slate-100 text-slate-600 rounded-full px-3 py-1.5 focus:ring-2 focus:ring-blue-500"
                 >
-                  Về trang chủ
-                </Link>
+                  <option value="newest">Mới nhất</option>
+                  <option value="oldest">Cũ nhất</option>
+                </select>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`bg-white rounded-xl border-l-4 ${getBorderColor(
-                      notification.type,
-                      notification.isRead
-                    )} border border-slate-200 p-4 hover:shadow-sm transition-shadow ${
-                      !notification.isRead ? "bg-blue-50/30" : ""
-                    }`}
-                  >
+            </div>
+          </div>
+
+          {/* Notification List */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+              <p className="mt-4 text-slate-500">Đang tải thông báo...</p>
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+                <Bell className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-slate-800">Không có thông báo nào</h3>
+              <p className="mt-2 text-slate-500">Bạn sẽ nhận được thông báo về các chuyến xe tại đây</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+                <input
+                  type="checkbox"
+                  checked={selectedNotifications.length === notifications.length && notifications.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-600">
+                  Chọn tất cả ({notifications.length})
+                </span>
+              </div>
+
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`bg-white rounded-xl border transition-all ${
+                    selectedNotifications.includes(notification.id)
+                      ? "border-blue-500 ring-2 ring-blue-100"
+                      : notification.isRead
+                      ? "border-slate-200"
+                      : "border-blue-200 bg-blue-50/30"
+                  }`}
+                >
+                  <div className="p-4">
                     <div className="flex items-start gap-3">
-                      {/* Icon */}
-                      <div className="flex-shrink-0 mt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedNotifications.includes(notification.id)}
+                        onChange={() => toggleSelect(notification.id)}
+                        className="w-4 h-4 mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+
+                      <div className={`flex-shrink-0 p-2 rounded-lg ${
+                        notification.isRead ? "bg-slate-100" : "bg-blue-100"
+                      }`}>
                         {getNotificationIcon(notification.type)}
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3
-                            className={`font-semibold ${
-                              !notification.isRead ? "text-slate-900" : "text-slate-700"
-                            }`}
-                          >
+                          <h3 className={`font-medium ${
+                            notification.isRead ? "text-slate-700" : "text-slate-900"
+                          }`}>
                             {notification.title}
                           </h3>
                           {!notification.isRead && (
                             <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
                           )}
                         </div>
-                        <p className="text-sm text-slate-600 mt-1">
-                          {notification.content}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-slate-400">
-                            {formatTime(notification.createdAt)}
+                        <p className="mt-1 text-sm text-slate-600">{notification.content}</p>
+                        <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+                          <span>{formatTime(notification.createdAt)}</span>
+                          <span className="px-2 py-0.5 bg-slate-100 rounded-full capitalize">
+                            {notification.type === "reminder" ? "Nhắc nhở" : 
+                             notification.type === "system" ? "Hệ thống" : 
+                             notification.type}
                           </span>
-                          <div className="flex items-center gap-1">
-                            {!notification.isRead && (
-                              <button
-                                onClick={() => handleMarkAsRead(notification.id)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Đánh dấu đã đọc"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(notification.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {!notification.isRead && (
+                          <button
+                            onClick={() => markAsRead([notification.id])}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Đánh dấu đã đọc"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-6">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Trang trước
-                </button>
-                <span className="text-sm text-slate-600">
-                  Trang {page} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Trang sau
-                </button>
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Sidebar>
       <BottomNav />
     </div>
   );

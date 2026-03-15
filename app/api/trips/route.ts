@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -161,6 +162,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
     const body = await request.json();
     const { 
       title, description, departure, destination, departureTime, arrivalTime,
@@ -228,6 +230,7 @@ export async function POST(request: NextRequest) {
         price: parseFloat(price),
         ...(finalVehicleId ? { vehicleId: finalVehicleId } : {}),
         ...(driverId ? { driverId } : {}),
+        ...(user ? { createdById: user.id } : {}),
         totalSeats: parsedTotalSeats,
         availableSeats: tripType === "bao" ? 0 : parsedTotalSeats,
         status: "scheduled",

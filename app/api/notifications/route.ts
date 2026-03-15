@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
 
 // GET /api/notifications - Lấy danh sách thông báo
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSession();
-    if (!user) {
+    const userId = request.headers.get("x-user-id");
+    
+    if (!userId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get("unread") === "true";
 
     const where = {
-      userId: user.id,
+      userId: parseInt(userId),
       ...(unreadOnly ? { isRead: false } : {}),
     };
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       prisma.notification.count({ where }),
-      prisma.notification.count({ where: { userId: user.id, isRead: false } }),
+      prisma.notification.count({ where: { userId: parseInt(userId), isRead: false } }),
     ]);
 
     return NextResponse.json({
@@ -48,10 +48,6 @@ export async function GET(request: NextRequest) {
 // POST /api/notifications - Tạo thông báo mới (dùng cho hệ thống/admin)
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSession();
-    // Cho phép hệ thống tạo notification (không cần auth)
-    // const user = { id: 1 }; // Demo
-
     const body = await request.json();
     const { userId, type, title, content, data } = body;
 

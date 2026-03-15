@@ -4,6 +4,67 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, User, MapPin } from "lucide-react";
 
+// Hàm định dạng số với dấu chấm phân cách
+function formatNumberWithDots(num: number): string {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+// Hàm chuyển số thành chữ tiếng Việt
+function numberToVietnameseWords(num: number): string {
+  const units = ["", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
+  const places = ["", "nghìn", "triệu", "tỷ", "nghìn tỷ", "triệu tỷ"];
+  
+  if (num === 0) return "không đồng";
+  
+  const numStr = Math.floor(num).toString();
+  const length = numStr.length;
+  
+  let words = "";
+  let placeIndex = 0;
+  
+  for (let i = length; i > 0; i -= 3) {
+    const start = Math.max(0, i - 3);
+    const part = parseInt(numStr.slice(start, i));
+    
+    if (part > 0) {
+      let partWords = "";
+      const hundreds = Math.floor(part / 100);
+      const tens = Math.floor((part % 100) / 10);
+      const ones = part % 10;
+      
+      if (hundreds > 0) {
+        partWords += units[hundreds] + " trăm ";
+      }
+      
+      if (tens > 0) {
+        if (tens === 1) {
+          partWords += "mười ";
+        } else {
+          partWords += units[tens] + " mươi ";
+        }
+      }
+      
+      if (ones > 0) {
+        if (tens === 0 && hundreds > 0) {
+          partWords += "lẻ " + units[ones] + " ";
+        } else if (ones === 1 && tens > 0) {
+          partWords += "mốt ";
+        } else if (ones === 5 && tens > 0) {
+          partWords += "lăm ";
+        } else {
+          partWords += units[ones] + " ";
+        }
+      }
+      
+      words = partWords.trim() + " " + places[placeIndex] + " " + words;
+    }
+    
+    placeIndex++;
+  }
+  
+  return words.trim() + " đồng";
+}
+
 interface Customer {
   id: number;
   phone: string;
@@ -81,7 +142,7 @@ export default function TripForm() {
           destination: trip.destination,
           departureDate: departureDate.toISOString().split("T")[0],
           departureTime: departureDate.toTimeString().slice(0, 5),
-          price: trip.price?.toString() || "",
+          price: trip.price ? trip.price.toString() : "",
           totalSeats: trip.totalSeats?.toString() || "1",
           tripType: "ghep",
           notes: trip.notes || "",
@@ -183,7 +244,7 @@ export default function TripForm() {
             departure: formData.departure,
             destination: formData.destination,
             departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
-            price: formData.price,
+            price: parseInt(formData.price.replace(/\./g, "")) || 0,
             totalSeats: parseInt(formData.totalSeats) || 4,
             notes: formData.notes || undefined,
             customerPhone: formData.customerPhone || undefined,
@@ -208,7 +269,7 @@ export default function TripForm() {
             departure: formData.departure,
             destination: formData.destination,
             departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
-            price: formData.price,
+            price: parseInt(formData.price.replace(/\./g, "")) || 0,
             vehicleId: null,
             totalSeats: parseInt(formData.totalSeats) || 4,
             tripType: formData.tripType,
@@ -437,15 +498,26 @@ export default function TripForm() {
           <label className="block text-sm font-medium text-slate-700 mb-1">
             Giá tiền (VNĐ) <span className="text-red-500">*</span>
           </label>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-            placeholder="150000"
-            className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-            required
-          />
+          <div className="relative">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formData.price ? formatNumberWithDots(parseInt(formData.price.replace(/\./g, "")) || 0) : ""}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "");
+                setFormData({ ...formData, price: value });
+              }}
+              placeholder="150.000"
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base pr-16"
+              required
+            />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium">VNĐ</span>
+          </div>
+          {formData.price && parseInt(formData.price.replace(/\./g, "")) > 0 && (
+            <div className="mt-2 text-sm text-blue-600 font-medium bg-blue-50 px-3 py-2 rounded-lg">
+              ({numberToVietnameseWords(parseInt(formData.price.replace(/\./g, "")))})
+            </div>
+          )}
         </div>
 
         {/* Notes */}
