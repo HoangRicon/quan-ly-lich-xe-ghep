@@ -143,6 +143,17 @@ cd "C:\Users\Admin\Desktop\outsrc\quan-ly-lich-xe-ghep"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\deploy\windows\cron-reminders.ps1" -DryRun 1
 ```
 
+#### Lưu ý quan trọng: đừng để `CRON_SECRET` bị lệch giữa `.env` và Machine env
+
+- Next.js khi chạy `npm run dev` / `next start` thường sẽ load `.env` / `.env.local`.
+- Task Scheduler (khuyến nghị chạy bằng `SYSTEM`) lại đọc **Machine env**.
+
+Vì vậy nếu bạn set `CRON_SECRET` ở **cả 2 nơi** mà **khác nhau**, cron sẽ gặp `401 Unauthorized`.
+
+Khuyến nghị:
+- **Production/Task Scheduler**: chỉ dùng **Machine env** (hoặc ensure `.env` trùng đúng giá trị), rồi **restart** process/service chạy app để nhận env mới.
+- **Local dev**: có thể dùng `.env`, nhưng vẫn nên đồng bộ cùng 1 secret để tránh nhầm.
+
 Dev-only (nếu bạn đã có `CRON_SECRET=...` trong `.env` ở repo): bật load `.env` khi chạy tay:
 
 ```powershell

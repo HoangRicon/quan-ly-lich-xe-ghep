@@ -12,6 +12,9 @@ param(
   [string]$EnvFile = "",
 
   [Parameter(Mandatory = $false)]
+  [int]$PreferDotEnv = 0,
+
+  [Parameter(Mandatory = $false)]
   [int]$TimeoutSec = 30,
 
   [Parameter(Mandatory = $false)]
@@ -82,6 +85,22 @@ function Try-LoadDotEnv([string]$logFile, [string]$scriptDir, [string]$explicitE
   return $null
 }
 
+function Read-HttpErrorBody([object]$ex) {
+  try {
+    if (-not $ex) { return "" }
+    $resp = $ex.Response
+    if (-not $resp) { return "" }
+    $stream = $resp.GetResponseStream()
+    if (-not $stream) { return "" }
+    $reader = New-Object System.IO.StreamReader($stream)
+    $body = $reader.ReadToEnd()
+    $reader.Close()
+    return [string]$body
+  } catch {
+    return ""
+  }
+}
+
 try {
   $here = Split-Path -Parent $MyInvocation.MyCommand.Path
   $logDir = Join-Path $here "logs"
@@ -93,6 +112,13 @@ try {
 
   $secret = [string]$CronSecret
   $secretSource = "param"
+  if ([string]::IsNullOrWhiteSpace($secret)) {
+    # For local dev, it can be useful to prefer the .env-provided secret (matches next dev/next start behavior).
+    if ($PreferDotEnv -eq 1 -and $LoadDotEnv -eq 1 -and -not [string]::IsNullOrWhiteSpace([string]$env:CRON_SECRET)) {
+      $secret = [string]$env:CRON_SECRET
+      $secretSource = "dotenv_process_env"
+    }
+  }
   if ([string]::IsNullOrWhiteSpace($secret)) {
     # Prefer Machine-scoped env so it works with Task Scheduler running as SYSTEM
     $secret = [string][Environment]::GetEnvironmentVariable("CRON_SECRET", "Machine")
@@ -184,9 +210,24 @@ try {
     $logDir = Join-Path $here "logs"
     Ensure-Dir $logDir
     $logFile = Join-Path $logDir "cron-reminders.log"
-    $err = $_.Exception.Message
-    $line = "$(Get-Date -Format o) ERROR $err"
-    Add-Content -LiteralPath $logFile -Value $line
+    $err = $_.Exception
+    $msg = [string]$err.Message
+
+    $status = ""
+    try {
+      if ($err.Response -and $err.Response.StatusCode) {
+        $status = [string]$err.Response.StatusCode
+      }
+    } catch { }
+
+    $body = Read-HttpErrorBody $err
+    if (-not [string]::IsNullOrWhiteSpace($body)) {
+      $bodyOneLine = ($body -replace "(\r\n|\n|\r)", " ").Trim()
+      if ($bodyOneLine.Length -gt 2000) { $bodyOneLine = $bodyOneLine.Substring(0, 2000) + "…(truncated)" }
+      Add-Content -LiteralPath $logFile -Value "$(Get-Date -Format o) ERROR HTTP status=$status msg=$msg body=$bodyOneLine"
+    } else {
+      Add-Content -LiteralPath $logFile -Value "$(Get-Date -Format o) ERROR HTTP status=$status msg=$msg"
+    }
   } catch {
     # ignore logging errors
   }
