@@ -264,11 +264,21 @@ export default function ScheduleList() {
   const fetchDrivers = async () => {
     setLoadingDrivers(true);
     try {
-      const res = await fetch("/api/drivers");
-      const data = await res.json();
-      if (data.data) {
-        setDrivers(data.data);
+      // `/api/drivers` is paginated (default limit=10). Fetch all pages so the picker shows full list.
+      const all: Driver[] = [];
+      let page = 1;
+      const limit = 100;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await fetch(`/api/drivers?page=${page}&limit=${limit}`, { cache: "no-store" });
+        const data = await res.json();
+        if (Array.isArray(data?.data)) {
+          all.push(...data.data);
+        }
+        totalPages = Number(data?.pagination?.totalPages || 1);
+        page += 1;
       }
+      setDrivers(all);
     } catch (error) {
       console.error("Fetch drivers error:", error);
     } finally {
