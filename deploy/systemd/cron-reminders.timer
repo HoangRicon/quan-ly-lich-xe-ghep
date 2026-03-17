@@ -1,0 +1,12 @@
+[Unit]
+Description=Run cron reminders every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=1s
+Unit=cron-reminders.service
+
+[Install]
+WantedBy=timers.target
+

@@ -1,0 +1,17 @@
+[Unit]
+Description=Call Next.js cron reminders endpoint
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+
+# Set these to match your deployment
+Environment="APP_URL=http://127.0.0.1:3000"
+Environment="CRON_SECRET=CHANGE_ME"
+
+ExecStart=/usr/bin/curl -fsS -H "x-cron-secret: %CRON_SECRET%" "%APP_URL%/api/cron/reminders"
+
+# Useful for debugging:
+# ExecStart=/usr/bin/curl -fsS -H "x-cron-secret: %CRON_SECRET%" "%APP_URL%/api/cron/reminders?dryRun=1"
+
