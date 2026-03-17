@@ -89,7 +89,23 @@ Repo có sẵn script mẫu:
   - Name: `CRON_SECRET`
   - Value: (dán secret ở bước 1)
 
-Sau đó **restart** service/process chạy app Next.js (và mở lại Task Scheduler nếu đang mở), để nó nhận env mới.
+Sau đó **restart** service/process chạy app Next.js (và **re-run task** nếu đang test), để nó nhận env mới.
+
+Bạn có thể verify nhanh Machine env trong PowerShell (Admin):
+
+```powershell
+[Environment]::GetEnvironmentVariable("CRON_SECRET","Machine")
+```
+
+Nếu chưa có, set nhanh (chạy PowerShell **Admin**):
+
+```powershell
+# Cách 1 (khuyến nghị): set Machine env ngay lập tức (không cần logout)
+[Environment]::SetEnvironmentVariable("CRON_SECRET","PASTE_SECRET_HERE","Machine")
+
+# Cách 2: setx (cũng set Machine env, nhưng các process đã chạy cần restart để nhận)
+setx CRON_SECRET "PASTE_SECRET_HERE" /M
+```
 
 #### B2) Chạy app Next.js dạng service (gợi ý)
 
