@@ -4,6 +4,71 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, User, MapPin } from "lucide-react";
 
+// Hàm tạo ghi chú tự động theo mẫu
+function generateAutoNote(
+  departureTime: string,
+  departure: string,
+  destination: string,
+  price: string,
+  phone: string,
+  seats: number,
+  tripType: string
+): string {
+  // Tính thời gian chênh lệch
+  const now = new Date();
+  const currentHours = now.getHours();
+  const currentMinutes = now.getMinutes();
+  
+  const [hours, minutes] = departureTime.split(":").map(Number);
+  
+  // Tính số phút chênh lệch từ giờ hiện tại đến giờ đi
+  let diffMinutes = (hours * 60 + minutes) - (currentHours * 60 + currentMinutes);
+  
+  // Nếu giờ đi = giờ hiện tại, tính là 0 phút (khách đi ngay)
+  // Nếu giờ đi đã qua trong ngày, tính cho ngày mai
+  if (diffMinutes === 0) {
+    diffMinutes = 0;
+  } else if (diffMinutes < 0) {
+    diffMinutes += 24 * 60; // Cộng 24 giờ
+  }
+  
+  // Đảm bảo tối thiểu là 1 phút
+  const displayMinutes = Math.max(1, diffMinutes);
+  
+  // Xác định loại ghế
+  let seatType = "";
+  if (tripType === "bao") {
+    seatType = "bx";
+  } else if (seats === 1) {
+    seatType = "1k";
+  } else if (seats >= 2) {
+    seatType = "2k";
+  } else {
+    seatType = "1k";
+  }
+  
+  // Format giá tiền (vd: 90000 -> 90k, 150000 -> 150k)
+  const priceNum = parseInt(price.replace(/\./g, "")) || 0;
+  const priceDisplay = priceNum >= 1000 ? `${Math.round(priceNum / 1000)}k` : priceNum.toString();
+  
+  // Tạo phần thời gian
+  let timePart = "";
+  if (diffMinutes <= 60) {
+    // Dưới hoặc bằng 60 phút: 0-Xp
+    timePart = `0-${displayMinutes}p ${seatType}`;
+  } else {
+    // Trên 60 phút: Giờ đi loại (không có ngoặc)
+    const departureHour = hours.toString().padStart(2, "0");
+    const departureMinute = minutes.toString().padStart(2, "0");
+    timePart = `${departureHour}h${departureMinute} ${seatType}`;
+  }
+  
+  // Ghép các phần thành ghi chú
+  const note = `${timePart} ${departure} - ${destination} ${priceDisplay} ${phone}`;
+  
+  return note;
+}
+
 // Hàm định dạng số với dấu chấm phân cách
 function formatNumberWithDots(num: number): string {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -230,11 +295,56 @@ export default function TripForm() {
     setShowDuplicateWarning(false);
   };
 
+  // Hàm kiểm tra và chuyển giờ đi thành "0-1p" nếu giờ đã qua
+  const getDepartureTimeForSubmit = (departureTime: string, departureDate: string): string => {
+    if (!departureTime || !departureDate) return `${departureDate}T${departureTime}:00`;
+
+    const now = new Date();
+    const [hours, minutes] = departureTime.split(":").map(Number);
+    const [year, month, day] = departureDate.split("-").map(Number);
+
+    const tripDate = new Date(year, month - 1, day, hours, minutes);
+    const nowWithBuffer = new Date(now.getTime() + 60 * 1000); // Thêm 1 phút buffer
+
+    // Nếu giờ đi đã qua (so với giờ hiện tại + 1p buffer), chuyển thành đi ngay
+    if (tripDate < nowWithBuffer) {
+      return now.toISOString();
+    }
+
+    return `${departureDate}T${departureTime}:00`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Xác định giờ đi thực tế (nếu đã qua thì là giờ hiện tại)
+      const now = new Date();
+      const [hours, minutes] = formData.departureTime.split(":").map(Number);
+      const [year, month, day] = formData.departureDate.split("-").map(Number);
+      const tripDate = new Date(year, month - 1, day, hours, minutes);
+      const nowWithBuffer = new Date(now.getTime() + 60 * 1000);
+
+      // Giờ để tạo autoNote - nếu đã qua thì dùng giờ hiện tại
+      const actualDepartureTime = tripDate < nowWithBuffer
+        ? now.toTimeString().slice(0, 5)
+        : formData.departureTime;
+
+      // Tự động tạo ghi chú nếu chưa có và đủ thông tin
+      let autoNotes = formData.notes;
+      if (!autoNotes && formData.departureTime && formData.departure && formData.destination && formData.price) {
+        autoNotes = generateAutoNote(
+          actualDepartureTime,
+          formData.departure,
+          formData.destination,
+          formData.price,
+          formData.customerPhone || "",
+          parseInt(formData.totalSeats) || 1,
+          formData.tripType
+        );
+      }
+
       if (isEditMode && editId) {
         const res = await fetch(`/api/trips/${editId}`, {
           method: "PUT",
@@ -243,10 +353,10 @@ export default function TripForm() {
             title: `${formData.departure} - ${formData.destination}`,
             departure: formData.departure,
             destination: formData.destination,
-            departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
+            departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
             totalSeats: parseInt(formData.totalSeats) || 4,
-            notes: formData.notes || undefined,
+            notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
             customerEmail: formData.customerEmail || undefined,
@@ -268,12 +378,12 @@ export default function TripForm() {
             title: `${formData.departure} - ${formData.destination}`,
             departure: formData.departure,
             destination: formData.destination,
-            departureTime: `${formData.departureDate}T${formData.departureTime}:00`,
+            departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
             vehicleId: null,
             totalSeats: parseInt(formData.totalSeats) || 4,
             tripType: formData.tripType,
-            notes: formData.notes || undefined,
+            notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
             customerEmail: formData.customerEmail || undefined,
@@ -450,11 +560,12 @@ export default function TripForm() {
               lang="vi-VN"
               step="300"
               value={formData.departureTime}
-              onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, departureTime: e.target.value });
+              }}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
               required
             />
-            <p className="text-xs text-slate-500 mt-1">Định dạng 24 giờ (ví dụ: 15:30)</p>
           </div>
         </div>
       </div>
@@ -524,9 +635,40 @@ export default function TripForm() {
 
         {/* Notes */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Ghi chú
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-slate-700">
+              Ghi chú
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                // Xác định giờ đi thực tế cho autoNote
+                const now = new Date();
+                const [hours, minutes] = formData.departureTime.split(":").map(Number);
+                const [year, month, day] = formData.departureDate.split("-").map(Number);
+                const tripDate = new Date(year, month - 1, day, hours, minutes);
+                const nowWithBuffer = new Date(now.getTime() + 60 * 1000);
+
+                const actualTime = tripDate < nowWithBuffer
+                  ? now.toTimeString().slice(0, 5)
+                  : formData.departureTime;
+
+                const note = generateAutoNote(
+                  actualTime,
+                  formData.departure,
+                  formData.destination,
+                  formData.price,
+                  formData.customerPhone,
+                  parseInt(formData.totalSeats) || 1,
+                  formData.tripType
+                );
+                setFormData({ ...formData, notes: note });
+              }}
+              className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-md font-medium transition-colors"
+            >
+              ✨ Tạo ghi chú tự động
+            </button>
+          </div>
           <textarea
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -534,6 +676,35 @@ export default function TripForm() {
             rows={3}
             className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base resize-none"
           />
+          {formData.departureTime && formData.departure && formData.destination && formData.price && (
+            <div className="mt-2 p-3 bg-slate-50 rounded-lg">
+              <div className="text-xs text-slate-500 mb-1">Xem trước:</div>
+              <div className="text-sm font-mono text-slate-700">
+                {(() => {
+                  // Tính giờ đi thực tế cho preview
+                  const now = new Date();
+                  const [hours, minutes] = formData.departureTime.split(":").map(Number);
+                  const [year, month, day] = formData.departureDate.split("-").map(Number);
+                  const tripDate = new Date(year, month - 1, day, hours, minutes);
+                  const nowWithBuffer = new Date(now.getTime() + 60 * 1000);
+
+                  const actualTime = tripDate < nowWithBuffer
+                    ? now.toTimeString().slice(0, 5)
+                    : formData.departureTime;
+
+                  return generateAutoNote(
+                    actualTime,
+                    formData.departure,
+                    formData.destination,
+                    formData.price,
+                    formData.customerPhone,
+                    parseInt(formData.totalSeats) || 1,
+                    formData.tripType
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </div>
 
         {!isEditMode && (
