@@ -668,7 +668,7 @@ export default function ReportsPage() {
                             href={`https://zalo.me/${c.customer.phone}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 rounded-lg bg-blue-50 text-blue-600"
+                            className="hidden lg:flex p-2 rounded-lg bg-blue-50 text-blue-600"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </a>

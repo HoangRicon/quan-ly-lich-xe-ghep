@@ -248,20 +248,18 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
     const customerName = trip.customer?.name || "Khách";
     const time = formatTime(trip.departureTime);
     const route = formatRoute(trip.departure, trip.destination);
-    
+
     const driverPhone = trip.driver?.phone || "";
     const message = `Nhắc nhở: Tài xế ${driverName}, bạn có lịch đón khách ${customerName} lúc ${time}. Vui lòng xác nhận!`;
-    
-    const zaloUrl = driverPhone ? `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(driverPhone)}` : "";
-    const webZaloUrl = driverPhone ? `https://zalo.me/${driverPhone}?text=${encodeURIComponent(message)}` : "";
-    
+
     setRemindedDriver(trip.id);
     setTimeout(() => setRemindedDriver(null), 3000);
-    
-    window.location.href = zaloUrl;
-    setTimeout(() => {
-      window.open(webZaloUrl, "_blank");
-    }, 500);
+
+    // Open Zalo web directly - more reliable on mobile
+    if (driverPhone) {
+      const zaloUrl = `https://zalo.me/${driverPhone}?text=${encodeURIComponent(message)}`;
+      window.open(zaloUrl, "_blank");
+    }
   };
 
   const handleRemindDriverInSheet = async () => {
@@ -271,20 +269,18 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
     const customerName = selectedTrip.customer?.name || "Khách";
     const time = formatTime(selectedTrip.departureTime);
     const route = formatRoute(selectedTrip.departure, selectedTrip.destination);
-    
+
     const driverPhone = selectedTrip.driver?.phone || "";
     const message = `Nhắc nhở: Tài xế ${driverName}, bạn có lịch đón khách ${customerName} lúc ${time}. Vui lòng xác nhận!`;
-    
-    const zaloUrl = driverPhone ? `zalo://compose?text=${encodeURIComponent(message)}&phone_to=${encodeURIComponent(driverPhone)}` : "";
-    const webZaloUrl = driverPhone ? `https://zalo.me/${driverPhone}?text=${encodeURIComponent(message)}` : "";
-    
+
     setRemindedDriver(selectedTrip.id);
     setTimeout(() => setRemindedDriver(null), 3000);
-    
-    window.location.href = zaloUrl;
-    setTimeout(() => {
-      window.open(webZaloUrl, "_blank");
-    }, 500);
+
+    // Open Zalo web directly - more reliable on mobile
+    if (driverPhone) {
+      const zaloUrl = `https://zalo.me/${driverPhone}?text=${encodeURIComponent(message)}`;
+      window.open(zaloUrl, "_blank");
+    }
   };
 
   const handleCallCustomer = () => {
@@ -475,11 +471,11 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                         <Copy className="w-3.5 h-3.5" />
                       </button>
                       
-                      {/* Remind Driver */}
+                      {/* Remind Driver - Hidden on mobile */}
                       {trip.driver && (
                         <button
                           onClick={(e) => handleRemindDriver(trip, e)}
-                          className={`p-1.5 rounded-lg transition-colors ${
+                          className={`hidden lg:flex p-1.5 rounded-lg transition-colors ${
                             remindedDriver === trip.id
                               ? "bg-green-100"
                               : "bg-purple-50 hover:bg-purple-100"
@@ -759,102 +755,91 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                   </button>
                 </div>
               ) : (
-                /* View Mode Actions */
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Gọi khách */}
-                  <button
-                    onClick={handleCallCustomer}
-                    disabled={!selectedTrip.customer?.phone}
-                    className="flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-medium transition-colors"
-                  >
-                    <Phone className="w-5 h-5" />
-                    Gọi khách
-                  </button>
+              /* View Mode Actions */
+              <div className="grid grid-cols-2 gap-3">
+                {/* Gọi khách - Hidden on mobile */}
+                <button
+                  onClick={handleCallCustomer}
+                  disabled={!selectedTrip.customer?.phone}
+                  className="hidden lg:flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl font-medium transition-colors"
+                >
+                  <Phone className="w-5 h-5" />
+                  Gọi khách
+                </button>
 
-                  {/* Sửa thông tin */}
-                  <button
-                    onClick={handleEditClick}
-                    className="flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
-                  >
-                    <Edit className="w-5 h-5" />
-                    Sửa
-                  </button>
+                {/* Sửa thông tin - Hidden on mobile */}
+                <button
+                  onClick={handleEditClick}
+                  className="hidden lg:flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
+                >
+                  <Edit className="w-5 h-5" />
+                  Sửa
+                </button>
 
-                  {/* Đổi trạng thái */}
+                {/* Đổi trạng thái - Hidden on mobile */}
+                <div className="relative hidden lg:block">
+                  <button
+                    onClick={() => setShowStatusMenu(showStatusMenu ? null : selectedTrip?.id || null)}
+                    disabled={nextStatuses.length === 0}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-amber-100 hover:bg-amber-200 disabled:bg-slate-100 disabled:text-slate-400 text-amber-700 rounded-xl font-medium transition-colors"
+                  >
+                    <RefreshCw className="w-5 h-5" />
+                    Đổi trạng thái
+                  </button>
+                  {showStatusMenu && nextStatuses.length > 0 && (
+                    <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
+                      {nextStatuses.map(status => (
+                        <button
+                          key={status}
+                          onClick={() => handleStatusChange(status)}
+                          disabled={loading}
+                          className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
+                        >
+                          <span className={`w-2 h-2 rounded-full ${statusConfig[status]?.color.replace('text-', 'bg-')}`}></span>
+                          {statusConfig[status]?.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Nhắc tài xế - Hidden on mobile */}
+                <button
+                  onClick={handleRemindDriverInSheet}
+                  disabled={!selectedTrip.driver}
+                  className={`hidden lg:flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-colors ${
+                    remindedDriver === selectedTrip.id
+                      ? "bg-green-100 text-green-700"
+                      : "bg-purple-100 hover:bg-purple-200 disabled:bg-slate-100 disabled:text-slate-400 text-purple-700"
+                  }`}
+                >
+                  {remindedDriver === selectedTrip.id ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Đã nhắc
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="w-5 h-5" />
+                      Nhắc tài xế
+                    </>
+                  )}
+                </button>
+
+                  {/* Gán xe - Changed to Gọi khách for mobile */}
                   <div className="relative">
                     <button
-                      onClick={() => setShowStatusMenu(showStatusMenu ? null : selectedTrip?.id || null)}
-                      disabled={nextStatuses.length === 0}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-amber-100 hover:bg-amber-200 disabled:bg-slate-100 disabled:text-slate-400 text-amber-700 rounded-xl font-medium transition-colors"
+                      onClick={() => {
+                        if (selectedTrip.customer?.phone) {
+                          window.location.href = `tel:${selectedTrip.customer.phone}`;
+                        }
+                      }}
+                      disabled={!selectedTrip.customer?.phone}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-cyan-100 hover:bg-cyan-200 disabled:bg-slate-100 disabled:text-slate-400 text-cyan-700 rounded-xl font-medium transition-colors"
                     >
-                      <RefreshCw className="w-5 h-5" />
-                      Đổi trạng thái
+                      <Phone className="w-5 h-5" />
+                      Gọi khách
                     </button>
-                    {showStatusMenu && nextStatuses.length > 0 && (
-                      <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden">
-                        {nextStatuses.map(status => (
-                          <button
-                            key={status}
-                            onClick={() => handleStatusChange(status)}
-                            disabled={loading}
-                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className={`w-2 h-2 rounded-full ${statusConfig[status]?.color.replace('text-', 'bg-')}`}></span>
-                            {statusConfig[status]?.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Nhắc tài xế */}
-                  <button
-                    onClick={handleRemindDriverInSheet}
-                    disabled={!selectedTrip.driver}
-                    className={`flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-colors ${
-                      remindedDriver === selectedTrip.id
-                        ? "bg-green-100 text-green-700"
-                        : "bg-purple-100 hover:bg-purple-200 disabled:bg-slate-100 disabled:text-slate-400 text-purple-700"
-                    }`}
-                  >
-                    {remindedDriver === selectedTrip.id ? (
-                      <>
-                        <Check className="w-5 h-5" />
-                        Đã nhắc
-                      </>
-                    ) : (
-                      <>
-                        <Bell className="w-5 h-5" />
-                        Nhắc tài xế
-                      </>
-                    )}
-                  </button>
-
-                  {/* Gán xe */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowVehicleMenu(!showVehicleMenu)}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-cyan-100 hover:bg-cyan-200 text-cyan-700 rounded-xl font-medium transition-colors"
-                    >
-                      <Car className="w-5 h-5" />
-                      Gán xe
-                    </button>
-                    {showVehicleMenu && vehicles.length > 0 && (
-                      <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden max-h-48 overflow-y-auto">
-                        {vehicles.map(vehicle => (
-                          <button
-                            key={vehicle.id}
-                            onClick={() => handleAssignVehicle(vehicle.id)}
-                            disabled={loading}
-                            className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <Car className="w-4 h-4 text-cyan-600" />
-                            <span>{vehicle.name}</span>
-                            <span className="text-slate-400 text-xs">({vehicle.licensePlate})</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )}

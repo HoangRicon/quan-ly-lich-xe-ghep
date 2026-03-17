@@ -438,7 +438,7 @@ export default function DriverList() {
                             href={`https://zalo.me/${driver.phone}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"
+                            className="hidden lg:flex p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"
                           >
                             <MessageCircle className="w-4 h-4" />
                           </a>
@@ -544,7 +544,7 @@ export default function DriverList() {
                   href={`https://zalo.me/${driver.phone}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium"
+                  className="hidden lg:flex flex-1 items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium"
                 >
                   <MessageCircle className="w-4 h-4" />
                   Zalo

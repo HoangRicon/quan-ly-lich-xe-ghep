@@ -396,7 +396,7 @@ export default function CustomersPage() {
                                 href={`https://zalo.me/${customer.phone.replace(/\D/g, "")}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-1 rounded bg-blue-50 hover:bg-blue-100"
+                                className="hidden lg:flex p-1 rounded bg-blue-50 hover:bg-blue-100"
                               >
                                 <MessageCircle className="w-3 h-3 text-blue-500" />
                               </a>
@@ -501,7 +501,7 @@ export default function CustomersPage() {
                       href={`https://zalo.me/${customer.phone.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium min-h-[44px]"
+                      className="hidden lg:flex flex-1 items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium min-h-[44px]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <MessageCircle className="w-4 h-4" />
@@ -586,7 +586,7 @@ export default function CustomersPage() {
                       href={`https://zalo.me/${selectedCustomer.phone.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-50 text-blue-600 rounded-xl font-medium min-h-[48px]"
+                      className="hidden lg:flex flex-1 items-center justify-center gap-2 py-3 bg-blue-50 text-blue-600 rounded-xl font-medium min-h-[48px]"
                     >
                       <MessageCircle className="w-5 h-5" />
                       Nhắn Zalo

@@ -450,9 +450,28 @@ export default function ScheduleList() {
         status: statusLabel,
       });
     } else if (type === "zalo") {
-      // Mở Zalo chat (cũ)
-      const zaloUrl = `https://zalo.me/${customer.phone}?text=${encodeURIComponent(message)}`;
-      window.open(zaloUrl, "_blank");
+      // Open Zalo - try app deep link first, then fallback to web
+      const phone = customer.phone;
+      const text = encodeURIComponent(message);
+      
+      // Try Zalo app deep link first (works on mobile with Zalo installed)
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Try opening Zalo app - will fallback to web if app not installed
+        const zaloAppUrl = `zalo://chat?phone=${phone}&message=${text}`;
+        window.location.href = zaloAppUrl;
+        
+        // Fallback to web after a short delay if app doesn't handle the URL
+        setTimeout(() => {
+          const zaloWebUrl = `https://zalo.me/${phone}?text=${text}`;
+          window.open(zaloWebUrl, "_blank");
+        }, 1000);
+      } else {
+        // Desktop - use web version
+        const zaloUrl = `https://zalo.me/${phone}?text=${text}`;
+        window.open(zaloUrl, "_blank");
+      }
     } else if (type === "email" && customer.email) {
       const mailUrl = `mailto:${customer.email}?subject=Thông báo chuyến xe&body=${encodeURIComponent(message)}`;
       window.location.href = mailUrl;
@@ -769,7 +788,7 @@ export default function ScheduleList() {
                           onClick={(e) => { e.stopPropagation(); openDriverModal(trip.id); }}
                           className="text-[10px] text-blue-600 font-medium"
                         >
-                          + TX
+                          + Zom Bắn
                         </button>
                       )}
                     </div>
@@ -1071,16 +1090,16 @@ export default function ScheduleList() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"
+                              className="hidden lg:flex p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"
                               title="Zalo"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
                             </a>
                           </>
                         )}
-                        {/* Notification Buttons */}
+                        {/* Notification Buttons - Hidden on mobile */}
                         {trip.customer && (
-                          <div className="relative group">
+                          <div className="relative group hidden lg:block">
                             <button
                               onClick={(e) => e.stopPropagation()}
                               className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600"
@@ -1405,10 +1424,10 @@ export default function ScheduleList() {
 
               {/* Driver & Vehicle */}
               <div className="bg-amber-50 rounded-xl p-3">
-                <p className="text-sm font-medium text-amber-800 mb-3">Tài xế & Xe</p>
+                <p className="text-sm font-medium text-amber-800 mb-3">Zom Bắn</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1">Tài xế</label>
+                    <label className="block text-xs text-slate-500 mb-1">Zom Bắn</label>
                     <Combobox
                       options={drivers.map(driver => ({
                         value: driver.id,
@@ -1417,24 +1436,9 @@ export default function ScheduleList() {
                       }))}
                       value={editForm.driverId}
                       onChange={(val) => setEditForm({ ...editForm, driverId: val as number | null })}
-                      placeholder="-- Chọn tài xế --"
+                      placeholder="-- Chọn Zom Bắn --"
                       searchPlaceholder="Tìm tài xế..."
                       emptyText="Không có tài xế"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Xe</label>
-                    <Combobox
-                      options={vehicles.map(vehicle => ({
-                        value: vehicle.id,
-                        label: vehicle.name,
-                        sublabel: `${vehicle.licensePlate} - ${vehicle.seats} chỗ`
-                      }))}
-                      value={editForm.vehicleId}
-                      onChange={(val) => setEditForm({ ...editForm, vehicleId: val as number | null })}
-                      placeholder="-- Chọn xe --"
-                      searchPlaceholder="Tìm xe..."
-                      emptyText="Không có xe"
                     />
                   </div>
                 </div>
