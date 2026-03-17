@@ -85,6 +85,79 @@ const statusLabels: Record<string, string> = {
   cancelled: "Đã hủy",
 };
 
+function formatPriceK(price: string): string {
+  const n = parseInt((price || "").toString().replace(/[^\d]/g, ""), 10) || 0;
+  if (!n) return "";
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
+}
+
+// Ghi chú tự động (bắt chước mẫu trong TripForm)
+function generateAutoNoteLikeTripForm(
+  departureTime: string,
+  departure: string,
+  destination: string,
+  price: string,
+  phone: string,
+  seats: number,
+  tripType: "ghep" | "bao"
+): string {
+  // Tính thời gian chênh lệch
+  const now = new Date();
+  const currentHours = now.getHours();
+  const currentMinutes = now.getMinutes();
+
+  const [hours, minutes] = (departureTime || "").split(":").map(Number);
+
+  // Tính số phút chênh lệch từ giờ hiện tại đến giờ đi
+  let diffMinutes = (hours * 60 + minutes) - (currentHours * 60 + currentMinutes);
+
+  // Nếu giờ đi = giờ hiện tại, tính là 0 phút (khách đi ngay)
+  // Nếu giờ đi đã qua trong ngày, tính cho ngày mai
+  if (diffMinutes === 0) {
+    diffMinutes = 0;
+  } else if (diffMinutes < 0) {
+    diffMinutes += 24 * 60; // Cộng 24 giờ
+  }
+
+  // Đảm bảo tối thiểu là 1 phút
+  const displayMinutes = Math.max(1, diffMinutes);
+
+  // Xác định loại ghế
+  let seatType = "";
+  if (tripType === "bao") {
+    seatType = "bx";
+  } else if (seats === 1) {
+    seatType = "1k";
+  } else if (seats >= 2) {
+    seatType = "2k";
+  } else {
+    seatType = "1k";
+  }
+
+  // Format giá tiền (vd: 90000 -> 90k, 150000 -> 150k)
+  const priceNum = parseInt((price || "").replace(/\./g, "")) || 0;
+  const priceDisplay = priceNum >= 1000 ? `${Math.round(priceNum / 1000)}k` : priceNum.toString();
+
+  // Tạo phần thời gian
+  let timePart = "";
+  if (diffMinutes <= 60) {
+    // Dưới hoặc bằng 60 phút: 0-Xp
+    timePart = `0-${displayMinutes}p ${seatType}`;
+  } else {
+    // Trên 60 phút: Giờ đi loại (không có ngoặc)
+    const departureHour = (hours || 0).toString().padStart(2, "0");
+    const departureMinute = (minutes || 0).toString().padStart(2, "0");
+    timePart = `${departureHour}h${departureMinute} ${seatType}`;
+  }
+
+  const safeDeparture = (departure || "").trim() || "?";
+  const safeDestination = (destination || "").trim() || "?";
+  const safePhone = (phone || "").trim();
+
+  // Ghép các phần thành ghi chú
+  return `${timePart} ${safeDeparture} - ${safeDestination} ${priceDisplay} ${safePhone}`.trim();
+}
+
 export default function ScheduleList() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1409,7 +1482,33 @@ export default function ScheduleList() {
 
               {/* Notes */}
               <div className="bg-slate-50 rounded-xl p-3">
-                <p className="text-sm font-medium text-slate-700 mb-3">Ghi chú</p>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-sm font-medium text-slate-700">Ghi chú</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const seats = Math.max(1, editingTrip?.passengerCount ?? 1);
+                      const isBao = !!editingTrip?.totalSeats && seats >= editingTrip.totalSeats;
+                      const quick = generateAutoNoteLikeTripForm(
+                        editForm.departureTime,
+                        editForm.departure,
+                        editForm.destination,
+                        editForm.price,
+                        editForm.customerPhone,
+                        seats,
+                        isBao ? "bao" : "ghep"
+                      );
+                      if (!quick) return;
+                      // Ghi đè ghi chú cũ (không nối thêm)
+                      setEditForm({ ...editForm, notes: quick });
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
+                    title="Tạo ghi chú nhanh"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Tạo ghi chú nhanh
+                  </button>
+                </div>
                 <textarea
                   value={editForm.notes}
                   onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}

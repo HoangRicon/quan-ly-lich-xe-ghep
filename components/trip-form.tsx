@@ -230,7 +230,7 @@ export default function TripForm() {
 
   useEffect(() => {
     const searchCustomer = async () => {
-      if (formData.customerPhone.length >= 3) {
+      if (formData.customerPhone.length >= 2) {
         try {
           const res = await fetch(`/api/customers?search=${formData.customerPhone}`);
           const data = await res.json();
@@ -253,7 +253,7 @@ export default function TripForm() {
     const cleaned = value.replace(/\D/g, "");
     setFormData({ ...formData, customerPhone: cleaned });
     
-    if (formData.customerName && cleaned.length >= 3) {
+    if (formData.customerName && cleaned.length >= 2) {
       checkDuplicateCustomer(cleaned, formData.customerName);
     }
   };
@@ -279,7 +279,7 @@ export default function TripForm() {
 
   const handleNameChange = (value: string) => {
     setFormData({ ...formData, customerName: value });
-    if (formData.customerPhone.length >= 3) {
+    if (formData.customerPhone.length >= 2) {
       checkDuplicateCustomer(formData.customerPhone, value);
     }
   };
@@ -472,7 +472,7 @@ export default function TripForm() {
               type="text"
               value={formData.customerName}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder={formData.customerPhone.length >= 3 ? "Nhập tên khách" : "Nhập SĐT trước"}
+              placeholder={formData.customerPhone.length >= 2 ? "Nhập tên khách" : "Nhập SĐT trước"}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
               disabled={formData.customerPhone.length < 3 && !isEditMode}
             />
