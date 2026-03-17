@@ -447,11 +447,14 @@ export default function TripForm() {
             </label>
             <input
               type="time"
+              lang="vi-VN"
+              step="300"
               value={formData.departureTime}
               onChange={(e) => setFormData({ ...formData, departureTime: e.target.value })}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
               required
             />
+            <p className="text-xs text-slate-500 mt-1">Định dạng 24 giờ (ví dụ: 15:30)</p>
           </div>
         </div>
       </div>

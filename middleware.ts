@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { decrypt } from "./lib/auth";
+import { decrypt } from "./lib/jwt";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -49,6 +49,7 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("x-user-email", session.email);
   requestHeaders.set("x-user-role", session.role);
   requestHeaders.set("x-user-name", session.fullName);
+  requestHeaders.set("x-user-password-version", String(session.passwordVersion));
 
   return NextResponse.next({
     request: {

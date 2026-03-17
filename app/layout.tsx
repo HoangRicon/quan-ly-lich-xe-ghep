@@ -3,6 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/service-worker-register";
 
+// Force Node.js runtime for the entire app
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],

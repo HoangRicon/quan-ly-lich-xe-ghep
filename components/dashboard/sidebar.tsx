@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Bell,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const menuItems = [
   { href: "/dashboard/customers", icon: Car, label: "Quản lý khách hàng" },
   { href: "/dashboard/reports", icon: BarChart3, label: "Báo cáo" },
   { href: "/notifications", icon: Bell, label: "Thông báo" },
+  { href: "/dashboard/profile", icon: User, label: "Tài khoản" },
   { href: "/dashboard/settings", icon: Settings, label: "Cài đặt" },
   { href: "/login", icon: LogOut, label: "Đăng xuất", onClick: "handleLogout" },
 ];

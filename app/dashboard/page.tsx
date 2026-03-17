@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getSessionFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   Sidebar,
@@ -85,7 +85,7 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const session = await getSession();
+  const session = await getSessionFromCookie();
 
   if (!session) {
     redirect("/login");

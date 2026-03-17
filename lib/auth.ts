@@ -1,41 +1,49 @@
-import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies, headers } from "next/headers";
 import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { encrypt, decrypt, type UserPayload } from "./jwt";
 
-const secretKey = process.env.JWT_SECRET;
-const key = new TextEncoder().encode(secretKey);
+export { encrypt, decrypt, type UserPayload };
 
-export interface UserPayload {
-  id: number;
-  email: string;
-  fullName: string;
-  role: string;
+// Server Component version - just validates token without deleting cookies
+export async function getSessionFromCookie(): Promise<UserPayload | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  if (!token) return null;
+
+  const payload = await decrypt(token);
+  if (!payload) return null;
+
+  // Skip passwordVersion check in Server Components to avoid cookie deletion issues
+  // The check will be done in Route Handlers instead
+  return payload;
 }
 
-export async function encrypt(payload: UserPayload): Promise<string> {
-  return await new SignJWT(payload as unknown as JWTPayload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(key);
-}
-
-export async function decrypt(token: string): Promise<UserPayload | null> {
-  try {
-    const { payload } = await jwtVerify(token, key, {
-      algorithms: ["HS256"],
-    });
-    return payload as unknown as UserPayload;
-  } catch {
-    return null;
-  }
-}
-
+// Route Handler version - can delete cookies if needed
 export async function getSession(): Promise<UserPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
   if (!token) return null;
-  return await decrypt(token);
+
+  const payload = await decrypt(token);
+  if (!payload) return null;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { passwordVersion: true },
+    });
+
+    if (!user || user.passwordVersion !== payload.passwordVersion) {
+      // Password đã thay đổi, xóa session
+      cookieStore.delete("session");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error checking password version:", error);
+  }
+
+  return payload;
 }
 
 export async function getUserFromRequest(request: NextRequest): Promise<UserPayload | null> {
@@ -43,6 +51,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<UserPayl
   const userEmail = request.headers.get("x-user-email");
   const userRole = request.headers.get("x-user-role");
   const userName = request.headers.get("x-user-name");
+  const userPasswordVersion = request.headers.get("x-user-password-version");
 
   if (!userId || !userEmail || !userRole) {
     return null;
@@ -53,15 +62,14 @@ export async function getUserFromRequest(request: NextRequest): Promise<UserPayl
     email: userEmail,
     role: userRole,
     fullName: userName || "",
+    passwordVersion: userPasswordVersion ? parseInt(userPasswordVersion, 10) : 1,
   };
 }
 
 export async function setSession(user: UserPayload): Promise<void> {
   const cookieStore = await cookies();
-  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  // In production, only mark cookies as Secure when the request is actually over HTTPS.
-  // Browsers may accept Secure cookies on http://localhost, but will reject them on http://<LAN IP>.
   const h = await headers();
   const forwardedProto = h.get("x-forwarded-proto");
   const isHttps = forwardedProto === "https";

@@ -597,6 +597,8 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                         <label className="block text-xs text-slate-500 mb-1">Giờ đi (HH:MM)</label>
                         <input
                           type="time"
+                          lang="vi-VN"
+                          step="300"
                           value={editForm.departureTime}
                           onChange={(e) => setEditForm({ ...editForm, departureTime: e.target.value })}
                           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
