@@ -99,7 +99,8 @@ export async function PUT(
 
     const updateData: any = {};
 
-    if (status) {
+    // Allow updating status even if the caller sends a falsy value (defensive).
+    if (status !== undefined) {
       updateData.status = status;
     }
 
@@ -201,7 +202,11 @@ export async function PUT(
       } : null,
     };
 
-    return NextResponse.json({ success: true, data: formattedTrip });
+    const res = NextResponse.json({ success: true, data: formattedTrip });
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.headers.set("Pragma", "no-cache");
+    res.headers.set("Expires", "0");
+    return res;
   } catch (error) {
     console.error("Update trip error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

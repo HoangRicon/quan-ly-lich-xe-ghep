@@ -249,7 +249,7 @@ export default function ScheduleList() {
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (dateFilter) params.set("date", dateFilter);
 
-      const res = await fetch(`/api/trips?${params}`);
+      const res = await fetch(`/api/trips?${params}`, { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setTrips(data.data);
@@ -350,6 +350,7 @@ export default function ScheduleList() {
     try {
       const res = await fetch(`/api/trips/${tripId}`, {
         method: "PUT",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });

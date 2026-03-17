@@ -97,6 +97,12 @@ Bạn có thể verify nhanh Machine env trong PowerShell (Admin):
 [Environment]::GetEnvironmentVariable("CRON_SECRET","Machine")
 ```
 
+Nếu bạn chỉ set theo **User variable** (tài khoản đang login), verify bằng:
+
+```powershell
+[Environment]::GetEnvironmentVariable("CRON_SECRET","User")
+```
+
 Nếu chưa có, set nhanh (chạy PowerShell **Admin**):
 
 ```powershell
@@ -135,6 +141,12 @@ Bạn cũng có thể chạy tay để test:
 ```powershell
 cd "C:\Users\Admin\Desktop\outsrc\quan-ly-lich-xe-ghep"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\deploy\windows\cron-reminders.ps1" -DryRun 1
+```
+
+Dev-only (nếu bạn đã có `CRON_SECRET=...` trong `.env` ở repo): bật load `.env` khi chạy tay:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\deploy\windows\cron-reminders.ps1" -LoadDotEnv 1 -DryRun 1
 ```
 
 ### 4) Caddy có cần “config đặc biệt” không?

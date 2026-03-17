@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       data: formattedTrips,
       pagination: {
@@ -154,6 +154,12 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     });
+
+    // Avoid any intermediary/proxy/browser caching for frequently-updated dashboard data.
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.headers.set("Pragma", "no-cache");
+    res.headers.set("Expires", "0");
+    return res;
   } catch (error) {
     console.error("Get trips error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

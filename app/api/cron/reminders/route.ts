@@ -36,7 +36,17 @@ export async function GET(request: NextRequest) {
   try {
     const secret = request.headers.get("x-cron-secret") || "";
     if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+      // Helpful (non-sensitive) debug info for local/dev runs.
+      // Do NOT leak secrets; only expose whether server has a secret and whether the provided header was empty.
+      const isProd = process.env.NODE_ENV === "production";
+      const debug = isProd
+        ? undefined
+        : {
+            hasServerSecret: Boolean(process.env.CRON_SECRET),
+            providedHeaderEmpty: secret.length === 0,
+            hint: !process.env.CRON_SECRET ? "server_missing_CRON_SECRET" : "header_mismatch",
+          };
+      return NextResponse.json({ success: false, error: "Unauthorized", debug }, { status: 401 });
     }
 
     const url = new URL(request.url);

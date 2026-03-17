@@ -99,13 +99,30 @@ try {
     $secretSource = "machine_env"
   }
   if ([string]::IsNullOrWhiteSpace($secret)) {
+    # Common during manual runs: secret is set for the current user only
+    $secret = [string][Environment]::GetEnvironmentVariable("CRON_SECRET", "User")
+    $secretSource = "user_env"
+  }
+  if ([string]::IsNullOrWhiteSpace($secret)) {
     # Fall back to the current process env
     $secret = [string]$env:CRON_SECRET
     $secretSource = "process_env"
   }
+  # Defensive: avoid hidden whitespace/newlines causing 401 mismatch
+  if (-not [string]::IsNullOrWhiteSpace($secret)) {
+    $secret = $secret.Trim()
+  }
   if ([string]::IsNullOrWhiteSpace($secret)) {
     $who = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $msg = "$(Get-Date -Format o) ERROR Missing CRON_SECRET (set System env var CRON_SECRET or pass -CronSecret). runningAs=$who"
+    $dotenvNote = "disabled"
+    if ($LoadDotEnv -eq 1) {
+      if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
+        $dotenvNote = "enabled (EnvFile=$EnvFile)"
+      } else {
+        $dotenvNote = "enabled (auto-discovery)"
+      }
+    }
+    $msg = "$(Get-Date -Format o) ERROR Missing CRON_SECRET. Looked in: -CronSecret param, Machine env, User env, process env. DotEnv=$dotenvNote. Fix: set Machine env var CRON_SECRET (recommended for Task Scheduler), or pass -CronSecret, or run with -LoadDotEnv 1. runningAs=$who"
     Add-Content -LiteralPath $logFile -Value $msg
     exit 2
   }
@@ -130,20 +147,35 @@ try {
   }
   Add-Content -LiteralPath $logFile -Value "$(Get-Date -Format o) INFO Using AppUrl='$app'"
 
-  $url = "$app/api/cron/reminders"
-  if ($DryRun -eq 1) {
-    $url = "$url?dryRun=1"
+  # Build a safe absolute URI (avoid string concatenation edge cases / hidden chars)
+  $path = "/api/cron/reminders"
+  $qs = ""
+  if ($DryRun -eq 1) { $qs = "dryRun=1" }
+
+  try {
+    $baseUri = [Uri]$app
+    $ub = New-Object System.UriBuilder($baseUri)
+    $ub.Path = $path
+    $ub.Query = $qs
+    $uri = $ub.Uri
+  } catch {
+    $msg = "$(Get-Date -Format o) ERROR Invalid URI build. AppUrl='$app' Path='$path' Query='$qs' err=$($_.Exception.Message)"
+    Add-Content -LiteralPath $logFile -Value $msg
+    exit 2
   }
+
+  # Final sanity check (log the exact URI we will call)
+  Add-Content -LiteralPath $logFile -Value "$(Get-Date -Format o) INFO Calling URI='$($uri.AbsoluteUri)'"
 
   $headers = @{
     "x-cron-secret" = $secret
   }
 
   $started = Get-Date
-  $resp = Invoke-RestMethod -Method GET -Uri $url -Headers $headers -TimeoutSec $TimeoutSec
+  $resp = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -TimeoutSec $TimeoutSec
   $ms = [int]((Get-Date) - $started).TotalMilliseconds
 
-  $line = "$(Get-Date -Format o) OK ${ms}ms url=$url emailsSent=$($resp.emailsSent) scannedTrips=$($resp.scannedTrips) dryRun=$($resp.dryRun)"
+  $line = "$(Get-Date -Format o) OK ${ms}ms url=$($uri.AbsoluteUri) emailsSent=$($resp.emailsSent) scannedTrips=$($resp.scannedTrips) dryRun=$($resp.dryRun)"
   Add-Content -LiteralPath $logFile -Value $line
   exit 0
 } catch {
