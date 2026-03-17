@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmailViaSmtp } from "@/lib/email";
+import { ensureDefaultEmailTemplates } from "@/lib/email-templates";
 
 export const runtime = "nodejs";
+
+function normalizeCronSecret(v: string | null | undefined) {
+  let s = String(v ?? "").trim();
+  // Handle common dotenv patterns: CRON_SECRET="abc" or CRON_SECRET='abc'
+  if (s.length >= 2) {
+    const first = s[0];
+    const last = s[s.length - 1];
+    if ((first === `"` && last === `"`) || (first === `'` && last === `'`)) {
+      s = s.slice(1, -1).trim();
+    }
+  }
+  return s;
+}
 
 function isValidEmail(email: string) {
   const v = String(email || "").trim();
@@ -34,17 +48,18 @@ function fmtViDateTime(d: Date) {
 // Call this endpoint every minute on VPS (cron/systemd timer). Protect with CRON_SECRET.
 export async function GET(request: NextRequest) {
   try {
-    const secret = request.headers.get("x-cron-secret") || "";
-    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    const provided = normalizeCronSecret(request.headers.get("x-cron-secret"));
+    const serverSecret = normalizeCronSecret(process.env.CRON_SECRET);
+    if (!serverSecret || provided !== serverSecret) {
       // Helpful (non-sensitive) debug info for local/dev runs.
       // Do NOT leak secrets; only expose whether server has a secret and whether the provided header was empty.
       const isProd = process.env.NODE_ENV === "production";
       const debug = isProd
         ? undefined
         : {
-            hasServerSecret: Boolean(process.env.CRON_SECRET),
-            providedHeaderEmpty: secret.length === 0,
-            hint: !process.env.CRON_SECRET ? "server_missing_CRON_SECRET" : "header_mismatch",
+            hasServerSecret: Boolean(serverSecret),
+            providedHeaderEmpty: provided.length === 0,
+            hint: !serverSecret ? "server_missing_CRON_SECRET" : "header_mismatch",
           };
       return NextResponse.json({ success: false, error: "Unauthorized", debug }, { status: 401 });
     }
@@ -54,6 +69,9 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
     const nowHour = now.getHours();
+
+    // Ensure default templates exist (fresh DBs can be empty).
+    await ensureDefaultEmailTemplates();
 
     // Load reminder recipient email from Settings (system_settings category=email)
     // - reminder_to_email: email nhận nhắc lịch (admin/operator)
