@@ -863,9 +863,14 @@ export default function ScheduleList() {
 
                 {/* Customer Phone - Left under route */}
                 {trip.customer?.phone && (
-                  <div className="text-xs text-blue-600 mb-0.5">
+                  <a
+                    href={`tel:${String(trip.customer.phone).replace(/[^\d+]/g, "")}`}
+                    className="text-xs text-blue-600 mb-0.5 inline-block hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Bấm để gọi"
+                  >
                     {trip.customer.phone}
-                  </div>
+                  </a>
                 )}
 
                 {/* Row 4: Price - Copy - Delete */}

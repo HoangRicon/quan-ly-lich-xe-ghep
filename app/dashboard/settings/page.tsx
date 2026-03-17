@@ -138,6 +138,7 @@ function ConnectionSettings() {
     fromEmail: "",
     fromName: "",
   });
+  const [testEmailTo, setTestEmailTo] = useState("");
   const [zaloStatus, setZaloStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
   const [emailStatus, setEmailStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [logs, setLogs] = useState<string[]>([]);
@@ -185,10 +186,12 @@ function ConnectionSettings() {
           smtpHost: settings.smtp_host || "",
           smtpPort: settings.smtp_port || "587",
           smtpUser: settings.smtp_user || "",
-          smtpPassword: settings.smtp_password || "",
+          // Giá trị secret được API mask thành "••••••••" => không dùng để lưu/gửi
+          smtpPassword: settings.smtp_password?.includes("•") ? "" : (settings.smtp_password || ""),
           fromEmail: settings.from_email || "",
           fromName: settings.from_name || "Xe Ghép",
         });
+        setTestEmailTo(settings.from_email || "");
       }
     } catch (error) {
       console.error("Load settings error:", error);
@@ -225,14 +228,17 @@ function ConnectionSettings() {
   const handleSaveEmail = async () => {
     setSaving(true);
     try {
-      const keys = [
+      const keys: Array<{ key: string; value: string; category: string; isSecret?: boolean }> = [
         { key: "smtp_host", value: emailConfig.smtpHost, category: "email" },
         { key: "smtp_port", value: emailConfig.smtpPort, category: "email" },
         { key: "smtp_user", value: emailConfig.smtpUser, category: "email" },
-        { key: "smtp_password", value: emailConfig.smtpPassword, category: "email", isSecret: true },
         { key: "from_email", value: emailConfig.fromEmail, category: "email" },
         { key: "from_name", value: emailConfig.fromName, category: "email" },
       ];
+      // Chỉ lưu mật khẩu khi người dùng nhập mới (tránh ghi đè bằng chuỗi rỗng/mask)
+      if (emailConfig.smtpPassword?.trim()) {
+        keys.push({ key: "smtp_password", value: emailConfig.smtpPassword, category: "email", isSecret: true });
+      }
 
       for (const k of keys) {
         await fetch("/api/system-settings", {
@@ -283,8 +289,12 @@ function ConnectionSettings() {
   };
 
   const handleTestEmail = async () => {
-    if (!emailConfig.smtpHost || !emailConfig.smtpUser) {
-      showToast("Vui lòng nhập đầy đủ thông tin SMTP", "error");
+    if (!emailConfig.smtpHost || !emailConfig.smtpUser || !emailConfig.fromEmail) {
+      showToast("Vui lòng nhập đầy đủ SMTP Host/Username và Email người gửi", "error");
+      return;
+    }
+    if (!testEmailTo?.trim()) {
+      showToast("Vui lòng nhập Email nhận để test", "error");
       return;
     }
 
@@ -295,7 +305,7 @@ function ConnectionSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "booking_confirmation",
-          email: "test@example.com",
+          email: testEmailTo.trim(),
           data: {
             customer_name: "Test User",
             pickup_location: "Hà Nội",
@@ -308,10 +318,10 @@ function ConnectionSettings() {
       const data = await res.json();
       if (data.success) {
         setEmailStatus("success");
-        showToast("Email test đã được gửi (log trong console)", "success");
+        showToast("Email test đã được gửi", "success");
       } else {
         setEmailStatus("error");
-        showToast("Gửi email thất bại", "error");
+        showToast(data.error || "Gửi email thất bại", "error");
       }
     } catch (error) {
       setEmailStatus("error");
@@ -496,6 +506,19 @@ function ConnectionSettings() {
                   <><Mail className="w-4 h-4 mr-2" /> Gửi test</>
                 )}
               </Button>
+            </div>
+            <div className="mt-3">
+              <Label htmlFor="testEmailTo">Email nhận test</Label>
+              <Input
+                id="testEmailTo"
+                placeholder="VD: ban@domain.com"
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                className="mt-2"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Gợi ý: để nhanh nhất, nhập chính email của bạn (hoặc trùng với Email người gửi).
+              </p>
             </div>
           </div>
 
@@ -1133,6 +1156,37 @@ function NotificationSettingsTab() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleTestEmail = async () => {
+    const to = window.prompt("Nhập email nhận để test:");
+    if (!to?.trim()) return;
+
+    try {
+      const res = await fetch("/api/notifications/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "booking_confirmation",
+          email: to.trim(),
+          data: {
+            customer_name: "Test User",
+            pickup_location: "Hà Nội",
+            dropoff_location: "Hải Phòng",
+            price: "150.000",
+            booking_time: new Date().toLocaleString("vi-VN"),
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data?.success) {
+        showToast("Email test đã được gửi", "success");
+      } else {
+        showToast(data?.error || "Gửi email thất bại", "error");
+      }
+    } catch (err) {
+      showToast("Lỗi kết nối", "error");
+    }
+  };
+
   const REMINDER_OPTIONS = [
     { value: 15, label: "15 phút" },
     { value: 30, label: "30 phút" },
@@ -1300,33 +1354,7 @@ function NotificationSettingsTab() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch("/api/notifications/test-email", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            type: "booking_confirmation",
-                            email: "test@example.com",
-                            data: {
-                              customer_name: "Nguyễn Văn Test",
-                              pickup_location: "Hà Nội",
-                              dropoff_location: "Hải Phòng",
-                              price: "150.000",
-                              booking_time: "15:00 - 15/03/2026"
-                            }
-                          })
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                          showToast("Email test đã được gửi!", "success");
-                        } else {
-                          showToast("Gửi email thất bại", "error");
-                        }
-                      } catch (err) {
-                        showToast("Lỗi kết nối", "error");
-                      }
-                    }}
+                    onClick={handleTestEmail}
                   >
                     <Mail className="w-4 h-4 mr-2" />
                     Gửi email test

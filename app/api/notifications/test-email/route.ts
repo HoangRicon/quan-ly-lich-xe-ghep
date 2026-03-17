@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendEmailViaSmtp } from "@/lib/email";
+
+export const runtime = "nodejs";
 
 // POST /api/notifications/test-email - Test gửi email thông báo
 export async function POST(request: NextRequest) {
@@ -69,12 +72,12 @@ Tài xế {{driver_name}} cảm ơn bạn đã đồng hành.
       emailSubject = emailSubject.replaceAll(placeholder, String(value));
     });
 
-    // Log email (trong production sẽ gửi qua SMTP)
-    console.log("=== EMAIL TEST ===");
-    console.log(`To: ${email}`);
-    console.log(`Subject: ${emailSubject}`);
-    console.log(`Body:\n${emailBody}`);
-    console.log("====================");
+    // Gửi email thật qua SMTP
+    const smtpResult = await sendEmailViaSmtp({
+      to: email,
+      subject: emailSubject,
+      text: emailBody,
+    });
 
     // Lưu vào database để test
     const notification = await prisma.notification.create({
@@ -88,26 +91,28 @@ Tài xế {{driver_name}} cảm ơn bạn đã đồng hành.
           email, 
           type, 
           sentAt: new Date().toISOString(),
-          status: "test"
+          status: "sent",
+          smtp: smtpResult,
         },
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Email test đã được gửi (log)",
+      message: "Email test đã được gửi",
       email: {
         to: email,
         subject: emailSubject,
         body: emailBody,
       },
+      smtp: smtpResult,
       notification,
     });
   } catch (error) {
     console.error("Email test error:", error);
     return NextResponse.json({ 
       success: false, 
-      error: "Gửi email thất bại" 
+      error: error instanceof Error ? error.message : "Gửi email thất bại"
     }, { status: 500 });
   }
 }
