@@ -50,6 +50,10 @@ export default function DriverList() {
   const [showFilters, setShowFilters] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Delete modal state
   const [deletingDriver, setDeletingDriver] = useState<Driver | null>(null);
@@ -57,7 +61,12 @@ export default function DriverList() {
 
   useEffect(() => {
     fetchDrivers();
-  }, [statusFilter, vehicleTypeFilter]);
+  }, [statusFilter, vehicleTypeFilter, page, limit]);
+
+  // Reset to first page when changing filters
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, vehicleTypeFilter, limit]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -75,11 +84,17 @@ export default function DriverList() {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (vehicleTypeFilter !== "all") params.set("vehicleType", vehicleTypeFilter);
+      params.set("page", String(page));
+      params.set("limit", String(limit));
 
       const res = await fetch(`/api/drivers?${params}`);
       const data = await res.json();
       if (data.data) {
         setDrivers(data.data);
+      }
+      if (data.pagination) {
+        setTotal(data.pagination.total ?? 0);
+        setTotalPages(data.pagination.totalPages ?? 1);
       }
     } catch (error) {
       console.error("Fetch drivers error:", error);
@@ -266,7 +281,7 @@ export default function DriverList() {
               : "bg-white text-slate-600 border border-slate-200"
           }`}
         >
-          Tất cả ({drivers.length})
+          Tất cả ({total || drivers.length})
         </button>
         <button
           onClick={() => setStatusFilter("running")}
@@ -510,11 +525,9 @@ export default function DriverList() {
               {/* Vehicle Info */}
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Car className="w-4 h-4" />
-                <span>
-                  {vehicleTypeLabels[driver.vehicle?.vehicleType || "car"]} • {driver.vehicle?.seats || 4} chỗ
+                <span className="font-medium">
+                  {driver.vehicle?.licensePlate || "Chưa có xe"}
                 </span>
-                <span className="text-slate-400">•</span>
-                <span className="font-medium">{driver.vehicle?.licensePlate || "Chưa có xe"}</span>
               </div>
 
               {/* Stats */}
@@ -571,6 +584,41 @@ export default function DriverList() {
             </div>
           ))
         )}
+      </div>
+
+      {/* Pagination */}
+      <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="text-sm text-slate-600">
+          Tổng: <span className="font-medium text-slate-800">{total}</span> tài xế • Trang{" "}
+          <span className="font-medium text-slate-800">{page}</span>/{totalPages}
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={limit}
+            onChange={(e) => setLimit(parseInt(e.target.value))}
+            className="h-9 px-2 rounded-lg border border-slate-200 bg-white text-sm"
+          >
+            <option value={10}>10 / trang</option>
+            <option value={20}>20 / trang</option>
+            <option value={50}>50 / trang</option>
+          </select>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={loading || page <= 1}
+            className="h-9"
+          >
+            Trước
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={loading || page >= totalPages}
+            className="h-9"
+          >
+            Sau
+          </Button>
+        </div>
       </div>
 
       {/* Delete Confirmation Modal */}

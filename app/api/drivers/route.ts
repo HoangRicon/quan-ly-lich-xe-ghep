@@ -21,6 +21,15 @@ export async function GET(request: NextRequest) {
       role: "driver",
       ...(status && status !== "all" ? { status } : {}),
     };
+    if (vehicleType && vehicleType !== "all") {
+      // Filter drivers that have at least one active vehicle of the requested type
+      where.vehicles = {
+        some: {
+          isActive: true,
+          vehicleType,
+        },
+      };
+    }
 
     const [drivers, total] = await Promise.all([
       prisma.user.findMany({
