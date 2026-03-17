@@ -12,6 +12,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell 
 } from "@/components/ui/table";
 import { Combobox } from "@/components/ui/combobox";
+import { statusColorClasses, useTripStatuses } from "@/lib/useTripStatuses";
 
 interface Trip {
   id: number;
@@ -69,21 +70,7 @@ interface Vehicle {
   seats: number;
 }
 
-const statusConfig: Record<string, { label: string; bg: string; text: string; border: string; next: string[] }> = {
-  scheduled: { label: "Chờ gán", bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-200", next: ["confirmed", "running", "completed", "cancelled"] },
-  confirmed: { label: "Đã gán", bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-200", next: ["running", "completed", "cancelled"] },
-  running: { label: "Đang đi", bg: "bg-green-100", text: "text-green-700", border: "border-green-200", next: ["completed", "cancelled"] },
-  completed: { label: "Hoàn thành", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200", next: [] },
-  cancelled: { label: "Đã hủy", bg: "bg-red-100", text: "text-red-700", border: "border-red-200", next: [] },
-};
-
-const statusLabels: Record<string, string> = {
-  scheduled: "Chờ gán",
-  confirmed: "Đã gán",
-  running: "Đang đi",
-  completed: "Hoàn thành",
-  cancelled: "Đã hủy",
-};
+// statusConfig/statusLabels moved to Settings-managed statuses (see /api/trip-statuses)
 
 function formatPriceK(price: string): string {
   const n = parseInt((price || "").toString().replace(/[^\d]/g, ""), 10) || 0;
@@ -159,6 +146,7 @@ function generateAutoNoteLikeTripForm(
 }
 
 export default function ScheduleList() {
+  const { statuses, map: statusMap, priority: statusPriority, nextMap } = useTripStatuses();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -175,6 +163,10 @@ export default function ScheduleList() {
   // Status dropdown state
   const [openStatusMenu, setOpenStatusMenu] = useState<number | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
+
+  // Notification dropdown state (touch-friendly; no hover dependency)
+  const [openNotifyMenu, setOpenNotifyMenu] = useState<number | null>(null);
+  const notifyMenuRef = useRef<HTMLDivElement>(null);
   
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -222,6 +214,16 @@ export default function ScheduleList() {
     const handleClickOutside = (event: MouseEvent) => {
       if (statusMenuRef.current && !statusMenuRef.current.contains(event.target as Node)) {
         setOpenStatusMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notifyMenuRef.current && !notifyMenuRef.current.contains(event.target as Node)) {
+        setOpenNotifyMenu(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -474,33 +476,7 @@ export default function ScheduleList() {
     }
   };
 
-  const sendZNS = async (phone: string, templateId: string, data: Record<string, string>) => {
-    try {
-      const res = await fetch("/api/zns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: phone,
-          templateId: templateId,
-          data: data,
-          oaId: localStorage.getItem("zalo_oa_id") || "",
-          accessToken: localStorage.getItem("zalo_access_token") || "",
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setToast({ message: "Gửi ZNS thành công!", type: "success" });
-      } else {
-        setToast({ message: result.error || "Gửi ZNS thất bại", type: "error" });
-      }
-    } catch (err) {
-      console.error("ZNS error:", err);
-      setToast({ message: "Gửi ZNS thất bại", type: "error" });
-    }
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const sendNotification = async (trip: Trip, type: "zalo" | "zns" | "email" | "system") => {
+  const sendNotification = async (trip: Trip, type: "email" | "system") => {
     const customer = trip.customer;
     if (!customer) {
       alert("Không có thông tin khách hàng");
@@ -510,45 +486,51 @@ export default function ScheduleList() {
     const departureDate = new Date(trip.departureTime);
     const dateStr = departureDate.toLocaleDateString("vi-VN");
     const timeStr = formatTime(trip.departureTime);
-    const statusLabel = statusConfig[trip.status]?.label || trip.status;
+    const statusLabel = statusMap.get(trip.status)?.label || trip.status;
 
     const message = `Chuyến xe ${trip.id}: ${trip.departure} → ${trip.destination}, ${timeStr} ngày ${dateStr}. Trạng thái: ${statusLabel}`;
 
-    if (type === "zns") {
-      // Gửi ZNS qua API
-      await sendZNS(customer.phone, "trip_reminder", {
-        departure: trip.departure,
-        destination: trip.destination,
-        date: dateStr,
-        time: timeStr,
-        status: statusLabel,
-      });
-    } else if (type === "zalo") {
-      // Open Zalo - try app deep link first, then fallback to web
-      const phone = customer.phone;
-      const text = encodeURIComponent(message);
-      
-      // Try Zalo app deep link first (works on mobile with Zalo installed)
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      if (isMobile) {
-        // Try opening Zalo app - will fallback to web if app not installed
-        const zaloAppUrl = `zalo://chat?phone=${phone}&message=${text}`;
-        window.location.href = zaloAppUrl;
-        
-        // Fallback to web after a short delay if app doesn't handle the URL
-        setTimeout(() => {
-          const zaloWebUrl = `https://zalo.me/${phone}?text=${text}`;
-          window.open(zaloWebUrl, "_blank");
-        }, 1000);
-      } else {
-        // Desktop - use web version
-        const zaloUrl = `https://zalo.me/${phone}?text=${text}`;
-        window.open(zaloUrl, "_blank");
+    if (type === "email") {
+      // Send to admin/operator email configured in Settings (NOT customer's email)
+      let toEmail = "";
+      try {
+        const r = await fetch("/api/system-settings?category=email");
+        const d = await r.json();
+        if (d?.success && Array.isArray(d?.settings)) {
+          const map: Record<string, string> = {};
+          d.settings.forEach((s: { key: string; value: string | null }) => {
+            if (typeof s?.key === "string" && typeof s?.value === "string") map[s.key] = s.value;
+          });
+          toEmail = String(map.reminder_to_email || map.from_email || "").trim();
+        }
+      } catch {
+        // ignore; we'll validate below
       }
-    } else if (type === "email" && customer.email) {
-      const mailUrl = `mailto:${customer.email}?subject=Thông báo chuyến xe&body=${encodeURIComponent(message)}`;
-      window.location.href = mailUrl;
+      if (!toEmail) {
+        alert("Chưa cấu hình Email nhận nhắc lịch (Cài đặt → Email SMTP)");
+        return;
+      }
+      // Gửi email thật qua server (SMTP)
+      const res = await fetch("/api/notifications/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "trip_reminder",
+          email: toEmail,
+          data: {
+            customer_name: customer.name,
+            departure_time: `${timeStr} ${dateStr}`,
+            pickup_location: trip.departure,
+            dropoff_location: trip.destination,
+          },
+        }),
+      });
+      const result = await res.json();
+      setToast({
+        message: result?.success ? `Đã gửi email tới ${toEmail}` : (result?.error || "Gửi email thất bại"),
+        type: result?.success ? "success" : "error",
+      });
+      setTimeout(() => setToast(null), 3000);
     } else if (type === "system") {
       alert(`Thông báo: ${message}`);
     }
@@ -582,15 +564,6 @@ export default function ScheduleList() {
       trip.driver?.fullName?.toLowerCase().includes(search)
     );
   });
-
-  // Status priority for sorting: Chờ gán -> Đã gán -> Đang đi -> Hoàn thành -> Đã hủy
-  const statusPriority: Record<string, number> = {
-    "scheduled": 1,
-    "confirmed": 2,
-    "running": 3,
-    "completed": 4,
-    "cancelled": 5,
-  };
 
   const sortedTrips = [...filteredTrips].sort((a, b) => {
     // First, sort by status priority (scheduled first)
@@ -755,11 +728,11 @@ export default function ScheduleList() {
           className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
         >
           <option value="all">Tất cả</option>
-          <option value="scheduled">Chờ gán</option>
-          <option value="confirmed">Đã gán</option>
-          <option value="running">Đang đi</option>
-          <option value="completed">Hoàn thành</option>
-          <option value="cancelled">Đã hủy</option>
+          {statuses.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
         </select>
 
         {/* Datepicker + Today */}
@@ -816,7 +789,7 @@ export default function ScheduleList() {
                   isOverdue(trip.departureTime, trip.status) ? "border-red-300" : ""
                 }`}
               >
-                {/* Row 1: Time/Date (left) - Driver (center) - Status (right) */}
+                {/* Row 1: Time/Date (left) - Driver (center) - Status + Notify (right) */}
                 <div className="grid grid-cols-3 items-center gap-2 mb-0.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-bold text-slate-800 text-base flex-shrink-0">{formatTime(trip.departureTime)}</span>
@@ -838,18 +811,29 @@ export default function ScheduleList() {
                     )}
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-end items-center gap-2">
+                    {trip.customer && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); sendNotification(trip, "email"); }}
+                        className="p-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-600"
+                        title="Nhắc khởi hành qua email (gửi tới email cấu hình)"
+                        aria-label="Nhắc khởi hành qua email"
+                      >
+                        <Bell className="w-4 h-4" />
+                      </button>
+                    )}
                     <select
                       value={trip.status}
                       onChange={(e) => { e.stopPropagation(); updateStatus(trip.id, e.target.value); }}
                       onClick={(e) => e.stopPropagation()}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer border ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").border}`}
                     >
-                      <option value="scheduled">Chờ gán</option>
-                      <option value="confirmed">Đã gán</option>
-                      <option value="running">Đang đi</option>
-                      <option value="completed">Hoàn thành</option>
-                      <option value="cancelled">Đã hủy</option>
+                      {statuses.map((s) => (
+                        <option key={s.key} value={s.key}>
+                          {s.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -889,6 +873,7 @@ export default function ScheduleList() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
                       className="p-1 rounded hover:bg-red-50 text-red-500"
                     >
@@ -1071,20 +1056,20 @@ export default function ScheduleList() {
                       <div className="relative">
                         <button
                           onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
-                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text}`}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text}`}
                         >
-                          {statusConfig[trip.status]?.label}
+                          {statusMap.get(trip.status)?.label || trip.status}
                           <ChevronDown className="w-3 h-3" />
                         </button>
                         {openStatusMenu === trip.id && (
                           <div className="absolute z-20 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[120px]">
-                            {statusConfig[trip.status]?.next.map((nextStatus) => (
+                            {(nextMap[trip.status] || []).slice(0, 6).map((nextStatus) => (
                               <button
                                 key={nextStatus}
                                 onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, nextStatus); }}
                                 className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
                               >
-                                {statusConfig[nextStatus]?.label}
+                                {statusMap.get(nextStatus)?.label || nextStatus}
                               </button>
                             ))}
                           </div>
@@ -1131,46 +1116,35 @@ export default function ScheduleList() {
                         )}
                         {/* Notification Buttons - Hidden on mobile */}
                         {trip.customer && (
-                          <div className="relative group hidden lg:block">
+                          <div className="relative" ref={openNotifyMenu === trip.id ? notifyMenuRef : undefined}>
                             <button
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenNotifyMenu(openNotifyMenu === trip.id ? null : trip.id);
+                              }}
                               className="p-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-600"
                               title="Gửi thông báo"
                             >
                               <Bell className="w-3.5 h-3.5" />
                             </button>
-                            <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[160px] hidden group-hover:block z-20">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); sendNotification(trip, "zns"); }}
-                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
-                              >
-                                <MessageCircle className="w-3 h-3 text-green-500" />
-                                ZNS (Zalo OA)
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); sendNotification(trip, "zalo"); }}
-                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
-                              >
-                                <MessageCircle className="w-3 h-3 text-blue-500" />
-                                Zalo Chat
-                              </button>
-                              {trip.customer.email && (
+                            {openNotifyMenu === trip.id && (
+                              <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[160px] z-20">
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); sendNotification(trip, "email"); }}
+                                  onClick={(e) => { e.stopPropagation(); sendNotification(trip, "email"); setOpenNotifyMenu(null); }}
                                   className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
                                 >
                                   <Bell className="w-3 h-3 text-amber-500" />
-                                  Email
+                                  Email (tới email cấu hình)
                                 </button>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); sendNotification(trip, "system"); }}
-                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
-                              >
-                                <Bell className="w-3 h-3 text-purple-500" />
-                                Hệ thống
-                              </button>
-                            </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); sendNotification(trip, "system"); setOpenNotifyMenu(null); }}
+                                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 flex items-center gap-2"
+                                >
+                                  <Bell className="w-3 h-3 text-purple-500" />
+                                  Hệ thống
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                         <button
@@ -1473,15 +1447,18 @@ export default function ScheduleList() {
               <div className="bg-slate-50 rounded-xl p-3">
                 <p className="text-sm font-medium text-slate-700 mb-3">Trạng thái</p>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(statusConfig).map(([key, config]) => (
-                    <button
-                      key={key}
-                      onClick={() => setEditForm({ ...editForm, status: key })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium ${editForm.status === key ? "ring-2 ring-blue-500" : ""} ${config.bg} ${config.text}`}
-                    >
-                      {config.label}
-                    </button>
-                  ))}
+                  {statuses.map((s) => {
+                    const c = statusColorClasses(s.color);
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => setEditForm({ ...editForm, status: s.key })}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium ${editForm.status === s.key ? "ring-2 ring-blue-500" : ""} ${c.bg} ${c.text}`}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

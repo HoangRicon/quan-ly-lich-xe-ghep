@@ -4,6 +4,20 @@ import { sendEmailViaSmtp } from "@/lib/email";
 
 export const runtime = "nodejs";
 
+function renderTemplate(input: string, data: Record<string, unknown>) {
+  let out = input;
+  for (const [key, value] of Object.entries(data)) {
+    out = out.replaceAll(`{{${key}}}`, String(value));
+  }
+  return out;
+}
+
+function isValidEmail(email: string) {
+  const v = String(email || "").trim();
+  // simple + safe check (avoids pulling extra deps)
+  return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
 // POST /api/notifications/test-email - Test gửi email thông báo
 export async function POST(request: NextRequest) {
   try {
@@ -14,88 +28,71 @@ export async function POST(request: NextRequest) {
       data = {} 
     } = body;
 
-    // Email templates - có thể mở rộng sau
-    const emailTemplates: Record<string, { subject: string; body: string }> = {
-      booking_confirmation: {
-        subject: "Xác nhận đặt xe thành công - Xe Ghép",
-        body: `Xin chào {{customer_name}},
+    if (!isValidEmail(String(email))) {
+      return NextResponse.json({ success: false, error: "Email nhận không hợp lệ" }, { status: 400 });
+    }
 
-Đặt xe thành công!
+    const tpl =
+      (await prisma.emailTemplate.findFirst({ where: { key: String(type), isActive: true } })) ||
+      (await prisma.emailTemplate.findFirst({ where: { key: "booking_confirmation", isActive: true } }));
 
-📍 Tuyến: {{pickup_location}} → {{dropoff_location}}
-💰 Giá: {{price}}đ
-🕐 Thời gian: {{booking_time}}
+    if (!tpl) {
+      return NextResponse.json({ success: false, error: "Chưa có template email trong DB" }, { status: 500 });
+    }
 
-Cảm ơn bạn đã sử dụng dịch vụ Xe Ghép!`,
-      },
-      driver_assigned: {
-        subject: "Tài xế đã nhận chuyến - Xe Ghép",
-        body: `Xin chào {{customer_name}},
-
-Tài xế {{driver_name}} đã nhận chuyến!
-
-🚗 Biển số: {{license_plate}}
-📞 Điện thoại: {{phone_number}}
-⏰ Đến trong: {{eta}} phút`,
-      },
-      trip_reminder: {
-        subject: "Nhắc lịch khởi hành - Xe Ghép",
-        body: `Xin chào {{customer_name}},
-
-⏰ Lịch khởi hành: {{departure_time}}
-📍 Điểm đón: {{pickup_location}}
-🚗 Tài xế: {{driver_name}}
-
-Vui lòng có mặt đúng giờ!`,
-      },
-      trip_completed: {
-        subject: "Chuyến đi hoàn thành - Xe Ghép",
-        body: `Xin chào {{customer_name}},
-
-Cảm ơn bạn đã sử dụng Xe Ghép!
-
-Tài xế {{driver_name}} cảm ơn bạn đã đồng hành.
-
-⭐ Đánh giá ngay: {{rating_link}}`,
-      },
-    };
-
-    const template = emailTemplates[type] || emailTemplates.booking_confirmation;
-    
-    // Replace placeholders với actual data
-    let emailBody = template.body;
-    let emailSubject = template.subject;
-    
-    Object.entries(data).forEach(([key, value]) => {
-      const placeholder = `{{${key}}}`;
-      emailBody = emailBody.replaceAll(placeholder, String(value));
-      emailSubject = emailSubject.replaceAll(placeholder, String(value));
-    });
+    const emailSubject = renderTemplate(tpl.subject, data);
+    const emailBody = renderTemplate(tpl.body, data);
 
     // Gửi email thật qua SMTP
-    const smtpResult = await sendEmailViaSmtp({
-      to: email,
-      subject: emailSubject,
-      text: emailBody,
-    });
+    let smtpResult: any = null;
+    try {
+      smtpResult = await sendEmailViaSmtp({
+        to: String(email).trim(),
+        subject: emailSubject,
+        text: emailBody,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gửi email thất bại";
+      // Make the error actionable for admins configuring SMTP
+      return NextResponse.json(
+        {
+          success: false,
+          error: msg,
+          hint:
+            "Kiểm tra Cài đặt Email SMTP: smtp_host, smtp_port, smtp_user, smtp_password, from_email (mật khẩu phải được nhập mới rồi bấm Lưu).",
+        },
+        { status: 500 }
+      );
+    }
 
     // Lưu vào database để test
-    const notification = await prisma.notification.create({
-      data: {
-        userId: 1, // Test user
-        type: "email",
-        title: emailSubject,
-        content: emailBody,
-        isRead: false,
-        data: { 
-          email, 
-          type, 
-          sentAt: new Date().toISOString(),
-          status: "sent",
-          smtp: smtpResult,
-        },
-      },
-    });
+    // NOTE: previously this hard-coded userId=1 which can crash (FK) on production DB.
+    // We now try to attach to userId=1 if it exists; otherwise skip DB write.
+    let notification: any = null;
+    try {
+      const u1 = await prisma.user.findUnique({ where: { id: 1 }, select: { id: true } });
+      if (u1?.id) {
+        notification = await prisma.notification.create({
+          data: {
+            userId: u1.id,
+            type: "email",
+            title: emailSubject,
+            content: emailBody,
+            isRead: false,
+            data: {
+              email,
+              type,
+              sentAt: new Date().toISOString(),
+              status: "sent",
+              smtp: smtpResult,
+            },
+          },
+        });
+      }
+    } catch (e) {
+      // best-effort only; do not fail email test if notification logging fails
+      console.warn("Email test: failed to save notification log:", e);
+    }
 
     return NextResponse.json({
       success: true,
@@ -119,32 +116,6 @@ Tài xế {{driver_name}} cảm ơn bạn đã đồng hành.
 
 // GET /api/notifications/test-email - Lấy danh sách email templates
 export async function GET() {
-  const templates = [
-    { 
-      id: "booking_confirmation", 
-      name: "Xác nhận đặt xe thành công",
-      params: ["customer_name", "pickup_location", "dropoff_location", "price", "booking_time"]
-    },
-    { 
-      id: "driver_assigned", 
-      name: "Tài xế đã nhận chuyến",
-      params: ["customer_name", "driver_name", "license_plate", "phone_number", "eta"]
-    },
-    { 
-      id: "trip_reminder", 
-      name: "Nhắc lịch khởi hành",
-      params: ["customer_name", "departure_time", "pickup_location", "driver_name"]
-    },
-    { 
-      id: "trip_completed", 
-      name: "Chuyến đi hoàn thành",
-      params: ["customer_name", "driver_name", "rating_link"]
-    },
-  ];
-
-  return NextResponse.json({
-    success: true,
-    templates,
-    note: "Đây là API test - email sẽ được log trong console. Cần cấu hình SMTP để gửi thực sự."
-  });
+  const templates = await prisma.emailTemplate.findMany({ orderBy: [{ key: "asc" }] });
+  return NextResponse.json({ success: true, templates });
 }

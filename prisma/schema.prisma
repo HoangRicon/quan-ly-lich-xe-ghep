@@ -204,6 +204,37 @@ model SystemSettings {
   @@map("system_settings")
 }
 
+// Danh mục trạng thái cuốc xe (quản lý trong Cài đặt)
+model TripStatus {
+  id         Int      @id @default(autoincrement())
+  key        String   @unique @db.VarChar(50) // vd: scheduled, confirmed...
+  label      String   @db.VarChar(100) // vd: Chờ gán
+  color      String   @default("slate") @db.VarChar(30) // slate|blue|green|red|amber|purple...
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive, sortOrder], name: "idx_trip_status_active_order")
+  @@map("trip_statuses")
+}
+
+// Template email (quản lý trong Cài đặt)
+model EmailTemplate {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(100) // vd: trip_reminder
+  name      String   @db.VarChar(255)
+  subject   String   @db.VarChar(255)
+  body      String   @db.Text // plain text (có thể dùng {{var}})
+  params    Json?    // danh sách biến hợp lệ + metadata
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isActive], name: "idx_email_templates_active")
+  @@map("email_templates")
+}
+
 // Bảng lưu token reset mật khẩu
 model PasswordReset {
   id          Int       @id @default(autoincrement())

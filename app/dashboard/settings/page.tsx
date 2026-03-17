@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,6 +145,7 @@ function ConnectionSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showEmailPassword, setShowEmailPassword] = useState(false);
+  const [smtpPasswordSaved, setSmtpPasswordSaved] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
@@ -182,12 +183,14 @@ function ConnectionSettings() {
         emailData.settings.forEach((s: { key: string; value: string }) => {
           settings[s.key] = s.value;
         });
+        const isMasked = settings.smtp_password?.includes("•");
+        setSmtpPasswordSaved(Boolean(settings.smtp_password) && Boolean(isMasked));
         setEmailConfig({
           smtpHost: settings.smtp_host || "",
           smtpPort: settings.smtp_port || "587",
           smtpUser: settings.smtp_user || "",
-          // Giá trị secret được API mask thành "••••••••" => không dùng để lưu/gửi
-          smtpPassword: settings.smtp_password?.includes("•") ? "" : (settings.smtp_password || ""),
+          // Secret được API mask => không bao giờ hydrate lại password vào input
+          smtpPassword: "",
           fromEmail: settings.from_email || "",
           fromName: settings.from_name || "Xe Ghép",
         });
@@ -228,6 +231,7 @@ function ConnectionSettings() {
   const handleSaveEmail = async () => {
     setSaving(true);
     try {
+      const hasNewPassword = Boolean(emailConfig.smtpPassword?.trim());
       const keys: Array<{ key: string; value: string; category: string; isSecret?: boolean }> = [
         { key: "smtp_host", value: emailConfig.smtpHost, category: "email" },
         { key: "smtp_port", value: emailConfig.smtpPort, category: "email" },
@@ -236,8 +240,8 @@ function ConnectionSettings() {
         { key: "from_name", value: emailConfig.fromName, category: "email" },
       ];
       // Chỉ lưu mật khẩu khi người dùng nhập mới (tránh ghi đè bằng chuỗi rỗng/mask)
-      if (emailConfig.smtpPassword?.trim()) {
-        keys.push({ key: "smtp_password", value: emailConfig.smtpPassword, category: "email", isSecret: true });
+      if (hasNewPassword) {
+        keys.push({ key: "smtp_password", value: emailConfig.smtpPassword.trim(), category: "email", isSecret: true });
       }
 
       for (const k of keys) {
@@ -246,6 +250,10 @@ function ConnectionSettings() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(k),
         });
+      }
+      if (hasNewPassword) {
+        setSmtpPasswordSaved(true);
+        setEmailConfig((prev) => ({ ...prev, smtpPassword: "" }));
       }
       showToast("Đã lưu cấu hình Email", "success");
     } catch (error) {
@@ -557,7 +565,7 @@ function ConnectionSettings() {
                 <Input
                   id="smtpPassword"
                   type={showEmailPassword ? "text" : "password"}
-                  placeholder="Mật khẩu SMTP"
+                  placeholder={smtpPasswordSaved ? "Đã lưu (ẩn) — nhập mới để đổi" : "Nhập mật khẩu SMTP để lưu"}
                   value={emailConfig.smtpPassword}
                   onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
                 />
@@ -617,6 +625,772 @@ function ConnectionSettings() {
       )}
 
       {/* Toast */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+function EmailConnectionSettingsOnly() {
+  const [emailConfig, setEmailConfig] = useState({
+    smtpHost: "",
+    smtpPort: "",
+    smtpUser: "",
+    smtpPassword: "",
+    fromEmail: "",
+    fromName: "",
+    reminderToEmail: "",
+  });
+  const [testEmailTo, setTestEmailTo] = useState("");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+  const [smtpPasswordSaved, setSmtpPasswordSaved] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const emailRes = await fetch("/api/system-settings?category=email");
+        const emailData = await emailRes.json();
+        if (emailData.success && emailData.settings) {
+          const settings: Record<string, string> = {};
+          emailData.settings.forEach((s: { key: string; value: string }) => {
+            settings[s.key] = s.value;
+          });
+          const isMasked = settings.smtp_password?.includes("•");
+          setSmtpPasswordSaved(Boolean(settings.smtp_password) && Boolean(isMasked));
+          setEmailConfig({
+            smtpHost: settings.smtp_host || "",
+            smtpPort: settings.smtp_port || "587",
+            smtpUser: settings.smtp_user || "",
+            smtpPassword: "",
+            fromEmail: settings.from_email || "",
+            fromName: settings.from_name || "Xe Ghép",
+            reminderToEmail: settings.reminder_to_email || settings.from_email || "",
+          });
+          setTestEmailTo(settings.from_email || "");
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSaveEmail = async () => {
+    setSaving(true);
+    try {
+      const hasNewPassword = Boolean(emailConfig.smtpPassword?.trim());
+      const keys: Array<{ key: string; value: string; category: string; isSecret?: boolean }> = [
+        { key: "smtp_host", value: emailConfig.smtpHost, category: "email" },
+        { key: "smtp_port", value: emailConfig.smtpPort, category: "email" },
+        { key: "smtp_user", value: emailConfig.smtpUser, category: "email" },
+        { key: "from_email", value: emailConfig.fromEmail, category: "email" },
+        { key: "from_name", value: emailConfig.fromName, category: "email" },
+        { key: "reminder_to_email", value: emailConfig.reminderToEmail, category: "email" },
+      ];
+      if (hasNewPassword) {
+        keys.push({ key: "smtp_password", value: emailConfig.smtpPassword.trim(), category: "email", isSecret: true });
+      }
+      for (const k of keys) {
+        await fetch("/api/system-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(k),
+        });
+      }
+      if (hasNewPassword) {
+        setSmtpPasswordSaved(true);
+        setEmailConfig((prev) => ({ ...prev, smtpPassword: "" }));
+      }
+      showToast("Đã lưu cấu hình Email", "success");
+    } catch {
+      showToast("Lỗi khi lưu cấu hình Email", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!emailConfig.smtpHost || !emailConfig.smtpUser || !emailConfig.fromEmail) {
+      showToast("Vui lòng nhập đầy đủ SMTP Host/Username và Email người gửi", "error");
+      return;
+    }
+    if (!testEmailTo?.trim()) {
+      showToast("Vui lòng nhập Email nhận để test", "error");
+      return;
+    }
+
+    setEmailStatus("testing");
+    try {
+      const res = await fetch("/api/notifications/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "booking_confirmation",
+          email: testEmailTo.trim(),
+          data: {
+            customer_name: "Test User",
+            pickup_location: "Hà Nội",
+            dropoff_location: "Hải Phòng",
+            price: "150.000",
+            booking_time: "15:00 - 15/03/2026",
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmailStatus("success");
+        showToast("Email test đã được gửi", "success");
+      } else {
+        setEmailStatus("error");
+        showToast(data.error || "Gửi email thất bại", "error");
+      }
+    } catch {
+      setEmailStatus("error");
+      showToast("Lỗi kết nối", "error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="w-5 h-5" />
+            Cấu hình Email SMTP
+          </CardTitle>
+          <CardDescription>Cấu hình SMTP để gửi email thông báo</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div
+            className={`rounded-xl p-4 border ${
+              emailStatus === "success"
+                ? "bg-green-50 border-green-200"
+                : emailStatus === "error"
+                ? "bg-red-50 border-red-200"
+                : emailStatus === "testing"
+                ? "bg-blue-50 border-blue-200"
+                : "bg-slate-50 border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {emailStatus === "testing" ? (
+                  <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                ) : emailStatus === "success" ? (
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                ) : emailStatus === "error" ? (
+                  <XCircle className="w-6 h-6 text-red-600" />
+                ) : (
+                  <Mail className="w-6 h-6 text-slate-400" />
+                )}
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {emailStatus === "testing"
+                      ? "Đang gửi test..."
+                      : emailStatus === "success"
+                      ? "Sẵn sàng gửi"
+                      : emailStatus === "error"
+                      ? "Lỗi kết nối"
+                      : "Chưa cấu hình"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant={emailStatus === "success" ? "outline" : "default"}
+                size="sm"
+                onClick={handleTestEmail}
+                disabled={emailStatus === "testing"}
+              >
+                {emailStatus === "testing" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang gửi...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4 mr-2" /> Gửi test
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="mt-3">
+              <Label htmlFor="testEmailTo">Email nhận test</Label>
+              <Input
+                id="testEmailTo"
+                placeholder="VD: ban@domain.com"
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>SMTP Host</Label>
+              <Input value={emailConfig.smtpHost} onChange={(e) => setEmailConfig({ ...emailConfig, smtpHost: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP Port</Label>
+              <Input value={emailConfig.smtpPort} onChange={(e) => setEmailConfig({ ...emailConfig, smtpPort: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP User</Label>
+              <Input value={emailConfig.smtpUser} onChange={(e) => setEmailConfig({ ...emailConfig, smtpUser: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP Password</Label>
+              <div className="relative">
+                <Input
+                  type={showEmailPassword ? "text" : "password"}
+                  value={emailConfig.smtpPassword}
+                  onChange={(e) => setEmailConfig({ ...emailConfig, smtpPassword: e.target.value })}
+                  placeholder={smtpPasswordSaved ? "Đã lưu (ẩn) — nhập mới để đổi" : "Nhập mật khẩu SMTP để lưu"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEmailPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  title={showEmailPassword ? "Ẩn" : "Hiện"}
+                >
+                  {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>From Email</Label>
+              <Input value={emailConfig.fromEmail} onChange={(e) => setEmailConfig({ ...emailConfig, fromEmail: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>From Name</Label>
+              <Input value={emailConfig.fromName} onChange={(e) => setEmailConfig({ ...emailConfig, fromName: e.target.value })} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Email nhận nhắc lịch khởi hành</Label>
+              <Input
+                placeholder="VD: emailcuatoi@domain.com"
+                value={emailConfig.reminderToEmail}
+                onChange={(e) => setEmailConfig({ ...emailConfig, reminderToEmail: e.target.value })}
+              />
+              <p className="text-xs text-slate-500">
+                Email này sẽ nhận nhắc hẹn trước giờ khởi hành (thay vì gửi cho khách). Nếu để trống, hệ thống sẽ dùng From Email.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSaveEmail} disabled={saving}>
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Đang lưu..." : "Lưu cấu hình Email"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+function TripStatusSettingsTab() {
+  const [statuses, setStatuses] = useState<Array<{ id: number; key: string; label: string; color: string; sortOrder: number; isActive: boolean }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [newStatus, setNewStatus] = useState<{ key: string; label: string; color: string; isActive: boolean }>({
+    key: "",
+    label: "",
+    color: "slate",
+    isActive: true,
+  });
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/trip-statuses", { cache: "no-store" });
+      const data = await res.json();
+      if (data.success) setStatuses(data.statuses || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/trip-statuses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statuses }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Đã lưu trạng thái", "success");
+        await load();
+      } else {
+        showToast(data.error || "Lưu thất bại", "error");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createStatus = async () => {
+    if (!newStatus.key.trim() || !newStatus.label.trim()) {
+      showToast("Vui lòng nhập key và tên trạng thái", "error");
+      return;
+    }
+    setCreating(true);
+    try {
+      const maxSort = statuses.reduce((m, s) => Math.max(m, Number(s.sortOrder) || 0), 0);
+      const res = await fetch("/api/trip-statuses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: newStatus.key.trim(),
+          label: newStatus.label.trim(),
+          color: newStatus.color || "slate",
+          isActive: newStatus.isActive,
+          sortOrder: maxSort + 1,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Đã thêm trạng thái", "success");
+        setNewStatus({ key: "", label: "", color: "slate", isActive: true });
+        await load();
+      } else {
+        showToast(data.error || "Thêm thất bại", "error");
+      }
+    } catch {
+      showToast("Lỗi kết nối", "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteStatus = async (id: number) => {
+    const s = statuses.find((x) => x.id === id);
+    if (!s) return;
+    const ok = window.confirm(`Xóa trạng thái '${s.label}' (${s.key})?\n\nLưu ý: Nếu đang có cuốc xe dùng trạng thái này thì hệ thống sẽ chặn xóa.`);
+    if (!ok) return;
+
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/trip-statuses?id=${encodeURIComponent(String(id))}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Đã xóa trạng thái", "success");
+        await load();
+      } else {
+        showToast(data.error || "Xóa thất bại", "error");
+      }
+    } catch {
+      showToast("Lỗi kết nối", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Quản lý trạng thái cuốc xe</CardTitle>
+          <CardDescription>Danh sách này sẽ được dùng ở các form và màn danh sách cuốc xe</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Create */}
+          <div className="p-3 border rounded-lg bg-slate-50 space-y-2">
+            <div className="text-sm font-semibold text-slate-800">Thêm trạng thái</div>
+            <div className="flex flex-col md:flex-row gap-2">
+              <Input
+                className="md:w-[180px]"
+                placeholder="key (vd: delayed)"
+                value={newStatus.key}
+                onChange={(e) => setNewStatus((p) => ({ ...p, key: e.target.value }))}
+              />
+              <Input
+                className="flex-1"
+                placeholder="Tên hiển thị (vd: Trễ giờ)"
+                value={newStatus.label}
+                onChange={(e) => setNewStatus((p) => ({ ...p, label: e.target.value }))}
+              />
+              <select
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm md:w-[140px]"
+                value={newStatus.color}
+                onChange={(e) => setNewStatus((p) => ({ ...p, color: e.target.value }))}
+              >
+                {["slate", "amber", "blue", "green", "red", "purple"].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2 md:w-[140px]">
+                <ToggleSwitch
+                  enabled={newStatus.isActive}
+                  onChange={() => setNewStatus((p) => ({ ...p, isActive: !p.isActive }))}
+                  ariaLabel="Bật/tắt trạng thái mới"
+                  onColorClassName="bg-green-500"
+                />
+              </div>
+              <Button onClick={createStatus} disabled={creating} className="md:w-[120px]">
+                {creating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang thêm...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" /> Thêm
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="text-xs text-slate-500">
+              Gợi ý: <span className="font-mono">key</span> nên không dấu, không khoảng trắng (dùng <span className="font-mono">snake_case</span>).
+            </div>
+          </div>
+
+          {statuses.map((s, idx) => (
+            <div key={s.id} className="flex items-center gap-2 p-3 border rounded-lg">
+              <div className="w-10 text-xs text-slate-500">#{s.sortOrder}</div>
+              <Input
+                className="w-[160px]"
+                value={s.key}
+                onChange={(e) => setStatuses((prev) => prev.map((x) => x.id === s.id ? { ...x, key: e.target.value } : x))}
+              />
+              <Input
+                className="flex-1"
+                value={s.label}
+                onChange={(e) => setStatuses((prev) => prev.map((x) => x.id === s.id ? { ...x, label: e.target.value } : x))}
+              />
+              <select
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                value={s.color || "slate"}
+                onChange={(e) => setStatuses((prev) => prev.map((x) => x.id === s.id ? { ...x, color: e.target.value } : x))}
+              >
+                {["slate", "amber", "blue", "green", "red", "purple"].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2">
+                <ToggleSwitch
+                  enabled={s.isActive}
+                  onChange={() => setStatuses((prev) => prev.map((x) => x.id === s.id ? { ...x, isActive: !x.isActive } : x))}
+                  ariaLabel={`Bật/tắt trạng thái ${s.label || s.key}`}
+                  onColorClassName="bg-green-500"
+                />
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={idx === 0}
+                  onClick={() => {
+                    setStatuses((prev) => {
+                      const copy = [...prev];
+                      const a = copy[idx - 1];
+                      const b = copy[idx];
+                      copy[idx - 1] = { ...b, sortOrder: a.sortOrder };
+                      copy[idx] = { ...a, sortOrder: b.sortOrder };
+                      return copy.sort((x, y) => x.sortOrder - y.sortOrder);
+                    });
+                  }}
+                >
+                  ↑
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={idx === statuses.length - 1}
+                  onClick={() => {
+                    setStatuses((prev) => {
+                      const copy = [...prev];
+                      const a = copy[idx];
+                      const b = copy[idx + 1];
+                      copy[idx] = { ...b, sortOrder: a.sortOrder };
+                      copy[idx + 1] = { ...a, sortOrder: b.sortOrder };
+                      return copy.sort((x, y) => x.sortOrder - y.sortOrder);
+                    });
+                  }}
+                >
+                  ↓
+                </Button>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => deleteStatus(s.id)}
+                disabled={deletingId === s.id}
+                className="ml-1"
+                title="Xóa trạng thái"
+              >
+                {deletingId === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Xóa"}
+              </Button>
+            </div>
+          ))}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={load}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Tải lại
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang lưu...</> : <><Save className="w-4 h-4 mr-2" /> Lưu</>}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+function EmailTemplatesTab() {
+  const [templates, setTemplates] = useState<Array<{ id: number; key: string; name: string; subject: string; body: string; params?: any; isActive: boolean }>>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/email-templates", { cache: "no-store" });
+      const data = await res.json();
+      if (data.success) {
+        setTemplates(data.templates || []);
+        if (!selectedId && (data.templates?.[0]?.id ?? null)) setSelectedId(data.templates[0].id);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const selected = templates.find((t) => t.id === selectedId) || null;
+
+  const getVariableKeys = (params: any): string[] => {
+    const raw = (params && typeof params === "object" && "params" in params) ? (params as any).params : params;
+    if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+    return [];
+  };
+
+  const insertVariableAtCursor = (varKey: string) => {
+    if (!selected) return;
+    const token = `{{${varKey}}}`;
+    const el = bodyRef.current;
+    const current = selected.body || "";
+    if (!el) {
+      // Fallback: append
+      setTemplates((prev) => prev.map((x) => (x.id === selected.id ? { ...x, body: current + token } : x)));
+      return;
+    }
+    const start = el.selectionStart ?? current.length;
+    const end = el.selectionEnd ?? start;
+    const next = current.slice(0, start) + token + current.slice(end);
+    const nextCursor = start + token.length;
+    setTemplates((prev) => prev.map((x) => (x.id === selected.id ? { ...x, body: next } : x)));
+    // Restore focus + cursor after React state update
+    requestAnimationFrame(() => {
+      try {
+        el.focus();
+        el.setSelectionRange(nextCursor, nextCursor);
+      } catch {
+        // ignore
+      }
+    });
+  };
+
+  const saveSelected = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/email-templates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selected),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Đã lưu template", "success");
+        await load();
+      } else {
+        showToast(data.error || "Lưu thất bại", "error");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Template Email</CardTitle>
+            <CardDescription>Chọn template để chỉnh sửa</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setSelectedId(t.id)}
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                  selectedId === t.id ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-800">{t.name}</div>
+                <div className="text-xs text-slate-500 font-mono">{t.key}</div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Chỉnh sửa</CardTitle>
+            <CardDescription>
+              Dùng biến dạng <span className="font-mono">{"{{variable}}"}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!selected ? (
+              <div className="text-sm text-slate-500">Chưa chọn template</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Key</Label>
+                    <Input value={selected.key} onChange={(e) => setTemplates((prev) => prev.map((x) => x.id === selected.id ? { ...x, key: e.target.value } : x))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tên</Label>
+                    <Input value={selected.name} onChange={(e) => setTemplates((prev) => prev.map((x) => x.id === selected.id ? { ...x, name: e.target.value } : x))} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Input value={selected.subject} onChange={(e) => setTemplates((prev) => prev.map((x) => x.id === selected.id ? { ...x, subject: e.target.value } : x))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Body</Label>
+                  <textarea
+                    ref={bodyRef}
+                    className="w-full h-48 rounded-lg border border-input bg-transparent px-3 py-2 text-sm resize-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    value={selected.body}
+                    onChange={(e) => setTemplates((prev) => prev.map((x) => x.id === selected.id ? { ...x, body: e.target.value } : x))}
+                  />
+                  <div className="mt-2">
+                    <div className="text-xs text-slate-500 mb-2">
+                      Bấm để chèn biến:
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {getVariableKeys(selected.params).length > 0 ? (
+                        getVariableKeys(selected.params).map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => insertVariableAtCursor(k)}
+                            className="px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-mono text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                            title={`Chèn {{${k}}}`}
+                          >
+                            {`{{${k}}}`}
+                          </button>
+                        ))
+                      ) : (
+                        <>
+                          {["customer_name", "pickup_location", "dropoff_location", "departure_time", "price", "booking_time", "driver_name", "license_plate", "phone_number", "eta", "rating_link"].map((k) => (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => insertVariableAtCursor(k)}
+                              className="px-2 py-1 rounded-md border border-slate-200 bg-white text-xs font-mono text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+                              title={`Chèn {{${k}}}`}
+                            >
+                              {`{{${k}}}`}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ToggleSwitch
+                      enabled={selected.isActive}
+                      onChange={() => setTemplates((prev) => prev.map((x) => x.id === selected.id ? { ...x, isActive: !x.isActive } : x))}
+                      ariaLabel="Bật/tắt template"
+                      onColorClassName="bg-green-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={load}>
+                      <RefreshCw className="w-4 h-4 mr-2" /> Tải lại
+                    </Button>
+                    <Button onClick={saveSelected} disabled={saving}>
+                      {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Đang lưu...</> : <><Save className="w-4 h-4 mr-2" /> Lưu</>}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
@@ -928,15 +1702,27 @@ function ZNSTemplates() {
 }
 
 // Custom Toggle Switch Component
-function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+function ToggleSwitch({
+  enabled,
+  onChange,
+  ariaLabel,
+  onColorClassName = "bg-blue-500",
+}: {
+  enabled: boolean;
+  onChange: () => void;
+  ariaLabel?: string;
+  onColorClassName?: string;
+}) {
   return (
     <button
+      type="button"
       onClick={onChange}
       className={`relative w-14 h-7 rounded-full transition-colors ${
-        enabled ? "bg-blue-500" : "bg-slate-300"
+        enabled ? onColorClassName : "bg-slate-300"
       }`}
       role="switch"
       aria-checked={enabled}
+      aria-label={ariaLabel}
     >
       <span
         className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-transform ${
@@ -1525,7 +2311,7 @@ function NotificationSettingsTab() {
 
 // Main Settings Page
 export default function NotificationSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"connections" | "templates" | "triggers" | "notifications">("connections");
+  const [activeTab, setActiveTab] = useState<"connections" | "templates" | "trip_statuses" | "triggers" | "notifications">("connections");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
@@ -1534,8 +2320,9 @@ export default function NotificationSettingsPage() {
   };
 
   const tabs = [
-    { id: "connections", label: "Cấu hình kết nối", icon: Settings },
-    { id: "templates", label: "Quản lý Template", icon: MessageSquare },
+    { id: "connections", label: "Email SMTP", icon: Settings },
+    { id: "templates", label: "Template Email", icon: MessageSquare },
+    { id: "trip_statuses", label: "Trạng thái cuốc xe", icon: Car },
     // { id: "triggers", label: "Thiết lập gửi tin", icon: Bell },
     { id: "notifications", label: "Cài đặt thông báo", icon: Smartphone },
   ] as const;
@@ -1548,7 +2335,7 @@ export default function NotificationSettingsPage() {
           {/* Page Title */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-800">Cài đặt thông báo</h1>
-            <p className="text-slate-500 mt-1">Quản lý kết nối Zalo và gửi tin nhắn tự động</p>
+            <p className="text-slate-500 mt-1">Cấu hình Email, template và nhắc hẹn tự động</p>
           </div>
 
           {/* Tabs */}
@@ -1570,8 +2357,9 @@ export default function NotificationSettingsPage() {
           </div>
 
           {/* Tab Content */}
-          {activeTab === "connections" && <ConnectionSettings />}
-          {activeTab === "templates" && <ZNSTemplates />}
+          {activeTab === "connections" && <EmailConnectionSettingsOnly />}
+          {activeTab === "templates" && <EmailTemplatesTab />}
+          {activeTab === "trip_statuses" && <TripStatusSettingsTab />}
           {/* {activeTab === "triggers" && <AutoSendTriggers />} */}
           {activeTab === "notifications" && <NotificationSettingsTab />}
         </div>

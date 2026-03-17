@@ -5,6 +5,7 @@ import {
   Clock, Phone, Car, User, MapPin, DollarSign, FileText,
   ChevronUp, X, Bell, Edit, RefreshCw, Check, Copy
 } from "lucide-react";
+import { statusColorClasses, useTripStatuses } from "@/lib/useTripStatuses";
 
 interface Trip {
   id: number;
@@ -51,13 +52,7 @@ interface Vehicle {
   vehicleType: string;
 }
 
-const statusConfig: Record<string, { label: string; color: string; bg: string; next: string[] }> = {
-  scheduled: { label: "Chờ", color: "text-red-600", bg: "bg-red-50 border-red-200", next: ["confirmed", "running"] },
-  confirmed: { label: "Đã gán", color: "text-blue-600", bg: "bg-blue-50 border-blue-200", next: ["running", "completed", "cancelled"] },
-  running: { label: "Đang đi", color: "text-green-600", bg: "bg-green-50 border-green-200", next: ["completed", "cancelled"] },
-  completed: { label: "Hoàn thành", color: "text-slate-600", bg: "bg-slate-50 border-slate-200", next: [] },
-  cancelled: { label: "Hủy", color: "text-slate-500", bg: "bg-slate-50 border-slate-200", next: [] },
-};
+// Trip statuses are managed in Settings (see /api/trip-statuses)
 
 const vehicleTypeLabels: Record<string, string> = {
   car: "Xe 4 chỗ",
@@ -66,6 +61,7 @@ const vehicleTypeLabels: Record<string, string> = {
 };
 
 export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTripsProps) {
+  const { statuses, map: statusMap, nextMap } = useTripStatuses();
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -387,7 +383,7 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
     }
   };
 
-  const nextStatuses = statusConfig[selectedTrip?.status || ""]?.next || [];
+  const nextStatuses = (nextMap[selectedTrip?.status || ""] || []).slice(0, 6);
 
   return (
     <>
@@ -399,7 +395,8 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
 
         <div className="divide-y divide-slate-50">
           {trips.map((trip) => {
-            const status = statusConfig[trip.status] || statusConfig.scheduled;
+            const status = statusMap.get(trip.status);
+            const classes = statusColorClasses(status?.color || "slate");
             return (
               <div
                 key={trip.id}
@@ -442,19 +439,19 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                     <div className="relative">
                       <button
                         onClick={(e) => { e.stopPropagation(); setSelectedTrip(trip); setShowStatusMenu(showStatusMenu === trip.id ? null : trip.id); }}
-                        className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer hover:opacity-80 ${status.bg} ${status.color}`}
+                        className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer hover:opacity-80 border ${classes.bg} ${classes.text} ${classes.border}`}
                       >
-                        {status.label}
+                        {status?.label || trip.status}
                       </button>
-                      {showStatusMenu === trip.id && status.next.length > 0 && (
+                      {showStatusMenu === trip.id && (nextMap[trip.status] || []).length > 0 && (
                         <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 z-20 min-w-[100px]">
-                          {status.next.map(nextStatus => (
+                          {(nextMap[trip.status] || []).slice(0, 6).map((nextStatus) => (
                             <button
                               key={nextStatus}
                               onClick={(e) => { e.stopPropagation(); handleQuickStatusChange(trip.id, nextStatus); }}
                               className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
                             >
-                              {statusConfig[nextStatus]?.label}
+                              {statusMap.get(nextStatus)?.label || nextStatus}
                             </button>
                           ))}
                         </div>
@@ -797,8 +794,8 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                           disabled={loading}
                           className="w-full px-4 py-3 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
                         >
-                          <span className={`w-2 h-2 rounded-full ${statusConfig[status]?.color.replace('text-', 'bg-')}`}></span>
-                          {statusConfig[status]?.label}
+                          <span className={`w-2 h-2 rounded-full ${statusColorClasses(statusMap.get(status)?.color || "slate").bg}`}></span>
+                          {statusMap.get(status)?.label || status}
                         </button>
                       ))}
                     </div>
