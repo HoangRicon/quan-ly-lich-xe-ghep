@@ -65,7 +65,7 @@ function Try-LoadDotEnv([string]$logFile, [string]$scriptDir, [string]$explicitE
         }
 
         # Only set if not already present in process env
-        if ([string]::IsNullOrWhiteSpace([string]$env:$key)) {
+        if ([string]::IsNullOrWhiteSpace([string]${env:$key})) {
           Set-Item -Path ("Env:\" + $key) -Value $val
           $loaded++
         }
