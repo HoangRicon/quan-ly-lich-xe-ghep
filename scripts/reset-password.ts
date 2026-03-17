@@ -74,11 +74,19 @@ async function resetPasswordByEmail(email: string, newPassword: string) {
 
   const passwordHash = await hashPassword(newPassword);
   
+  // Lấy passwordVersion hiện tại và tăng lên 1
+  const currentUser = await prisma.user.findUnique({
+    where: { email },
+    select: { passwordVersion: true },
+  });
+  
+  const newPasswordVersion = (currentUser?.passwordVersion || 0) + 1;
+  
   await prisma.user.update({
     where: { email },
     data: { 
       passwordHash,
-      passwordVersion: { increment: 1 },
+      passwordVersion: newPasswordVersion,
     },
   });
 
@@ -141,11 +149,19 @@ async function resetPasswordByToken(token: string, newPassword: string) {
 
   const passwordHash = await hashPassword(newPassword);
   
+  // Lấy passwordVersion hiện tại và tăng lên 1
+  const currentUser = await prisma.user.findUnique({
+    where: { email: passwordReset.email },
+    select: { passwordVersion: true },
+  });
+  
+  const newPasswordVersion = (currentUser?.passwordVersion || 0) + 1;
+  
   await prisma.user.update({
     where: { email: passwordReset.email },
     data: { 
       passwordHash,
-      passwordVersion: { increment: 1 },
+      passwordVersion: newPasswordVersion,
     },
   });
 

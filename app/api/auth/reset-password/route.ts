@@ -57,11 +57,20 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await hashPassword(newPassword);
+    
+    // Lấy passwordVersion hiện tại và tăng lên 1
+    const currentUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { passwordVersion: true },
+    });
+    
+    const newPasswordVersion = (currentUser?.passwordVersion || 0) + 1;
+    
     await prisma.user.update({
       where: { id: user.id },
       data: { 
         passwordHash,
-        passwordVersion: { increment: 1 },
+        passwordVersion: newPasswordVersion,
       },
     });
 
