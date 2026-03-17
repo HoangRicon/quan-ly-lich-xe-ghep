@@ -673,16 +673,39 @@ export default function ScheduleList() {
                   isOverdue(trip.departureTime, trip.status) ? "border-red-300" : ""
                 }`}
               >
-                {/* Compact Row 1: Time - Full Date - Status - Price */}
+                {/* Compact Row 1: Status - Time - Full Date - Price */}
                 <div className="flex items-center justify-between">
+                  {/* Status - More prominent on mobile */}
+                  <div className="relative">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
+                      className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border} flex items-center gap-1`}
+                    >
+                      {statusConfig[trip.status]?.label}
+                      <ChevronDown className="w-2.5 h-2.5" />
+                    </button>
+                    {openStatusMenu === trip.id && (
+                      <div className="absolute left-0 mt-1 py-1 bg-white rounded-lg shadow-xl border border-slate-200 z-50 min-w-[120px]">
+                        {[
+                          { key: "scheduled", label: "Chờ gán", bg: "bg-orange-50", text: "text-orange-600" },
+                          { key: "confirmed", label: "Đã gán", bg: "bg-blue-50", text: "text-blue-600" },
+                          { key: "running", label: "Đang đi", bg: "bg-green-50", text: "text-green-600" },
+                          { key: "completed", label: "Hoàn thành", bg: "bg-slate-50", text: "text-slate-600" },
+                          { key: "cancelled", label: "Đã hủy", bg: "bg-red-50", text: "text-red-600" }
+                        ].map(status => (
+                          <button
+                            key={status.key}
+                            onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, status.key); setOpenStatusMenu(null); }}
+                            className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-slate-50 ${trip.status === status.key ? `${status.bg} ${status.text} font-semibold` : 'text-slate-700'}`}
+                          >
+                            {status.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-800 text-xs">{formatTime(trip.departureTime)}</span>
-                    <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded" title={`Ngày đi: ${formatFullDate(trip.departureTime)}`}>{formatFullDate(trip.departureTime)}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}>
-                      {statusConfig[trip.status]?.label}
-                    </span>
                     <span className="font-bold text-slate-800 text-xs">{formatCurrency(trip.price)}</span>
                   </div>
                 </div>
@@ -718,17 +741,23 @@ export default function ScheduleList() {
                 {/* Row 3: Customer - Driver - Notes - Actions */}
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
                   <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
-                    {/* Customer Phone */}
+                    {/* Customer Info */}
                     <div className="flex items-center gap-1 min-w-0">
-                      <span className="text-xs text-blue-600 truncate">{trip.customer?.phone || "Khách"}</span>
-                      {trip.customer?.phone && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.customer?.phone || "", "Số điện thoại"); }}
-                          className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
-                          title="Copy SDT"
-                        >
-                          <Copy className="w-2.5 h-2.5" />
-                        </button>
+                      {trip.customer?.phone ? (
+                        <>
+                          <span className="text-xs text-blue-600 font-medium truncate">{trip.customer.name || "Khách"}</span>
+                          <span className="text-xs text-slate-400">•</span>
+                          <span className="text-xs text-blue-600 truncate">{trip.customer.phone}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.customer?.phone || "", "Số điện thoại"); }}
+                            className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
+                            title="Copy SDT"
+                          >
+                            <Copy className="w-2.5 h-2.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-slate-400">Chưa có khách</span>
                       )}
                     </div>
                     {/* Driver */}
@@ -761,8 +790,8 @@ export default function ScheduleList() {
                     >
                       <FileText className="w-3 h-3" />
                     </button>
-                    {/* Quick Status Dropdown - All statuses */}
-                    <div className="relative">
+                    {/* Quick Status Dropdown - Desktop only */}
+                    <div className="relative hidden lg:block">
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
                         className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}
@@ -813,7 +842,7 @@ export default function ScheduleList() {
                     )}
                     {/* Copy Trip Info */}
                     <button
-                      onClick={(e) => { e.stopPropagation(); copyToClipboard(`Điểm đón: ${trip.departure}, Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`, "Thông tin chuyến"); }}
+                      onClick={(e) => { e.stopPropagation(); copyToClipboard(`Điểm đón: ${trip.departure} - Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`, "Thông tin chuyến"); }}
                       className="p-1 rounded bg-slate-100 text-slate-500"
                       title="Copy thông tin"
                     >

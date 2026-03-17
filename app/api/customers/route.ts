@@ -36,18 +36,26 @@ export async function GET(request: NextRequest) {
 
     // Get trip stats for each customer
     const customerIds = customers.map((c) => c.id);
-    const tripCustomers = await prisma.tripCustomer.groupBy({
-      by: ["customerId"],
+    const tripCustomers = await prisma.tripCustomer.findMany({
       where: { customerId: { in: customerIds } },
-      _count: { id: true },
-      _sum: { seats: true },
+      include: {
+        trip: {
+          select: {
+            price: true,
+          },
+        },
+      },
     });
 
+    // Calculate total spending and trip count for each customer
     const tripStatsMap = new Map();
     tripCustomers.forEach((tc) => {
+      const current = tripStatsMap.get(tc.customerId) || { tripCount: 0, totalSpending: 0 };
+      const tripPrice = Number(tc.trip?.price || 0);
+      const seats = tc.seats || 1;
       tripStatsMap.set(tc.customerId, {
-        tripCount: tc._count.id,
-        totalSeats: tc._sum.seats || 0,
+        tripCount: current.tripCount + 1,
+        totalSpending: current.totalSpending + (tripPrice * seats),
       });
     });
 
@@ -73,7 +81,7 @@ export async function GET(request: NextRequest) {
     });
 
     const customersWithStats = customers.map((customer) => {
-      const stats = tripStatsMap.get(customer.id) || { tripCount: 0, totalSeats: 0 };
+      const stats = tripStatsMap.get(customer.id) || { tripCount: 0, totalSpending: 0 };
       const routes = routeMap.get(customer.id) || {};
       const entries = Object.entries(routes) as [string, number][];
       const favoriteRoute = entries.length > 0 ? entries.sort((a, b) => b[1] - a[1])[0]?.[0] || null : null;
@@ -89,7 +97,7 @@ export async function GET(request: NextRequest) {
         email: customer.email,
         notes: customer.notes,
         totalTrips: stats.tripCount || customer.totalTrips,
-        totalSpending: stats.totalSeats * 150000, // Estimate: 150k per seat
+        totalSpending: stats.totalSpending || 0,
         favoriteRoute,
         badge,
         createdAt: customer.createdAt,

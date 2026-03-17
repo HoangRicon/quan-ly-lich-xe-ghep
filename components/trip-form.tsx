@@ -356,15 +356,14 @@ export default function TripForm() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Tên khách hàng <span className="text-red-500">*</span>
+              Tên khách hàng
             </label>
             <input
               type="text"
               value={formData.customerName}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder={formData.customerPhone.length >= 3 ? "Nhập tên khách mới" : "Nhập SĐT trước"}
+              placeholder={formData.customerPhone.length >= 3 ? "Nhập tên khách" : "Nhập SĐT trước"}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-              required
               disabled={formData.customerPhone.length < 3 && !isEditMode}
             />
           </div>

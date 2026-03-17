@@ -168,7 +168,7 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
   };
 
   const copyTripInfo = (trip: Trip) => {
-    const info = `Điểm đón: ${trip.departure}, Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`;
+    const info = `Điểm đón: ${trip.departure} - Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`;
     copyToClipboard(info, "Thông tin chuyến xe");
   };
 
