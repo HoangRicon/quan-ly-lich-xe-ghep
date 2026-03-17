@@ -91,6 +91,7 @@ export default function ScheduleList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const todayStr = new Date().toISOString().split("T")[0];
   
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
@@ -509,7 +510,25 @@ export default function ScheduleList() {
     );
   });
 
+  // Status priority for sorting: Chờ gán -> Đã gán -> Đang đi -> Hoàn thành -> Đã hủy
+  const statusPriority: Record<string, number> = {
+    "scheduled": 1,
+    "confirmed": 2,
+    "running": 3,
+    "completed": 4,
+    "cancelled": 5,
+  };
+
   const sortedTrips = [...filteredTrips].sort((a, b) => {
+    // First, sort by status priority (scheduled first)
+    const aPriority = statusPriority[a.status] || 99;
+    const bPriority = statusPriority[b.status] || 99;
+    
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+    
+    // Then, sort by selected field within same status
     let aVal: any, bVal: any;
     if (sortField === "departureTime") {
       aVal = new Date(a.departureTime).getTime();
@@ -613,63 +632,95 @@ export default function ScheduleList() {
         </div>
       )}
 
-      {/* Compact Header Actions */}
-      <div className="flex flex-col sm:flex-row gap-1.5 mb-2">
-        <div className="relative flex-1">
+      {/* Search Bar */}
+      <div className="mb-2">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm..."
+            placeholder="Tìm kiếm..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full pl-10 pr-4 py-1.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
           />
-        </div>
-        <div className="flex gap-1 items-center">
-          <button
-            onClick={() => { setDateFilter(new Date().toISOString().split("T")[0]); setCurrentPage(1); }}
-            className={`px-2 py-1.5 rounded-lg text-xs font-medium ${
-              dateFilter === new Date().toISOString().split("T")[0] 
-                ? "bg-green-600 text-white" 
-                : "bg-white border border-slate-200 text-slate-600"
-            }`}
-          >
-            Hôm nay
-          </button>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
-            className="px-2 py-1.5 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-xs w-[110px]"
-          />
-          {dateFilter && (
-            <button onClick={() => { setDateFilter(""); setCurrentPage(1); }} className="p-1.5 text-slate-400 hover:text-slate-600">
-              <X className="w-3 h-3" />
-            </button>
-          )}
-          <Link href="/dashboard/schedule/add">
-            <Button className="bg-blue-600 hover:bg-blue-700 py-1.5">
-              <Plus className="w-3 h-3" />
-            </Button>
-          </Link>
         </div>
       </div>
 
-      {/* Very Compact Status Filter Pills */}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {["all", "scheduled", "confirmed", "running", "completed", "cancelled"].map((status) => (
+      {/* Filter & Sort Row - Mobile optimized */}
+      <div className="flex flex-wrap gap-1 mb-2 items-center">
+        {/* Sort Select */}
+        <select
+          value={sortField === "price" ? (sortDirection === "desc" ? "price_desc" : "price_asc") : (sortDirection === "desc" ? "newest" : "oldest")}
+          onChange={(e) => {
+            if (e.target.value === "newest") {
+              setSortField("departureTime");
+              setSortDirection("desc");
+            } else if (e.target.value === "oldest") {
+              setSortField("departureTime");
+              setSortDirection("asc");
+            } else if (e.target.value === "price_desc") {
+              setSortField("price");
+              setSortDirection("desc");
+            } else if (e.target.value === "price_asc") {
+              setSortField("price");
+              setSortDirection("asc");
+            }
+            setCurrentPage(1);
+          }}
+          className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
+        >
+          <option value="newest">Mới nhất</option>
+          <option value="oldest">Cũ nhất</option>
+          <option value="price_desc">Giá cao nhất</option>
+          <option value="price_asc">Giá thấp nhất</option>
+        </select>
+
+        {/* Status Filter Select */}
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+          className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
+        >
+          <option value="all">Tất cả</option>
+          <option value="scheduled">Chờ gán</option>
+          <option value="confirmed">Đã gán</option>
+          <option value="running">Đang đi</option>
+          <option value="completed">Hoàn thành</option>
+          <option value="cancelled">Đã hủy</option>
+        </select>
+
+        {/* Datepicker + Today */}
+        <div className="flex items-center gap-1">
+          <div className="relative">
+            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
+              className="pl-7 pr-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
+            />
+          </div>
           <button
-            key={status}
-            onClick={() => { setStatusFilter(status); setCurrentPage(1); }}
-            className={`px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${
-              statusFilter === status
-                ? "bg-blue-600 text-white"
-                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+            type="button"
+            onClick={handleTodayFilter}
+            className={`px-2 py-1 rounded border text-xs bg-white hover:bg-slate-50 ${
+              dateFilter === todayStr ? "border-blue-300 text-blue-700" : "border-slate-200 text-slate-700"
             }`}
+            title="Lọc hôm nay"
           >
-            {status === "all" ? "Tất cả" : statusLabels[status]}
+            Hôm nay
           </button>
-        ))}
+          {dateFilter && (
+            <button
+              type="button"
+              onClick={() => { setDateFilter(""); setCurrentPage(1); }}
+              className="px-2 py-1 rounded border border-slate-200 text-xs bg-white hover:bg-slate-50 text-slate-700"
+              title="Xóa lọc ngày"
+            >
+              Tất cả
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mobile DataTable View - Optimized for iPhone - No horizontal scroll */}
@@ -683,8 +734,8 @@ export default function ScheduleList() {
             Chưa có chuyến xe nào
           </div>
         ) : (
-          <div className="space-y-1.5 px-3">
-            {filteredTrips.map((trip) => (
+          <div className="space-y-1 px-2">
+            {paginatedTrips.map((trip) => (
               <div
                 key={trip.id}
                 onClick={() => openEditSheet(trip)}
@@ -692,186 +743,78 @@ export default function ScheduleList() {
                   isOverdue(trip.departureTime, trip.status) ? "border-red-300" : ""
                 }`}
               >
-                {/* Compact Row 1: Status - Time - Full Date - Price */}
-                <div className="flex items-center justify-between">
-                  {/* Status - More prominent on mobile */}
-                  <div className="relative">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
-                      className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border} flex items-center gap-1`}
+                {/* Row 1: Time/Date (left) - Driver (center) - Status (right) */}
+                <div className="grid grid-cols-3 items-center gap-2 mb-0.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-bold text-slate-800 text-base flex-shrink-0">{formatTime(trip.departureTime)}</span>
+                    <span className="font-semibold text-slate-800 text-[11px] truncate">{formatFullDate(trip.departureTime)}</span>
+                  </div>
+
+                  <div className="flex justify-center">
+                    {!trip.driver ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDriverModal(trip.id); }}
+                        className="px-3 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-lg"
+                      >
+                        + Tài xế
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-green-600 font-medium truncate max-w-[130px]">
+                        {trip.driver.fullName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <select
+                      value={trip.status}
+                      onChange={(e) => { e.stopPropagation(); updateStatus(trip.id, e.target.value); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}
                     >
-                      {statusConfig[trip.status]?.label}
-                      <ChevronDown className="w-2.5 h-2.5" />
-                    </button>
-                    {openStatusMenu === trip.id && (
-                      <div className="absolute left-0 mt-1 py-1 bg-white rounded-lg shadow-xl border border-slate-200 z-50 min-w-[120px]">
-                        {[
-                          { key: "scheduled", label: "Chờ gán", bg: "bg-orange-50", text: "text-orange-600" },
-                          { key: "confirmed", label: "Đã gán", bg: "bg-blue-50", text: "text-blue-600" },
-                          { key: "running", label: "Đang đi", bg: "bg-green-50", text: "text-green-600" },
-                          { key: "completed", label: "Hoàn thành", bg: "bg-slate-50", text: "text-slate-600" },
-                          { key: "cancelled", label: "Đã hủy", bg: "bg-red-50", text: "text-red-600" }
-                        ].map(status => (
-                          <button
-                            key={status.key}
-                            onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, status.key); setOpenStatusMenu(null); }}
-                            className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-slate-50 ${trip.status === status.key ? `${status.bg} ${status.text} font-semibold` : 'text-slate-700'}`}
-                          >
-                            {status.label}
-                          </button>
-                        ))}
-                      </div>
+                      <option value="scheduled">Chờ gán</option>
+                      <option value="confirmed">Đã gán</option>
+                      <option value="running">Đang đi</option>
+                      <option value="completed">Hoàn thành</option>
+                      <option value="cancelled">Đã hủy</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 2: Route - Single line with black color */}
+                <div className="flex items-center gap-1 mb-0.5">
+                  <span className="text-slate-800 font-medium text-sm truncate">{trip.departure}</span>
+                  <span className="text-slate-400 flex-shrink-0">→</span>
+                  <span className="text-slate-800 font-medium text-sm truncate">{trip.destination}</span>
+                </div>
+
+                {/* Customer Phone - Left under route */}
+                {trip.customer?.phone && (
+                  <div className="text-xs text-blue-600 mb-0.5">
+                    {trip.customer.phone}
+                  </div>
+                )}
+
+                {/* Row 4: Price - Copy - Delete */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-bold text-sm text-slate-800">{formatCurrency(trip.price)}</span>
+                    {trip.notes && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
+                        className="p-1 bg-amber-50 text-amber-600 rounded"
+                        title={trip.notes}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 text-xs">{formatTime(trip.departureTime)}</span>
-                    <span className="font-bold text-slate-800 text-xs">{formatCurrency(trip.price)}</span>
-                  </div>
-                </div>
-
-                {/* Compact Row 2: Route - Equal font with copy */}
-                <div className="flex items-start gap-1 mt-1">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-slate-800 flex items-center gap-1" title="Điểm đón">
-                      <MapPin className="w-2.5 h-2.5 text-green-500 flex-shrink-0" />
-                      <span className="font-normal truncate">{trip.departure}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.departure, "Điểm đón"); }}
-                        className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
-                        title="Copy điểm đón"
-                      >
-                        <Copy className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                    <div className="text-xs font-semibold text-slate-800 flex items-center gap-1" title="Điểm đến">
-                      <MapPin className="w-2.5 h-2.5 text-red-500 flex-shrink-0" />
-                      <span className="font-normal truncate">{trip.destination}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.destination, "Điểm đến"); }}
-                        className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
-                        title="Copy điểm đến"
-                      >
-                        <Copy className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Row 3: Customer - Driver - Notes - Actions */}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
-                  <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
-                    {/* Customer Info */}
-                    <div className="flex items-center gap-1 min-w-0">
-                      {trip.customer?.phone ? (
-                        <>
-                          <span className="text-xs text-blue-600 font-medium truncate">{trip.customer.name || "Khách"}</span>
-                          <span className="text-xs text-slate-400">•</span>
-                          <span className="text-xs text-blue-600 truncate">{trip.customer.phone}</span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.customer?.phone || "", "Số điện thoại"); }}
-                            className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600"
-                            title="Copy SDT"
-                          >
-                            <Copy className="w-2.5 h-2.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-xs text-slate-400">Chưa có khách</span>
-                      )}
-                    </div>
-                    {/* Driver */}
-                    <div className="flex items-center gap-1 min-w-0">
-                      {trip.driver ? (
-                        <span className="text-xs text-green-600 truncate">{trip.driver.fullName}</span>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); openDriverModal(trip.id); }}
-                          className="text-[10px] text-blue-600 font-medium"
-                        >
-                          + Zom Bắn
-                        </button>
-                      )}
-                    </div>
-                    {/* Booking Date */}
-                    <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                      <Calendar className="w-2.5 h-2.5" />
-                      <span>{formatFullDate(trip.createdAt)}</span>
-                    </div>
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div className="flex items-center gap-0.5 flex-shrink-0">
-                    {/* Copy Notes - Always visible */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
-                      className={`p-1 rounded ${trip.notes ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`}
-                      title={trip.notes ? "Copy ghi chú" : "Không có ghi chú"}
-                    >
-                      <FileText className="w-3 h-3" />
-                    </button>
-                    {/* Quick Status Dropdown - Desktop only */}
-                    <div className="relative hidden lg:block">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setOpenStatusMenu(openStatusMenu === trip.id ? null : trip.id); }}
-                        className={`px-2 py-1 rounded text-[10px] font-semibold cursor-pointer border ${statusConfig[trip.status]?.bg} ${statusConfig[trip.status]?.text} ${statusConfig[trip.status]?.border}`}
-                      >
-                        {statusConfig[trip.status]?.label}
-                      </button>
-                      {openStatusMenu === trip.id && (
-                        <div className="absolute right-0 mt-1 py-1 bg-white rounded-lg shadow-xl border border-slate-200 z-30 min-w-[100px]">
-                          {[
-                            { key: "scheduled", label: "Chờ gán", bg: "bg-white", text: "text-slate-600", border: "border-slate-200" },
-                            { key: "confirmed", label: "Đã gán", bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
-                            { key: "running", label: "Đang đi", bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200" },
-                            { key: "completed", label: "Hoàn thành", bg: "bg-green-50", text: "text-green-600", border: "border-green-200" },
-                            { key: "cancelled", label: "Đã hủy", bg: "bg-red-50", text: "text-red-600", border: "border-red-200" }
-                          ].map(status => (
-                            <button
-                              key={status.key}
-                              onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, status.key); setOpenStatusMenu(null); }}
-                              className={`w-full px-3 py-2 text-left text-xs flex items-center gap-2 hover:bg-slate-50 ${trip.status === status.key ? `${status.bg} ${status.text} font-semibold` : 'text-slate-700'}`}
-                            >
-                              <span className={`w-2 h-2 rounded-full ${status.bg.replace('bg-', 'bg-')}`}></span>
-                              {status.label}
-                            </button>
-                          ))}
-                          {/* Copy Notes Option */}
-                          {trip.notes && (
-                            <div className="border-t border-slate-100 mt-1 pt-1">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
-                                className="w-full px-3 py-2 text-left text-xs hover:bg-slate-50 text-amber-600 flex items-center gap-2"
-                              >
-                                <FileText className="w-3 h-3" />
-                                Copy ghi chú
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {trip.customer?.phone && (
-                      <a
-                        href={`tel:${trip.customer.phone}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="p-1 rounded bg-blue-600 text-white"
-                      >
-                        <Phone className="w-3 h-3" />
-                      </a>
-                    )}
-                    {/* Copy Trip Info */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); copyToClipboard(`Điểm đón: ${trip.departure} - Điểm đến: ${trip.destination}${trip.customer?.phone ? ', ĐT: ' + trip.customer.phone : ''}`, "Thông tin chuyến"); }}
-                      className="p-1 rounded bg-slate-100 text-slate-500"
-                      title="Copy thông tin"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
                       className="p-1 rounded hover:bg-red-50 text-red-500"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -882,27 +825,27 @@ export default function ScheduleList() {
         
         {/* Mobile Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-3 px-4">
+          <div className="flex items-center justify-between mt-2 px-3">
             <span className="text-xs text-slate-500">
-              {filteredTrips.length} chuyến
+              {paginatedTrips.length}/{sortedTrips.length} chuyến
             </span>
             <div className="flex gap-1">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm disabled:opacity-50"
+                className="px-2 py-1 rounded bg-white border border-slate-200 text-xs disabled:opacity-50"
               >
-                <ChevronLeft className="w-4 h-4" />
+                ←
               </button>
-              <span className="px-3 py-1.5 text-sm">
+              <span className="px-2 py-1 text-xs">
                 {currentPage}/{totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm disabled:opacity-50"
+                className="px-2 py-1 rounded bg-white border border-slate-200 text-xs disabled:opacity-50"
               >
-                <ChevronRight className="w-4 h-4" />
+                →
               </button>
             </div>
           </div>
@@ -1071,7 +1014,18 @@ export default function ScheduleList() {
                       </div>
                     </TableCell>
                     <TableCell className="px-3 py-2 text-right">
-                      <span className="font-medium text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="font-medium text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
+                        {trip.notes && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
+                            className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600"
+                            title={trip.notes || "Ghi chú"}
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="px-2 py-2">
                       <div className="flex items-center justify-center gap-0.5 flex-wrap">
@@ -1140,15 +1094,6 @@ export default function ScheduleList() {
                               </button>
                             </div>
                           </div>
-                        )}
-                        {trip.notes && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
-                            className="p-1.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-600"
-                            title="Copy ghi chú"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
                         )}
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeletingTrip(trip); }}
