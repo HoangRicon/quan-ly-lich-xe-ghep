@@ -289,6 +289,7 @@ export default function ScheduleList() {
         page += 1;
       }
       setDrivers(all);
+      setFilteredDrivers(all);
     } catch (error) {
       console.error("Fetch drivers error:", error);
     } finally {
