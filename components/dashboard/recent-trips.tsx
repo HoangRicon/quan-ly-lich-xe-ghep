@@ -36,7 +36,6 @@ interface Trip {
 interface Driver {
   id: number;
   fullName: string | null;
-  phone: string | null;
 }
 
 interface RecentTripsProps {
@@ -612,15 +611,15 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">Tài xế</label>
+                        <label className="block text-xs text-slate-500 mb-1">Zom</label>
                         <select
                           value={editForm.driverId || ""}
                           onChange={(e) => setEditForm({ ...editForm, driverId: e.target.value ? parseInt(e.target.value) : null })}
                           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                         >
-                          <option value="">-- Chọn tài xế --</option>
+                          <option value="">-- Chọn Zom --</option>
                           {drivers.map(driver => (
-                            <option key={driver.id} value={driver.id}>{driver.fullName} - {driver.phone}</option>
+                            <option key={driver.id} value={driver.id}>{driver.fullName || "(Chưa đặt tên)"}</option>
                           ))}
                         </select>
                       </div>
@@ -700,20 +699,19 @@ export function RecentTrips({ initialTrips, drivers, vehicles = [] }: RecentTrip
                     </div>
                   ) : null}
 
-                  {/* Driver */}
+                  {/* Zom */}
                   <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
                     <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                       <Car className="w-5 h-5 text-amber-600" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-amber-600">Tài xế</p>
+                      <p className="text-xs text-amber-600">Zom</p>
                       {selectedTrip.driver ? (
                         <>
-                          <p className="font-medium text-slate-800">{selectedTrip.driver.fullName}</p>
-                          <p className="text-sm text-slate-500">{selectedTrip.driver.phone}</p>
+                          <p className="font-medium text-slate-800">{selectedTrip.driver.fullName || "(Chưa đặt tên)"}</p>
                         </>
                       ) : (
-                        <p className="text-sm text-slate-500">Chưa gán tài xế</p>
+                        <p className="text-sm text-slate-500">Chưa gán Zom</p>
                       )}
                     </div>
                   </div>

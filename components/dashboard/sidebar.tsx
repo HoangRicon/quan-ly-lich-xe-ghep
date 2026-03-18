@@ -26,7 +26,7 @@ interface SidebarProps {
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/dashboard/schedule", icon: Calendar, label: "Lịch trình" },
-  { href: "/dashboard/drivers", icon: Users, label: "Quản lý tài xế" },
+  { href: "/dashboard/drivers", icon: Users, label: "Quản lý Zom" },
   { href: "/dashboard/customers", icon: Car, label: "Quản lý khách hàng" },
   { href: "/dashboard/reports", icon: BarChart3, label: "Báo cáo" },
   { href: "/notifications", icon: Bell, label: "Thông báo" },

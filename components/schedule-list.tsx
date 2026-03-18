@@ -50,16 +50,8 @@ interface Trip {
 
 interface Driver {
   id: number;
-  fullName: string;
-  phone: string;
-  status: string;
-  rating: number;
-  vehicle: {
-    name: string;
-    licensePlate: string;
-    vehicleType: string;
-    seats: number;
-  } | null;
+  fullName: string | null;
+  totalRevenue?: number;
 }
 
 interface Vehicle {
@@ -261,7 +253,7 @@ export default function ScheduleList() {
     }
   };
 
-  const fetchDrivers = async () => {
+    const fetchDrivers = async () => {
     setLoadingDrivers(true);
     try {
       // `/api/drivers` is paginated (default limit=10). Fetch all pages so the picker shows full list.
@@ -1229,7 +1221,7 @@ export default function ScheduleList() {
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">Chọn tài xế</h2>
+              <h2 className="text-lg font-semibold text-slate-800">Chọn Zom</h2>
               <button onClick={() => setShowDriverModal(false)} className="p-2 text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
@@ -1240,7 +1232,7 @@ export default function ScheduleList() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Tìm tài xế..."
+                  placeholder="Tìm Zom..."
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
                 />
               </div>
@@ -1250,7 +1242,7 @@ export default function ScheduleList() {
               {loadingDrivers ? (
                 <div className="p-8 text-center text-slate-500">Đang tải...</div>
               ) : drivers.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">Chưa có tài xế nào</div>
+                <div className="p-8 text-center text-slate-500">Chưa có Zom nào</div>
               ) : (
                 drivers.map((driver) => (
                   <button
@@ -1259,19 +1251,11 @@ export default function ScheduleList() {
                     className="w-full px-6 py-4 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0"
                   >
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold">
-                      {driver.fullName?.charAt(0)}
+                      {(driver.fullName || "?")?.charAt(0)}
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium text-slate-800">{driver.fullName}</div>
-                      <div className="text-sm text-slate-500">
-                        {driver.vehicle?.licensePlate || "Chưa có xe"} • {driver.phone}
-                      </div>
+                      <div className="font-medium text-slate-800">{driver.fullName || "(Chưa đặt tên)"}</div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      driver.status === "available" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"
-                    }`}>
-                      {driver.status === "available" ? "Rảnh" : driver.status}
-                    </span>
                   </button>
                 ))
               )}
@@ -1441,14 +1425,13 @@ export default function ScheduleList() {
                     <Combobox
                       options={drivers.map(driver => ({
                         value: driver.id,
-                        label: driver.fullName,
-                        sublabel: driver.phone
+                        label: driver.fullName || "(Chưa đặt tên)",
                       }))}
                       value={editForm.driverId}
                       onChange={(val) => setEditForm({ ...editForm, driverId: val as number | null })}
                       placeholder="-- Chọn Zom Bắn --"
-                      searchPlaceholder="Tìm tài xế..."
-                      emptyText="Không có tài xế"
+                      searchPlaceholder="Tìm Zom..."
+                      emptyText="Không có Zom"
                     />
                   </div>
                 </div>

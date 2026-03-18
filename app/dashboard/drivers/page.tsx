@@ -8,7 +8,7 @@ export default function DriversPage() {
         <Header />
         <div className="p-4 lg:p-6 pb-24 lg:pb-6">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-slate-800">Quản lý tài xế</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Quản lý Zom</h1>
           </div>
           <DriverList />
         </div>

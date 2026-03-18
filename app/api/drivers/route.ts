@@ -11,67 +11,47 @@ export async function GET(request: NextRequest) {
     // }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const vehicleType = searchParams.get("vehicleType");
+    const q = (searchParams.get("q") || "").trim();
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
 
+    // "Zom" is stored as users with role="driver", but we only expose minimal fields:
+    // name + revenue. No vehicle/phone/status/rating management is needed for this product.
     const where: any = {
       role: "driver",
-      ...(status && status !== "all" ? { status } : {}),
+      ...(q
+        ? {
+            fullName: {
+              contains: q,
+              mode: "insensitive",
+            },
+          }
+        : {}),
     };
-    if (vehicleType && vehicleType !== "all") {
-      // Filter drivers that have at least one active vehicle of the requested type
-      where.vehicles = {
-        some: {
-          isActive: true,
-          vehicleType,
-        },
-      };
-    }
 
     const [drivers, total] = await Promise.all([
       prisma.user.findMany({
         where,
         skip,
         take: limit,
-        include: {
-          vehicles: {
-            where: { isActive: true },
-            take: 1,
-          },
-        },
         orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          fullName: true,
+          totalRevenue: true,
+        },
       }),
       prisma.user.count({ where }),
     ]);
 
-    const driversWithVehicle = drivers.map((driver) => ({
-      id: driver.id,
-      fullName: driver.fullName,
-      email: driver.email,
-      phone: driver.phone,
-      avatar: driver.avatar,
-      status: driver.status,
-      rating: Number(driver.rating),
-      totalRevenue: Number(driver.totalRevenue),
-      vehicle: driver.vehicles[0]
-        ? {
-            name: driver.vehicles[0].name,
-            licensePlate: driver.vehicles[0].licensePlate,
-            vehicleType: driver.vehicles[0].vehicleType,
-            seats: driver.vehicles[0].seats,
-            brand: driver.vehicles[0].brand,
-            model: driver.vehicles[0].model,
-            year: driver.vehicles[0].year,
-          }
-        : null,
-    }));
-
     return NextResponse.json({
       success: true,
-      data: driversWithVehicle,
+      data: drivers.map((d) => ({
+        id: d.id,
+        fullName: d.fullName,
+        totalRevenue: Number(d.totalRevenue),
+      })),
       pagination: {
         page,
         limit,
@@ -93,21 +73,14 @@ export async function POST(request: NextRequest) {
     //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     // }
 
-    const { fullName, phone, licensePlate, vehicleType, seats, brand, model, year, notes } = await request.json();
+    const { fullName } = await request.json();
 
-    const email = `${phone || Date.now()}@driver.local`;
-    const password = "driver123"; // Default password for demo
+    // Keep DB constraints happy (email/passwordHash are required), but we don't manage these in UI.
+    const email = `zom-${Date.now()}@zom.local`;
+    const password = "zom123"; // Default password for demo
 
     if (!fullName) {
-      return NextResponse.json({ error: "Họ tên là bắt buộc" }, { status: 400 });
-    }
-
-    // Check if phone already exists
-    if (phone) {
-      const existingPhone = await prisma.user.findFirst({ where: { phone } });
-      if (existingPhone) {
-        return NextResponse.json({ error: "Số điện thoại đã tồn tại" }, { status: 409 });
-      }
+      return NextResponse.json({ error: "Tên Zom là bắt buộc" }, { status: 400 });
     }
 
     const { hashPassword } = await import("@/lib/password");
@@ -118,30 +91,13 @@ export async function POST(request: NextRequest) {
         email,
         passwordHash,
         fullName,
-        phone: phone || null,
+        phone: null,
         role: "driver",
-        status: "available",
-        rating: 5,
+        status: "offline",
+        rating: 5, // unused for Zom, kept for compatibility
         avatar: null,
       },
     });
-
-    // Create vehicle if license plate provided
-    if (licensePlate) {
-      await prisma.vehicle.create({
-        data: {
-          name: `${brand || "Xe"} ${model || ""}`.trim() || "Xe của tài xế",
-          licensePlate,
-          vehicleType: vehicleType || "car",
-          seats: seats ? parseInt(seats as string) : 4,
-          capacity: seats ? parseInt(seats as string) : 4,
-          brand,
-          model,
-          year: year ? parseInt(year as string) : null,
-          ownerId: driver.id,
-        },
-      });
-    }
 
     return NextResponse.json({ success: true, data: driver }, { status: 201 });
   } catch (error) {
