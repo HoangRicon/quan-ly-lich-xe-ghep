@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
   Calendar,
   Users,
   Car,
@@ -24,7 +23,6 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/dashboard/schedule", icon: Calendar, label: "Lịch trình" },
   { href: "/dashboard/drivers", icon: Users, label: "Quản lý Zom" },
   { href: "/dashboard/customers", icon: Car, label: "Quản lý khách hàng" },

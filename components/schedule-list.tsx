@@ -51,6 +51,7 @@ interface Trip {
 interface Driver {
   id: number;
   fullName: string | null;
+  phone?: string | null;
   totalRevenue?: number;
 }
 

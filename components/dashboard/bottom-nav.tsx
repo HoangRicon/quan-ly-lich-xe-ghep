@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Car, Calendar, Users, Settings, Plus } from "lucide-react";
+import { Calendar, Users, Car, Settings, Plus } from "lucide-react";
 
 const navItems = [
-  { href: "/dashboard", icon: Car, label: "Cuốc xe" },
-  { href: "/dashboard/schedule", icon: Calendar, label: "Lịch" },
+  { href: "/dashboard/schedule", icon: Calendar, label: "Cuốc xe" },
+  { href: "/dashboard/drivers", icon: Users, label: "Zom" },
   { href: "/dashboard/schedule/add", icon: Plus, label: "Thêm", isFab: true },
-  { href: "/dashboard/customers", icon: Users, label: "Khách" },
+  { href: "/dashboard/customers", icon: Car, label: "Khách hàng" },
   { href: "/dashboard/settings", icon: Settings, label: "Cài đặt" },
 ];
 
