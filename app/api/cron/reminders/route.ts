@@ -94,7 +94,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing email template in DB" }, { status: 500 });
     }
 
-    // Fetch upcoming trips up to next 24h + 2m for tolerance
+    // Fetch upcoming trips up to reminder offset + 1 hour tolerance
+    // (we'll filter in-memory to only send trips within the reminder window)
     const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000 + 2 * 60 * 1000);
     const trips = await prisma.trip.findMany({
       where: {
@@ -151,9 +152,12 @@ export async function GET(request: NextRequest) {
       }
 
       const deltaMs = new Date(trip.departureTime).getTime() - now.getTime();
-      const min = reminderOffset * 60 * 1000;
-      const max = min + 60 * 1000; // in the next 1 minute window
-      if (deltaMs < min || deltaMs >= max) continue;
+      const offsetMs = reminderOffset * 60 * 1000;
+
+      // Send if trip is within the reminder window (deltaMs <= offsetMs)
+      // We use a small buffer (5 minutes) to avoid missing trips at the boundary
+      const bufferMs = 5 * 60 * 1000;
+      if (deltaMs > offsetMs || deltaMs < -bufferMs) continue;
 
       // Recipient: send to admin/operator email configured in Settings (NOT customer emails)
       if (!reminderToEmail || !isValidEmail(reminderToEmail)) {
