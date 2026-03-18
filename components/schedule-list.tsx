@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
-  Search, Plus, MapPin, Clock, Phone, MessageCircle, Car, 
+  Search, Plus, MapPin, Clock, Phone, MessageCircle, 
   ChevronDown, Check, X, Edit2, Trash2, MoreHorizontal, ArrowRight,
   Bell, Calendar, ChevronLeft, ChevronRight, ArrowUpDown, Copy, FileText
 } from "lucide-react";
@@ -52,14 +52,6 @@ interface Driver {
   id: number;
   fullName: string | null;
   totalRevenue?: number;
-}
-
-interface Vehicle {
-  id: number;
-  name: string;
-  licensePlate: string;
-  vehicleType: string;
-  seats: number;
 }
 
 // statusConfig/statusLabels moved to Settings-managed statuses (see /api/trip-statuses)
@@ -165,14 +157,12 @@ export default function ScheduleList() {
   
   // Driver modal state
   const [showDriverModal, setShowDriverModal] = useState(false);
-  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const showVehicleModal = useRef(false);
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [driverSearch, setDriverSearch] = useState("");
   const [filteredDrivers, setFilteredDrivers] = useState<Driver[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
-  const [loadingVehicles, setLoadingVehicles] = useState(false);
 
   // Filter drivers when search or drivers list changes
   useEffect(() => {
@@ -209,7 +199,6 @@ export default function ScheduleList() {
     customerName: "",
     customerPhone: "",
     driverId: null as number | null,
-    vehicleId: null as number | null,
     status: "scheduled",
     notes: "",
   });
@@ -297,32 +286,11 @@ export default function ScheduleList() {
     }
   };
 
-  const fetchVehicles = async () => {
-    setLoadingVehicles(true);
-    try {
-      const res = await fetch("/api/vehicles?includeInactive=true");
-      const data = await res.json();
-      if (data.data) {
-        setVehicles(data.data);
-      }
-    } catch (error) {
-      console.error("Fetch vehicles error:", error);
-    } finally {
-      setLoadingVehicles(false);
-    }
-  };
-
   const openDriverModal = (tripId: number) => {
     setSelectedTripId(tripId);
     setDriverSearch("");
     fetchDrivers();
     setShowDriverModal(true);
-  };
-
-  const openVehicleModal = (tripId: number) => {
-    setSelectedTripId(tripId);
-    fetchVehicles();
-    setShowVehicleModal(true);
   };
 
   const assignDriver = async (driverId: number) => {
@@ -345,26 +313,6 @@ export default function ScheduleList() {
     } catch (error) {
       console.error("Assign driver error:", error);
       alert("Lỗi khi gán tài xế");
-    }
-  };
-
-  const assignVehicle = async (vehicleId: number) => {
-    try {
-      const res = await fetch(`/api/trips/${selectedTripId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vehicleId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setShowVehicleModal(false);
-        fetchTrips();
-      } else {
-        alert(data.error || "Lỗi khi gán xe");
-      }
-    } catch (error) {
-      console.error("Assign vehicle error:", error);
-      alert("Lỗi khi gán xe");
     }
   };
 
@@ -644,13 +592,11 @@ export default function ScheduleList() {
       customerName: trip.customer?.name || "",
       customerPhone: trip.customer?.phone || "",
       driverId: trip.driver?.id || null,
-      vehicleId: trip.vehicle?.id || null,
       status: trip.status || "scheduled",
       notes: (trip as any).notes || "",
     });
-    // Fetch drivers and vehicles for combobox
+    // Fetch drivers for combobox
     fetchDrivers();
-    fetchVehicles();
     setShowEditSheet(true);
   };
 
@@ -672,7 +618,6 @@ export default function ScheduleList() {
           customerName: editForm.customerName,
           customerPhone: editForm.customerPhone,
           driverId: editForm.driverId,
-          vehicleId: editForm.vehicleId,
           status: editForm.status,
           notes: editForm.notes || null,
         }),
@@ -1279,46 +1224,6 @@ export default function ScheduleList() {
                     </div>
                     <div className="flex-1">
                       <div className="font-medium text-slate-800">{driver.fullName || "(Chưa đặt tên)"}</div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Vehicle Selection Modal */}
-      {showVehicleModal && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">Chọn xe</h2>
-              <button onClick={() => setShowVehicleModal(false)} className="p-2 text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto max-h-[400px]">
-              {loadingVehicles ? (
-                <div className="p-8 text-center text-slate-500">Đang tải...</div>
-              ) : vehicles.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">Chưa có xe nào</div>
-              ) : (
-                vehicles.map((vehicle) => (
-                  <button
-                    key={vehicle.id}
-                    onClick={() => assignVehicle(vehicle.id)}
-                    className="w-full px-6 py-4 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600">
-                      <Car className="w-6 h-6" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-800">{vehicle.name}</div>
-                      <div className="text-sm text-slate-500">
-                        {vehicle.licensePlate} • {vehicle.seats} chỗ
-                      </div>
                     </div>
                   </button>
                 ))
