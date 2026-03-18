@@ -168,9 +168,27 @@ export default function ScheduleList() {
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [driverSearch, setDriverSearch] = useState("");
+  const [filteredDrivers, setFilteredDrivers] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [loadingVehicles, setLoadingVehicles] = useState(false);
+
+  // Filter drivers when search or drivers list changes
+  useEffect(() => {
+    if (!driverSearch.trim()) {
+      setFilteredDrivers(drivers);
+    } else {
+      const search = driverSearch.toLowerCase();
+      setFilteredDrivers(
+        drivers.filter(
+          (d) =>
+            d.fullName?.toLowerCase().includes(search) ||
+            d.phone?.includes(search)
+        )
+      );
+    }
+  }, [driverSearch, drivers]);
   
   // Inline edit state
   const [editingField, setEditingField] = useState<{ tripId: number; field: string } | null>(null);
@@ -295,6 +313,7 @@ export default function ScheduleList() {
 
   const openDriverModal = (tripId: number) => {
     setSelectedTripId(tripId);
+    setDriverSearch("");
     fetchDrivers();
     setShowDriverModal(true);
   };
@@ -1232,7 +1251,9 @@ export default function ScheduleList() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Tìm Zom..."
+                  placeholder="Tìm tài xế..."
+                  value={driverSearch}
+                  onChange={(e) => setDriverSearch(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
                 />
               </div>
@@ -1241,10 +1262,12 @@ export default function ScheduleList() {
             <div className="overflow-y-auto max-h-[400px]">
               {loadingDrivers ? (
                 <div className="p-8 text-center text-slate-500">Đang tải...</div>
-              ) : drivers.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">Chưa có Zom nào</div>
+              ) : filteredDrivers.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">{
+                  driverSearch ? "Không tìm thấy tài xế" : "Chưa có tài xế nào"
+                }</div>
               ) : (
-                drivers.map((driver) => (
+                filteredDrivers.map((driver) => (
                   <button
                     key={driver.id}
                     onClick={() => assignDriver(driver.id)}
