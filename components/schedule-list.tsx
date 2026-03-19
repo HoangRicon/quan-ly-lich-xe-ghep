@@ -962,8 +962,13 @@ export default function ScheduleList() {
                     )}
                     {trip.profit !== null && trip.profit !== undefined ? (
                       <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
-                    ) : trip.driver && (!trip.driver.formulas || trip.driver.formulas.length === 0) ? (
-                      <span className="text-xs text-red-400 flex-shrink-0">Chưa có công thức</span>
+                    ) : trip.driver &&
+                      (
+                        !trip.driver.formulas ||
+                        trip.driver.formulas.length === 0 ||
+                        !trip.matchedFormulaId
+                      ) ? (
+                      <span className="text-xs text-red-400 flex-shrink-0">Chưa tính được lợi nhuận</span>
                     ) : null}
                     {trip.notes && (
                       <button
@@ -1169,8 +1174,13 @@ export default function ScheduleList() {
                         </div>
                           {trip.profit !== null && trip.profit !== undefined ? (
                             <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
-                          ) : trip.driver && (!trip.driver.formulas || trip.driver.formulas.length === 0) ? (
-                            <span className="text-xs text-red-400">Chưa có công thức</span>
+                          ) : trip.driver &&
+                            (
+                              !trip.driver.formulas ||
+                              trip.driver.formulas.length === 0 ||
+                              !trip.matchedFormulaId
+                            ) ? (
+                            <span className="text-xs text-red-400">Chưa tính được lợi nhuận</span>
                           ) : null}
                       </div>
                     </TableCell>
@@ -1505,9 +1515,11 @@ export default function ScheduleList() {
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                   placeholder="Để trống để tự tính theo công thức (nếu có)"
                 />
-                <p className="mt-1 text-[11px] text-slate-400">
-                  Nếu <b>nhập lợi nhuận</b> thì hệ thống ưu tiên số này. Nếu <b>để trống</b> và Zom có công thức thì hệ
-                  thống sẽ tự tính.
+                <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                  Nếu <b>nhập lợi nhuận</b> thì hệ thống ưu tiên số này.{" "}
+                  <span className="font-semibold">
+                    Nếu <b>để trống</b> và Zom có công thức thì hệ thống sẽ tự tính.
+                  </span>
                 </p>
               </div>
                 </div>
