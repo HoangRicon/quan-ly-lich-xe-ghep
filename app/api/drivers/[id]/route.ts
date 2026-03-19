@@ -138,7 +138,7 @@ export async function PUT(
     }
 
     // Update driver
-    const updateData: Prisma.UserUpdateInput = {};
+    const updateData: Prisma.UserUncheckedUpdateInput = {};
     if (fullName !== undefined) updateData.fullName = fullName;
     if (profitRate !== undefined) updateData.profitRate = parseFloat(profitRate);
     if (formulaId !== undefined) updateData.formulaId = formulaId !== null ? parseInt(formulaId) : null;

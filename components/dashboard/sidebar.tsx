@@ -30,7 +30,6 @@ const menuItems: Array<{
 }> = [
   { href: "/dashboard/schedule", icon: Calendar, label: "Lịch trình" },
   { href: "/dashboard/drivers", icon: Users, label: "Quản lý Zom" },
-  { href: "/dashboard/customers", icon: User, label: "Quản lý khách hàng" },
   { href: "/dashboard/reports", icon: BarChart3, label: "Báo cáo" },
   { href: "/notifications", icon: Bell, label: "Thông báo" },
   { href: "/dashboard/profile", icon: User, label: "Tài khoản" },

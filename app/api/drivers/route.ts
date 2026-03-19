@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       orderBy: { sortOrder: "asc" },
     });
 
-    const formatFormula = (f: Prisma.PricingFormulaGetPayload<Record<string, never>>) => ({
+    const formatFormula = (f: (typeof allFormulas)[number]) => ({
       id: f.id,
       name: f.name,
       tripType: f.tripType,

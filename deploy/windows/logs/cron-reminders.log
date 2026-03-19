@@ -1,0 +1,144 @@
+2026-03-19T22:26:01.4388911+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:26:01.4488920+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:26:01.4569953+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:26:01.5279551+07:00 ERROR HTTP status=InternalServerError msg=The remote server returned an error: (500) Internal Server Error.
+2026-03-19T22:27:01.4441777+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:27:01.4507083+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:27:01.4576895+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:27:01.5273632+07:00 ERROR HTTP status=InternalServerError msg=The remote server returned an error: (500) Internal Server Error.
+2026-03-19T22:28:01.4549845+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:28:01.4619918+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:28:01.4685785+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:28:01.6661576+07:00 OK 190ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:29:01.4554976+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:29:01.4620046+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:29:01.4680097+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:29:01.5698714+07:00 OK 95ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:30:01.5078917+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:30:01.5156896+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:30:01.5216921+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:30:01.6134341+07:00 OK 84ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:31:01.4752821+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:31:01.4831126+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:31:01.4883762+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:31:01.5954027+07:00 OK 100ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:32:01.4788251+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:32:01.4868247+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:32:01.4938083+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:32:01.6022215+07:00 OK 100ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:33:01.5016138+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:33:01.5093549+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:33:01.5142724+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:33:01.6474657+07:00 OK 127ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:34:01.6937236+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:34:01.7017221+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:34:01.7067236+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:34:01.7847568+07:00 OK 71ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:35:01.5046363+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:35:01.5116297+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:35:01.5166263+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:35:01.5874482+07:00 OK 64ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:36:01.5004939+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:36:01.5077784+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:36:01.5157668+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:36:01.5899005+07:00 OK 67ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:37:01.4928362+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:37:01.4997658+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:37:01.5052850+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:37:01.5756515+07:00 OK 65ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:38:01.5209696+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:38:01.5289704+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:38:01.5339853+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:38:03.6125913+07:00 ERROR HTTP status= msg=Unable to connect to the remote server
+2026-03-19T22:39:01.5109925+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:39:01.5194939+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:39:01.5245131+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:39:03.6031430+07:00 ERROR HTTP status= msg=Unable to connect to the remote server
+2026-03-19T22:40:01.5330031+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:40:01.5402204+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:40:01.5452327+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:40:01.6218876+07:00 OK 70ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:41:01.5506309+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:41:01.5576602+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:41:01.5626308+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:41:01.6216302+07:00 OK 53ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:42:01.5583500+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:42:01.5643349+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:42:01.5693348+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:42:01.6271121+07:00 OK 52ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:43:01.5587896+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:43:01.5657959+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:43:01.5708320+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:43:01.6299472+07:00 OK 54ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:44:01.5713596+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:44:01.5783403+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:44:01.5823405+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:44:01.6422387+07:00 OK 55ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:45:01.5783320+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:45:01.5843320+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:45:01.5893325+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:45:01.6457747+07:00 OK 50ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:46:01.6039932+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:46:01.6110000+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:46:01.6160127+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:46:01.6705903+07:00 OK 50ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:47:01.6074010+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:47:01.6135987+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:47:01.6186581+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:47:01.6762442+07:00 OK 53ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:48:01.6166708+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:48:01.6236746+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:48:01.6277944+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:48:01.6829852+07:00 OK 51ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:49:01.6308691+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:49:01.6378922+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:49:01.6428703+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:49:01.7002847+07:00 OK 51ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:50:01.6285179+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:50:01.6355394+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:50:01.6395489+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:50:01.6937911+07:00 OK 48ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:51:01.6407004+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:51:01.6479451+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:51:01.6519449+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:51:01.7057100+07:00 OK 48ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:52:01.6468578+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:52:01.6529834+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:52:01.6569712+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:52:01.7177922+07:00 OK 56ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:53:01.6627116+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:53:01.6697135+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:53:01.6747131+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:53:01.7336058+07:00 OK 52ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:54:01.6561937+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:54:01.6632044+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:54:01.6682183+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:54:01.7276657+07:00 OK 52ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:55:01.6642087+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:55:01.6705643+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:55:01.6755404+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:55:01.7347520+07:00 OK 53ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:56:01.6736722+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:56:01.6806831+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:56:01.6846999+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:56:01.7489722+07:00 OK 58ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:57:01.6766700+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:57:01.6826771+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:57:01.6876699+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:57:01.7515961+07:00 OK 59ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:58:01.6915874+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:58:01.6986115+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:58:01.7036145+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:58:01.7637309+07:00 OK 53ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T22:59:01.7100494+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T22:59:01.7170573+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T22:59:01.7221764+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T22:59:01.7835366+07:00 OK 55ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T23:00:01.6936844+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T23:00:01.7006554+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T23:00:01.7057583+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T23:00:01.7605193+07:00 OK 50ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False
+2026-03-19T23:01:01.7278040+07:00 INFO CRON_SECRET loaded. source=machine_env length=43 runningAs=NT AUTHORITY\SYSTEM
+2026-03-19T23:01:01.7358050+07:00 INFO Using AppUrl='http://127.0.0.1:3000'
+2026-03-19T23:01:01.7418042+07:00 INFO Calling URI='http://127.0.0.1:3000/api/cron/reminders'
+2026-03-19T23:01:01.8028266+07:00 OK 55ms url=http://127.0.0.1:3000/api/cron/reminders emailsSent=0 scannedTrips=0 dryRun=False

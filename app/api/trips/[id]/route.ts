@@ -24,8 +24,7 @@ export async function GET(
             fullName: true,
             phone: true,
             formulaIds: true,
-            formulas: {
-              where: { isActive: true },
+            formula: {
               select: {
                 id: true,
                 name: true,
@@ -74,16 +73,20 @@ export async function GET(
         id: trip.driver.id,
         fullName: trip.driver.fullName,
         phone: trip.driver.phone,
-        formulas: trip.driver.formulas?.map(f => ({
-          id: f.id,
-          name: f.name,
-          tripType: f.tripType,
-          seats: f.seats,
-          minPrice: f.minPrice ? Number(f.minPrice) : null,
-          maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
-          points: Number(f.points),
-          isActive: f.isActive,
-        })),
+        formulas: trip.driver.formula?.isActive
+          ? [
+              {
+                id: trip.driver.formula.id,
+                name: trip.driver.formula.name,
+                tripType: trip.driver.formula.tripType,
+                seats: trip.driver.formula.seats,
+                minPrice: trip.driver.formula.minPrice ? Number(trip.driver.formula.minPrice) : null,
+                maxPrice: trip.driver.formula.maxPrice ? Number(trip.driver.formula.maxPrice) : null,
+                points: Number(trip.driver.formula.points),
+                isActive: trip.driver.formula.isActive,
+              },
+            ]
+          : [],
       } : null,
       customer: mainCustomer ? {
         id: mainCustomer.id,
@@ -123,7 +126,7 @@ export async function PUT(
     void customerEmail;
     void customerNotes;
 
-    const updateData: Prisma.TripUpdateInput = {};
+    const updateData: Prisma.TripUncheckedUpdateInput = {};
 
     // Allow updating status even if the caller sends a falsy value (defensive).
     if (status !== undefined) {
@@ -202,7 +205,17 @@ export async function PUT(
         tripDirection: finalDirection as "oneway" | "roundtrip",
       };
 
-      const matched = findMatchingFormula(allFormulas, tripInput);
+      const normalizedFormulas = allFormulas.map((f) => ({
+        id: f.id,
+        name: f.name,
+        tripType: f.tripType,
+        seats: f.seats ?? null,
+        minPrice: f.minPrice ? Number(f.minPrice) : null,
+        maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+        points: Number(f.points),
+      }));
+
+      const matched = findMatchingFormula(normalizedFormulas, tripInput);
       const formulaResult = applyFormula(tripInput, driverProfitRate, matched);
 
       updateData.pointsEarned = formulaResult.pointsEarned;
@@ -237,7 +250,7 @@ export async function PUT(
       where: { id: tripId },
       data: updateData,
       include: {
-        driver: true,
+        driver: { include: { formula: true } },
         customers: {
           include: {
             customer: true,
@@ -268,16 +281,20 @@ export async function PUT(
         id: trip.driver.id,
         fullName: trip.driver.fullName,
         phone: trip.driver.phone,
-        formulas: trip.driver.formulas?.map(f => ({
-          id: f.id,
-          name: f.name,
-          tripType: f.tripType,
-          seats: f.seats,
-          minPrice: f.minPrice ? Number(f.minPrice) : null,
-          maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
-          points: f.points,
-          isActive: f.isActive,
-        })),
+        formulas: trip.driver.formula?.isActive
+          ? [
+              {
+                id: trip.driver.formula.id,
+                name: trip.driver.formula.name,
+                tripType: trip.driver.formula.tripType,
+                seats: trip.driver.formula.seats,
+                minPrice: trip.driver.formula.minPrice ? Number(trip.driver.formula.minPrice) : null,
+                maxPrice: trip.driver.formula.maxPrice ? Number(trip.driver.formula.maxPrice) : null,
+                points: Number(trip.driver.formula.points),
+                isActive: trip.driver.formula.isActive,
+              },
+            ]
+          : [],
       } : null,
       customer: mainCustomer ? {
         id: mainCustomer.id,

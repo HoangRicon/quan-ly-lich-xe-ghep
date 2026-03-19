@@ -306,7 +306,17 @@ export async function POST(request: NextRequest) {
       tripDirection: parsedDirection,
     };
 
-    const matchedFormula = findMatchingFormula(allFormulas, tripInput);
+    const normalizedFormulas = allFormulas.map((f) => ({
+      id: f.id,
+      name: f.name,
+      tripType: f.tripType,
+      seats: f.seats ?? null,
+      minPrice: f.minPrice ? Number(f.minPrice) : null,
+      maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+      points: Number(f.points),
+    }));
+
+    const matchedFormula = findMatchingFormula(normalizedFormulas, tripInput);
     const formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
 
     const trip = await prisma.trip.create({

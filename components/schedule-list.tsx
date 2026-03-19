@@ -637,7 +637,9 @@ export default function ScheduleList() {
     }
     
     // Then, sort by selected field within same status
-    let aVal: number | string, bVal: number | string;
+    // Note: initialize to avoid TS "used before being assigned" warnings.
+    let aVal: number | string = 0;
+    let bVal: number | string = 0;
     if (sortField === "departureTime") {
       aVal = new Date(a.departureTime).getTime();
       bVal = new Date(b.departureTime).getTime();

@@ -280,7 +280,8 @@ export default function EditDriverPage() {
   };
 
   const handleDeleteDriver = async () => {
-    if (!confirm(`Xóa Zom "${driver.fullName}"? Hành động này không thể hoàn tác.`)) return;
+    if (!driver) return;
+    if (!confirm(`Xóa Zom "${driver.fullName || "Zom"}"? Hành động này không thể hoàn tác.`)) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/drivers/${driverId}`, { method: "DELETE" });
