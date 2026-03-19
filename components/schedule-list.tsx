@@ -22,6 +22,7 @@ interface Trip {
   departureTime: string;
   arrivalTime: string | null;
   price: number;
+  profit: number | null;
   status: string;
   totalSeats: number;
   availableSeats: number;
@@ -143,7 +144,7 @@ export default function ScheduleList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<"departureTime" | "price" | "status">("departureTime");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const itemsPerPage = 10;
+  const itemsPerPage = 999999;
 
   // Status dropdown state
   const [openStatusMenu, setOpenStatusMenu] = useState<number | null>(null);
@@ -197,6 +198,7 @@ export default function ScheduleList() {
     departureDate: "",
     departureTime: "",
     price: "",
+    profit: "",
     customerName: "",
     customerPhone: "",
     driverId: null as number | null,
@@ -247,7 +249,17 @@ export default function ScheduleList() {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
-      if (dateFilter) params.set("date", dateFilter);
+      
+      // Handle date filter: single date or date range (startDate,endDate)
+      if (dateFilter) {
+        if (dateFilter.includes(",")) {
+          const [startDate, endDate] = dateFilter.split(",");
+          params.set("startDate", startDate);
+          params.set("endDate", endDate);
+        } else {
+          params.set("date", dateFilter);
+        }
+      }
 
       const res = await fetch(`/api/trips?${params}`, { cache: "no-store" });
       const data = await res.json();
@@ -515,13 +527,65 @@ export default function ScheduleList() {
     return now > departure;
   };
 
-  // Handle "Today" button click
   const handleTodayFilter = () => {
     const today = new Date();
     const dateStr = today.toISOString().split("T")[0];
     setDateFilter(dateStr);
     setCurrentPage(1);
   };
+
+  // Handle "This Week" filter
+  const handleThisWeekFilter = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const startStr = monday.toISOString().split("T")[0];
+    const endStr = sunday.toISOString().split("T")[0];
+    setDateFilter(`${startStr},${endStr}`);
+    setCurrentPage(1);
+  };
+
+  // Handle "This Month" filter
+  const handleThisMonthFilter = () => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    const startStr = firstDay.toISOString().split("T")[0];
+    const endStr = lastDay.toISOString().split("T")[0];
+    setDateFilter(`${startStr},${endStr}`);
+    setCurrentPage(1);
+  };
+
+  // Check if date filter is "today", "this_week", or "this_month"
+  const isTodayActive = dateFilter === todayStr;
+  const isThisWeekActive = (() => {
+    if (!dateFilter || !dateFilter.includes(",")) return false;
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const startStr = monday.toISOString().split("T")[0];
+    const endStr = sunday.toISOString().split("T")[0];
+    return dateFilter === `${startStr},${endStr}`;
+  })();
+  const isThisMonthActive = (() => {
+    if (!dateFilter || !dateFilter.includes(",")) return false;
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const startStr = firstDay.toISOString().split("T")[0];
+    const endStr = lastDay.toISOString().split("T")[0];
+    return dateFilter === `${startStr},${endStr}`;
+  })();
 
   // Sort and paginate
   const filteredTrips = trips.filter((trip) => {
@@ -590,6 +654,7 @@ export default function ScheduleList() {
       departureDate: deptDate.toISOString().split("T")[0],
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: trip.price?.toString() || "",
+      profit: trip.profit?.toString() || "",
       customerName: trip.customer?.name || "",
       customerPhone: trip.customer?.phone || "",
       driverId: trip.driver?.id || null,
@@ -616,6 +681,7 @@ export default function ScheduleList() {
           destination: editForm.destination,
           departureTime: departureDateTime,
           price: editForm.price,
+          profit: editForm.profit || null,
           customerName: editForm.customerName,
           customerPhone: editForm.customerPhone,
           driverId: editForm.driverId,
@@ -704,23 +770,37 @@ export default function ScheduleList() {
           ))}
         </select>
 
-        {/* Datepicker + Today */}
+        {/* Datepicker + Today/Week/Month */}
         <div className="flex items-center gap-1">
           <div className="relative">
             <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <input
               type="date"
-              value={dateFilter}
+              value={dateFilter && !dateFilter.includes(",") ? dateFilter : ""}
               onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
               className="pl-7 pr-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
             />
           </div>
           <button
             type="button"
+            onClick={handleThisWeekFilter}
+            className={`px-2 py-1 rounded border text-xs ${isThisWeekActive ? "border-blue-300 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
+            title="Lọc tuần này"
+          >
+            Tuần này
+          </button>
+          <button
+            type="button"
+            onClick={handleThisMonthFilter}
+            className={`px-2 py-1 rounded border text-xs ${isThisMonthActive ? "border-blue-300 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
+            title="Lọc tháng này"
+          >
+            Tháng này
+          </button>
+          <button
+            type="button"
             onClick={handleTodayFilter}
-            className={`px-2 py-1 rounded border text-xs bg-white hover:bg-slate-50 ${
-              dateFilter === todayStr ? "border-blue-300 text-blue-700" : "border-slate-200 text-slate-700"
-            }`}
+            className={`px-2 py-1 rounded border text-xs ${isTodayActive ? "border-blue-300 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
             title="Lọc hôm nay"
           >
             Hôm nay
@@ -826,10 +906,15 @@ export default function ScheduleList() {
                   </a>
                 )}
 
-                {/* Row 4: Price - Copy - Delete */}
+                {/* Row 4: Price - Profit - Copy - Delete */}
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-bold text-sm text-slate-800">{formatCurrency(trip.price)}</span>
+                    {trip.profit !== null && trip.profit !== undefined ? (
+                      <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                    ) : (
+                      <span className="text-xs text-slate-400">Chưa tính LN</span>
+                    )}
                     {trip.notes && (
                       <button
                         onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
@@ -852,34 +937,6 @@ export default function ScheduleList() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-        
-        {/* Mobile Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-2 px-3">
-            <span className="text-xs text-slate-500">
-              {paginatedTrips.length}/{sortedTrips.length} chuyến
-            </span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-2 py-1 rounded bg-white border border-slate-200 text-xs disabled:opacity-50"
-              >
-                ←
-              </button>
-              <span className="px-2 py-1 text-xs">
-                {currentPage}/{totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-2 py-1 rounded bg-white border border-slate-200 text-xs disabled:opacity-50"
-              >
-                →
-              </button>
-            </div>
           </div>
         )}
       </div>
@@ -1046,16 +1103,23 @@ export default function ScheduleList() {
                       </div>
                     </TableCell>
                     <TableCell className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <span className="font-medium text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
-                        {trip.notes && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
-                            className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600"
-                            title={trip.notes || "Ghi chú"}
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                          </button>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-slate-800 text-sm">{formatCurrency(trip.price)}</span>
+                          {trip.notes && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
+                              className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600"
+                              title={trip.notes || "Ghi chú"}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {trip.profit !== null && trip.profit !== undefined ? (
+                          <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                        ) : (
+                          <span className="text-xs text-slate-400">Chưa tính LN</span>
                         )}
                       </div>
                     </TableCell>
@@ -1131,55 +1195,6 @@ export default function ScheduleList() {
             </TableBody>
           </Table>
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
-            <div className="text-sm text-slate-500">
-              Trang {currentPage} / {totalPages} ({filteredTrips.length} chuyến)
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCurrentPage(pageNum)}
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Driver Selection Modal */}
@@ -1252,7 +1267,12 @@ export default function ScheduleList() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-xs text-slate-400">Mã cuốc #{editingTrip.id}</p>
-                  <h2 className="text-lg font-bold text-slate-800">Chỉnh sửa thông tin</h2>
+                  <h2 className="text-lg font-bold text-slate-800">
+                    Thông tin của {editingTrip.driver?.fullName || "Zom"} 
+                    {editingTrip.totalSeats > 0 && editingTrip.passengerCount >= editingTrip.totalSeats ? " (Bao)" : " (Ghép)"}
+                    {editingTrip.totalSeats > 0 && ` - ${editingTrip.totalSeats} ghế`}
+                    {editingTrip.price && ` - ${formatCurrency(editingTrip.price)}`}
+                  </h2>
                 </div>
                 <button onClick={() => setShowEditSheet(false)} className="p-2 rounded-full hover:bg-slate-100">
                   <X className="w-5 h-5 text-slate-500" />
@@ -1363,6 +1383,19 @@ export default function ScheduleList() {
                       searchPlaceholder="Tìm Zom..."
                       emptyText="Không có Zom"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
+                    <input
+                      type="number"
+                      value={editForm.profit}
+                      onChange={(e) => setEditForm({ ...editForm, profit: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                      placeholder="Nhập lợi nhuận"
+                    />
+                    {!editForm.profit && (
+                      <p className="text-xs text-slate-400 mt-1">Chưa tính lợi nhuận</p>
+                    )}
                   </div>
                 </div>
               </div>

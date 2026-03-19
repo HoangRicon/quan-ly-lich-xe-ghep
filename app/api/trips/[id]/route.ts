@@ -52,6 +52,7 @@ export async function GET(
       departureTime: trip.departureTime,
       arrivalTime: trip.arrivalTime,
       price: trip.price,
+      profit: trip.profit,
       status: trip.status,
       totalSeats: trip.totalSeats,
       availableSeats: trip.availableSeats,
@@ -92,7 +93,7 @@ export async function PUT(
     const tripId = parseInt(id);
 
     const { 
-      status, driverId, departure, destination, price, 
+      status, driverId, departure, destination, price, profit,
       title, departureTime, totalSeats, notes, vehicleId,
       customerPhone, customerName, customerEmail, customerNotes
     } = await request.json();
@@ -133,6 +134,10 @@ export async function PUT(
 
     if (price !== undefined) {
       updateData.price = parseFloat(price);
+    }
+
+    if (profit !== undefined) {
+      updateData.profit = profit ? parseFloat(profit) : null;
     }
 
     if (departureTime !== undefined && departureTime) {
@@ -177,6 +182,7 @@ export async function PUT(
       departureTime: trip.departureTime,
       arrivalTime: trip.arrivalTime,
       price: trip.price,
+      profit: trip.profit,
       status: trip.status,
       totalSeats: trip.totalSeats,
       availableSeats: trip.availableSeats,

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const driverId = searchParams.get("driverId");
     const vehicleType = searchParams.get("vehicleType");
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "500");
 
     const where: any = {};
 
@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
         departureTime: trip.departureTime,
         arrivalTime: trip.arrivalTime,
         price: trip.price,
+        profit: trip.profit,
         status: trip.status,
         totalSeats: trip.totalSeats,
         availableSeats: trip.availableSeats,
