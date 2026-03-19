@@ -19,12 +19,6 @@ interface Trip {
     id: number;
     fullName: string;
   };
-  vehicle?: {
-    id: number;
-    name: string;
-    licensePlate: string;
-    vehicleType: string;
-  };
   customers: Array<{
     customer: {
       id: number;
@@ -39,24 +33,15 @@ interface Driver {
   fullName: string;
 }
 
-interface Vehicle {
-  id: number;
-  name: string;
-  licensePlate: string;
-  vehicleType: string;
-}
-
 export default function AnalyticsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedDriver, setSelectedDriver] = useState("");
-  const [selectedVehicleType, setSelectedVehicleType] = useState("");
 
   const fetchData = async () => {
     setLoading(true);
@@ -65,23 +50,19 @@ export default function AnalyticsPage() {
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
       if (selectedDriver) params.set("driverId", selectedDriver);
-      if (selectedVehicleType) params.set("vehicleType", selectedVehicleType);
 
-      const [tripsRes, driversRes, vehiclesRes] = await Promise.all([
+      const [tripsRes, driversRes] = await Promise.all([
         fetch(`/api/trips?${params}&limit=500`),
         fetch("/api/drivers"),
-        fetch("/api/vehicles"),
       ]);
 
-      const [tripsData, driversData, vehiclesData] = await Promise.all([
+      const [tripsData, driversData] = await Promise.all([
         tripsRes.json(),
         driversRes.json(),
-        vehiclesRes.json(),
       ]);
 
       if (tripsData.success) setTrips(tripsData.data);
       if (driversData.success) setDrivers(driversData.data);
-      if (vehiclesData.success) setVehicles(vehiclesData.data);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -91,7 +72,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [startDate, endDate, selectedDriver, selectedVehicleType]);
+  }, [startDate, endDate, selectedDriver]);
 
   // Computed stats
   const stats = useMemo(() => {
@@ -109,9 +90,7 @@ export default function AnalyticsPage() {
       "Giờ đón": new Date(trip.departureTime).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
       "Điểm đi": trip.departure,
       "Điểm đến": trip.destination,
-      "Tài xế": trip.driver?.fullName || "Chưa gán",
-      "Xe": trip.vehicle ? `${trip.vehicle.name} - ${trip.vehicle.licensePlate}` : "Chưa gán",
-      "Loại xe": trip.vehicle?.vehicleType || "-",
+      "Zom": trip.driver?.fullName || "Chưa gán",
       "Giá tiền": trip.price || 0,
       "Trạng thái": trip.status === "completed" ? "Hoàn thành" : trip.status === "in_progress" ? "Đang chạy" : trip.status === "scheduled" ? "Chờ" : "Hủy",
       "Khách hàng": trip.customers[0]?.customer.name || "-",
@@ -129,9 +108,7 @@ export default function AnalyticsPage() {
       { wch: 8 },  // Gio don
       { wch: 20 }, // Diem di
       { wch: 20 }, // Diem den
-      { wch: 15 }, // Tai xe
-      { wch: 25 }, // Xe
-      { wch: 10 }, // Loai xe
+      { wch: 15 }, // Zom
       { wch: 12 }, // Gia tien
       { wch: 12 }, // Trang thai
       { wch: 20 }, // Khach hang
@@ -180,8 +157,6 @@ export default function AnalyticsPage() {
     }
   };
 
-  const vehicleTypes = [...new Set(vehicles.map(v => v.vehicleType))];
-
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar>
@@ -226,7 +201,7 @@ export default function AnalyticsPage() {
 
               {/* Driver Filter */}
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">Tài xế</label>
+                <label className="text-xs text-slate-500 mb-1 block">Zom</label>
                 <div className="relative">
                   <select
                     value={selectedDriver}
@@ -243,26 +218,6 @@ export default function AnalyticsPage() {
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
               </div>
-
-              {/* Vehicle Type Filter */}
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">Loại xe</label>
-                <div className="relative">
-                  <select
-                    value={selectedVehicleType}
-                    onChange={(e) => setSelectedVehicleType(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none appearance-none bg-white"
-                  >
-                    <option value="">Tất cả</option>
-                    {vehicleTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type === "car" ? "Xe 4 chỗ" : type === "7seats" ? "Xe 7 chỗ" : type === "16seats" ? "Xe 16 chỗ" : type}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-2">
@@ -271,7 +226,6 @@ export default function AnalyticsPage() {
                   setStartDate("");
                   setEndDate("");
                   setSelectedDriver("");
-                  setSelectedVehicleType("");
                 }}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
               >
@@ -336,7 +290,6 @@ export default function AnalyticsPage() {
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Ngày/Giờ</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Lộ trình</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Tài xế</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Xe</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Giá</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Trạng thái</th>
                     <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 whitespace-nowrap">Khách</th>
@@ -371,16 +324,6 @@ export default function AnalyticsPage() {
                           {trip.driver?.fullName || <span className="text-slate-400">-</span>}
                         </td>
                         <td className="px-3 py-3 text-sm text-slate-600 whitespace-nowrap">
-                          {trip.vehicle ? (
-                            <div>
-                              <div>{trip.vehicle.licensePlate}</div>
-                              <div className="text-xs text-slate-400">{trip.vehicle.name}</div>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">
                           {formatCurrency(trip.price || 0)}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">

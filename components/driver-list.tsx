@@ -2,16 +2,41 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { 
-  Search, Plus, Edit2, Trash2, Download, FileText
+import {
+  Search, Plus, Edit2, Trash2, Download, FileText, Calculator, Star, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+interface Formula {
+  id: number;
+  name: string;
+  tripType: string;
+  seats: number | null;
+  points: number;
+  isActive: boolean;
+}
 
 interface Zom {
   id: number;
   fullName: string | null;
-  totalRevenue: number;
+  profitRate: number;
+  formulaId: number | null;
+  formula: Formula | null;
 }
+
+const TRIP_TYPE_SHORT: Record<string, string> = {
+  ghep: "Ghép",
+  ghep_roundtrip: "Ghép 2C",
+  bao: "Bao",
+  bao_roundtrip: "Bao 2C",
+};
+
+const TRIP_TYPE_COLORS: Record<string, string> = {
+  ghep: "bg-blue-100 text-blue-700",
+  ghep_roundtrip: "bg-cyan-100 text-cyan-700",
+  bao: "bg-amber-100 text-amber-700",
+  bao_roundtrip: "bg-orange-100 text-orange-700",
+};
 
 export default function DriverList() {
   const [zoms, setZoms] = useState<Zom[]>([]);
@@ -23,7 +48,7 @@ export default function DriverList() {
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  
+
   // Delete modal state
   const [deletingZom, setDeletingZom] = useState<Zom | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -78,10 +103,6 @@ export default function DriverList() {
     }).format(amount);
   };
 
-  const openEditModal = (zom: Zom) => {
-    window.location.href = `/dashboard/drivers/${zom.id}/edit`;
-  };
-
   const handleDelete = async () => {
     if (!deletingZom) return;
     setDeleting(true);
@@ -105,11 +126,12 @@ export default function DriverList() {
   };
 
   const exportToCSV = () => {
-    const headers = ["STT", "Tên Zom", "Doanh thu"];
-    const rows = zoms.map((d, index) => [
+    const headers = ["STT", "Tên Zom", "Tỉ lệ (VNĐ/điểm)", "Công thức"];
+    const rows = zoms.map((z, index) => [
       index + 1,
-      d.fullName || "",
-      d.totalRevenue,
+      z.fullName || "",
+      z.profitRate,
+      z.formula ? `${TRIP_TYPE_SHORT[z.formula.tripType] || z.formula.tripType} - ${z.formula.name} - ${z.formula.points}đ` : "Chưa gán",
     ]);
 
     const csvContent = [headers, ...rows]
@@ -126,21 +148,22 @@ export default function DriverList() {
   };
 
   const exportToExcel = () => {
-    const headers = ["STT", "Tên Zom", "Doanh thu"];
-    const rows = zoms.map((d, index) => [
+    const headers = ["STT", "Tên Zom", "Tỉ lệ (VNĐ/điểm)", "Công thức"];
+    const rows = zoms.map((z, index) => [
       index + 1,
-      d.fullName || "",
-      d.totalRevenue,
+      z.fullName || "",
+      z.profitRate,
+      z.formula ? `${TRIP_TYPE_SHORT[z.formula.tripType] || z.formula.tripType} - ${z.formula.name} - ${z.formula.points}đ` : "Chưa gán",
     ]);
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>';
     xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
     xml += '<Worksheet ss:Name="Zom"><Table>';
-    
+
     headers.forEach(h => {
       xml += `<Cell><Data ss:Type="String">${h}</Data></Cell>`;
     });
-    
+
     rows.forEach(row => {
       xml += "<Row>";
       row.forEach(cell => {
@@ -149,7 +172,7 @@ export default function DriverList() {
       });
       xml += "</Row>";
     });
-    
+
     xml += '</Table></Worksheet></Workbook>';
 
     const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
@@ -168,7 +191,7 @@ export default function DriverList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm Zom theo tên..."
+            placeholder="Tìm Zom..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
@@ -219,26 +242,27 @@ export default function DriverList() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-4 py-3 text-sm font-semibold text-slate-600">Zom</th>
-              <th className="text-right px-4 py-3 text-sm font-semibold text-slate-600">Doanh thu</th>
+              <th className="text-center px-4 py-3 text-sm font-semibold text-slate-600">Công thức</th>
+              <th className="text-right px-4 py-3 text-sm font-semibold text-slate-600">Tỉ lệ (VNĐ/điểm)</th>
               <th className="text-center px-4 py-3 text-sm font-semibold text-slate-600">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
                   Đang tải...
                 </td>
               </tr>
             ) : zoms.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
                   Chưa có Zom nào
                 </td>
               </tr>
             ) : (
               zoms.map((zom) => (
-                <tr key={zom.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <tr key={zom.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => window.location.href = `/dashboard/drivers/${zom.id}/edit`}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold">
@@ -249,18 +273,33 @@ export default function DriverList() {
                       </div>
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-center">
+                    {zom.formula ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${TRIP_TYPE_COLORS[zom.formula.tripType] || "bg-slate-100 text-slate-700"}`}>
+                          {TRIP_TYPE_SHORT[zom.formula.tripType] || zom.formula.tripType}
+                        </span>
+                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                          <Star className="w-3 h-3" />
+                          {zom.formula.points}đ
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Chưa gán</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <span className="font-medium text-slate-800">{formatCurrency(zom.totalRevenue)}</span>
+                    <span className="font-medium text-slate-700">{formatCurrency(zom.profitRate)}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => openEditModal(zom)}
-                        className="p-2 rounded-lg hover:bg-slate-100 text-slate-600"
+                    <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/dashboard/drivers/${zom.id}/edit`}
+                        className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
                         title="Sửa"
                       >
                         <Edit2 className="w-4 h-4" />
-                      </button>
+                      </Link>
                       <button
                         onClick={() => setDeletingZom(zom)}
                         className="p-2 rounded-lg hover:bg-red-50 text-red-500"
@@ -278,7 +317,7 @@ export default function DriverList() {
       </div>
 
       {/* Mobile Cards */}
-      <div className="lg:hidden space-y-3">
+      <div className="lg:hidden space-y-2">
         {loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500">
             Đang tải...
@@ -289,48 +328,39 @@ export default function DriverList() {
           </div>
         ) : (
           zoms.map((zom) => (
-            <div
+            <Link
               key={zom.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 space-y-3"
+              href={`/dashboard/drivers/${zom.id}/edit`}
+              className="block bg-white rounded-xl border border-slate-200 p-4 hover:border-blue-200 hover:bg-blue-50/30 transition-colors"
             >
-              {/* Zom Info */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold text-lg">
+              <div className="flex items-center justify-between">
+                {/* Left: avatar + name + formula */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold flex-shrink-0">
                     {(zom.fullName || "?")?.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <div className="font-semibold text-slate-800">{zom.fullName || "(Chưa đặt tên)"}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-slate-800 truncate">{zom.fullName || "(Chưa đặt tên)"}</div>
+                    {zom.formula ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TRIP_TYPE_COLORS[zom.formula.tripType] || "bg-slate-100 text-slate-700"}`}>
+                          {TRIP_TYPE_SHORT[zom.formula.tripType]}
+                        </span>
+                        <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
+                          <Star className="w-2.5 h-2.5" />
+                          {zom.formula.points}đ
+                        </span>
+                        <span className="text-[10px] text-slate-400">{formatCurrency(zom.profitRate)}/đ</span>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400 italic mt-0.5">Chưa gán công thức</div>
+                    )}
                   </div>
                 </div>
+                {/* Right: arrow */}
+                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
               </div>
-
-              {/* Stats */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <div className="text-right">
-                  <div className="text-xs text-slate-500">Doanh thu</div>
-                  <div className="font-semibold text-slate-800">{formatCurrency(zom.totalRevenue)}</div>
-                </div>
-              </div>
-
-              {/* Edit/Delete Buttons */}
-              <div className="flex gap-2 pt-2 border-t border-slate-100">
-                <button
-                  onClick={() => openEditModal(zom)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  Sửa
-                </button>
-                <button
-                  onClick={() => setDeletingZom(zom)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border border-red-200 hover:bg-red-50 text-red-500 font-medium"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Xóa
-                </button>
-              </div>
-            </div>
+            </Link>
           ))
         )}
       </div>
@@ -338,8 +368,7 @@ export default function DriverList() {
       {/* Pagination */}
       <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="text-sm text-slate-600">
-          Tổng: <span className="font-medium text-slate-800">{total}</span> Zom • Trang{" "}
-          <span className="font-medium text-slate-800">{page}</span>/{totalPages}
+          Tổng: <span className="font-medium text-slate-800">{total}</span> Zom
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -359,6 +388,9 @@ export default function DriverList() {
           >
             Trước
           </Button>
+          <span className="text-sm text-slate-600 px-1">
+            {page}/{totalPages}
+          </span>
           <Button
             variant="outline"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

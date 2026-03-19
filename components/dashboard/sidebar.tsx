@@ -1,11 +1,11 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Calendar,
   Users,
-  Car,
   BarChart3,
   Settings,
   LogOut,
@@ -22,10 +22,15 @@ interface SidebarProps {
   children?: React.ReactNode;
 }
 
-const menuItems = [
+const menuItems: Array<{
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  onClick?: string;
+}> = [
   { href: "/dashboard/schedule", icon: Calendar, label: "Lịch trình" },
   { href: "/dashboard/drivers", icon: Users, label: "Quản lý Zom" },
-  { href: "/dashboard/customers", icon: Car, label: "Quản lý khách hàng" },
+  { href: "/dashboard/customers", icon: User, label: "Quản lý khách hàng" },
   { href: "/dashboard/reports", icon: BarChart3, label: "Báo cáo" },
   { href: "/notifications", icon: Bell, label: "Thông báo" },
   { href: "/dashboard/profile", icon: User, label: "Tài khoản" },
@@ -55,7 +60,7 @@ export function Sidebar({ children }: SidebarProps) {
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400">
-              <Car className="w-5 h-5 text-white" />
+              <Users className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-800">Xe Ghép</h1>
@@ -107,7 +112,7 @@ export function Sidebar({ children }: SidebarProps) {
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400">
-                  <Car className="w-5 h-5 text-white" />
+                  <Users className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-slate-800">Xe Ghép</h1>
@@ -139,19 +144,19 @@ export function Sidebar({ children }: SidebarProps) {
                 }
                 
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setIsMobileOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-                    }`}
-                  >
-                    <item.icon className={`w-5 h-5 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
-                    {item.label}
-                  </Link>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                  }`}
+                >
+                  <item.icon className={`w-5 h-5 ${isActive ? "text-blue-600" : "text-slate-400"}`} />
+                  {item.label}
+                </Link>
                 );
               })}
             </nav>
@@ -168,7 +173,7 @@ export function Sidebar({ children }: SidebarProps) {
           </button>
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400">
-              <Car className="w-4 h-4 text-white" />
+              <Users className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-slate-800">Xe Ghép</span>
           </div>

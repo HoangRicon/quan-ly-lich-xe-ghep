@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { 
-  Search, Plus, MapPin, Clock, Phone, MessageCircle, 
+import {
+  Search, Plus, MapPin, Clock, Phone, MessageCircle,
   ChevronDown, Check, X, Edit2, Trash2, MoreHorizontal, ArrowRight,
-  Bell, Calendar, ChevronLeft, ChevronRight, ArrowUpDown, Copy, FileText
+  Bell, Calendar, ChevronLeft, ChevronRight, ArrowUpDown, Copy, FileText, Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -23,22 +23,28 @@ interface Trip {
   arrivalTime: string | null;
   price: number;
   profit: number | null;
+  tripDirection?: string;
+  pointsEarned?: number | null;
+  profitRate?: number | null;
+  matchedFormulaId?: number | null;
   status: string;
   totalSeats: number;
-  availableSeats: number;
   createdAt: string;
   notes: string | null;
-  vehicle: {
-    id: number;
-    name: string;
-    licensePlate: string;
-    vehicleType: string;
-    seats: number;
-  } | null;
   driver: {
     id: number;
     fullName: string;
     phone: string;
+    formulas?: Array<{
+      id: number;
+      name: string;
+      tripType: string;
+      seats: number | null;
+      points: number;
+      minPrice?: number | null;
+      maxPrice?: number | null;
+      isActive: boolean;
+    }>;
   } | null;
   customer: {
     id: number;
@@ -54,6 +60,27 @@ interface Driver {
   fullName: string | null;
   phone?: string | null;
   totalRevenue?: number;
+  profitRate: number;
+  formulaId: number | null;
+  formulaIds?: number[];
+  formula?: {
+    id: number;
+    name: string;
+    tripType: string;
+    seats: number | null;
+    points: number;
+    isActive: boolean;
+  } | null;
+  formulas?: Array<{
+    id: number;
+    name: string;
+    tripType: string;
+    seats: number | null;
+    points: number;
+    minPrice?: number | null;
+    maxPrice?: number | null;
+    isActive: boolean;
+  }>;
 }
 
 // statusConfig/statusLabels moved to Settings-managed statuses (see /api/trip-statuses)
@@ -159,7 +186,6 @@ export default function ScheduleList() {
   
   // Driver modal state
   const [showDriverModal, setShowDriverModal] = useState(false);
-  const showVehicleModal = useRef(false);
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [driverSearch, setDriverSearch] = useState("");
@@ -199,6 +225,7 @@ export default function ScheduleList() {
     departureTime: "",
     price: "",
     profit: "",
+    totalSeats: "",
     customerName: "",
     customerPhone: "",
     driverId: null as number | null,
@@ -596,7 +623,6 @@ export default function ScheduleList() {
       trip.destination?.toLowerCase().includes(search) ||
       trip.customer?.name?.toLowerCase().includes(search) ||
       trip.customer?.phone?.includes(search) ||
-      trip.vehicle?.licensePlate?.toLowerCase().includes(search) ||
       trip.driver?.fullName?.toLowerCase().includes(search)
     );
   });
@@ -611,7 +637,7 @@ export default function ScheduleList() {
     }
     
     // Then, sort by selected field within same status
-    let aVal: any, bVal: any;
+    let aVal: number | string, bVal: number | string;
     if (sortField === "departureTime") {
       aVal = new Date(a.departureTime).getTime();
       bVal = new Date(b.departureTime).getTime();
@@ -654,12 +680,13 @@ export default function ScheduleList() {
       departureDate: deptDate.toISOString().split("T")[0],
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: trip.price?.toString() || "",
-      profit: trip.profit?.toString() || "",
+      profit: trip.profit != null ? trip.profit.toString() : "",
+      totalSeats: trip.totalSeats ? trip.totalSeats.toString() : "",
       customerName: trip.customer?.name || "",
       customerPhone: trip.customer?.phone || "",
       driverId: trip.driver?.id || null,
       status: trip.status || "scheduled",
-      notes: (trip as any).notes || "",
+      notes: trip.notes || "",
     });
     // Fetch drivers for combobox
     fetchDrivers();
@@ -673,6 +700,15 @@ export default function ScheduleList() {
         ? `${editForm.departureDate}T${editForm.departureTime}:00`
         : undefined;
         
+      const hasFormula =
+        !!editingTrip.driver &&
+        Array.isArray(editingTrip.driver.formulas) &&
+        editingTrip.driver.formulas.length > 0;
+      const hasManualProfit =
+        editForm.profit !== undefined &&
+        editForm.profit !== null &&
+        String(editForm.profit).trim() !== "";
+
       const res = await fetch(`/api/trips/${editingTrip.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -681,12 +717,15 @@ export default function ScheduleList() {
           destination: editForm.destination,
           departureTime: departureDateTime,
           price: editForm.price,
-          profit: editForm.profit || null,
+          totalSeats: editForm.totalSeats,
           customerName: editForm.customerName,
           customerPhone: editForm.customerPhone,
           driverId: editForm.driverId,
           status: editForm.status,
           notes: editForm.notes || null,
+          // Nếu Zom có công thức và không nhập profit thủ công thì để server tự tính
+          recalculate: hasFormula && !hasManualProfit,
+          ...(hasManualProfit ? { profit: parseFloat(String(editForm.profit)) } : {}),
         }),
       });
       const data = await res.json();
@@ -701,6 +740,9 @@ export default function ScheduleList() {
       alert("Lỗi khi lưu");
     }
   };
+
+  // Profit will be auto-calculated on server when selecting Zom / saving edit (recalculate: true).
+  // Manual "recalculate profit" action removed by request.
 
   return (
     <div>
@@ -841,6 +883,9 @@ export default function ScheduleList() {
                 {/* Row 1: Time/Date (left) - Driver (center) - Status + Notify (right) */}
                 <div className="grid grid-cols-3 items-center gap-2 mb-0.5">
                   <div className="flex items-center gap-2 min-w-0">
+                    {trip.tripDirection === "roundtrip" && (
+                      <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded">2C</span>
+                    )}
                     <span className="font-bold text-slate-800 text-base flex-shrink-0">{formatTime(trip.departureTime)}</span>
                     <span className="font-semibold text-slate-800 text-[11px] truncate">{formatFullDate(trip.departureTime)}</span>
                   </div>
@@ -851,7 +896,7 @@ export default function ScheduleList() {
                         onClick={(e) => { e.stopPropagation(); openDriverModal(trip.id); }}
                         className="px-3 py-1 bg-blue-600 text-white text-[11px] font-medium rounded-lg"
                       >
-                        + Tài xế
+                        + Zom
                       </button>
                     ) : (
                       <span className="text-[11px] text-green-600 font-medium truncate max-w-[130px]">
@@ -906,19 +951,24 @@ export default function ScheduleList() {
                   </a>
                 )}
 
-                {/* Row 4: Price - Profit - Copy - Delete */}
+                {/* Row 4: Price - Points - Profit - Copy - Delete */}
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-bold text-sm text-slate-800">{formatCurrency(trip.price)}</span>
+                    {trip.pointsEarned != null && (
+                      <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                        {trip.pointsEarned}đ
+                      </span>
+                    )}
                     {trip.profit !== null && trip.profit !== undefined ? (
                       <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
-                    ) : (
-                      <span className="text-xs text-slate-400">Chưa tính LN</span>
-                    )}
+                    ) : trip.driver && (!trip.driver.formulas || trip.driver.formulas.length === 0) ? (
+                      <span className="text-xs text-red-400 flex-shrink-0">Chưa có công thức</span>
+                    ) : null}
                     {trip.notes && (
                       <button
                         onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.notes || "", "Ghi chú"); }}
-                        className="p-1 bg-amber-50 text-amber-600 rounded"
+                        className="p-1 bg-amber-50 text-amber-600 rounded flex-shrink-0"
                         title={trip.notes}
                       >
                         <FileText className="w-3.5 h-3.5" />
@@ -980,19 +1030,20 @@ export default function ScheduleList() {
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </TableHead>
+                <TableHead className="text-center px-1 py-2 text-xs font-semibold text-slate-600 w-[80px]">Điểm</TableHead>
                 <TableHead className="text-center px-1 py-2 text-xs font-semibold text-slate-600 w-[100px]">Hành động</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {              loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="px-3 py-6 text-center text-slate-500">
+                  <TableCell colSpan={9} className="px-3 py-6 text-center text-slate-500">
                     Đang tải...
                   </TableCell>
                 </TableRow>
               ) : paginatedTrips.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="px-3 py-6 text-center text-slate-500">
+                  <TableCell colSpan={9} className="px-3 py-6 text-center text-slate-500">
                     Chưa có chuyến xe nào
                   </TableCell>
                 </TableRow>
@@ -1066,7 +1117,7 @@ export default function ScheduleList() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-xs font-medium text-slate-800 truncate">{trip.driver.fullName}</div>
-                            <div className="text-xs text-slate-500 truncate">{trip.vehicle?.licensePlate || "Chưa xe"}</div>
+                            <div className="text-xs text-slate-500 truncate">{trip.driver.phone || "—"}</div>
                           </div>
                         </div>
                       ) : (
@@ -1074,7 +1125,7 @@ export default function ScheduleList() {
                           onClick={() => openDriverModal(trip.id)}
                           className="text-xs text-blue-600 font-medium hover:underline"
                         >
-                          + Gán TX
+                          + Gán Zom
                         </button>
                       )}
                     </TableCell>
@@ -1116,12 +1167,21 @@ export default function ScheduleList() {
                             </button>
                           )}
                         </div>
-                        {trip.profit !== null && trip.profit !== undefined ? (
-                          <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
-                        ) : (
-                          <span className="text-xs text-slate-400">Chưa tính LN</span>
-                        )}
+                          {trip.profit !== null && trip.profit !== undefined ? (
+                            <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                          ) : trip.driver && (!trip.driver.formulas || trip.driver.formulas.length === 0) ? (
+                            <span className="text-xs text-red-400">Chưa có công thức</span>
+                          ) : null}
                       </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-center">
+                      {trip.pointsEarned != null ? (
+                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
+                          {trip.pointsEarned}đ
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="px-2 py-2">
                       <div className="flex items-center justify-center gap-0.5 flex-wrap">
@@ -1202,18 +1262,21 @@ export default function ScheduleList() {
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">Chọn Zom</h2>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Chọn Zom</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Hiển thị công thức &amp; tỉ lệ điểm của mỗi Zom</p>
+              </div>
               <button onClick={() => setShowDriverModal(false)} className="p-2 text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-4 border-b border-slate-200">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Tìm tài xế..."
+                  placeholder="Tìm Zom..."
                   value={driverSearch}
                   onChange={(e) => setDriverSearch(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 outline-none text-sm"
@@ -1226,23 +1289,68 @@ export default function ScheduleList() {
                 <div className="p-8 text-center text-slate-500">Đang tải...</div>
               ) : filteredDrivers.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">{
-                  driverSearch ? "Không tìm thấy tài xế" : "Chưa có tài xế nào"
+                  driverSearch ? "Không tìm thấy Zom" : "Chưa có Zom nào"
                 }</div>
               ) : (
-                filteredDrivers.map((driver) => (
-                  <button
-                    key={driver.id}
-                    onClick={() => assignDriver(driver.id)}
-                    className="w-full px-6 py-4 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-0"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold">
-                      {(driver.fullName || "?")?.charAt(0)}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-800">{driver.fullName || "(Chưa đặt tên)"}</div>
-                    </div>
-                  </button>
-                ))
+                filteredDrivers.map((driver) => {
+                  const profitPerTrip = driver.formula
+                    ? driver.formula.points * driver.profitRate
+                    : null;
+                  return (
+                    <button
+                      key={driver.id}
+                      onClick={() => assignDriver(driver.id)}
+                      className="w-full px-6 py-4 text-left hover:bg-slate-50 flex items-start gap-3 border-b border-slate-100 last:border-0 transition-colors"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                        {(driver.fullName || "?")?.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-800">{driver.fullName || "(Chưa đặt tên)"}</div>
+                        {/* Formula info */}
+                        {driver.formula ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                              driver.formula.tripType === "ghep" ? "bg-blue-100 text-blue-700" :
+                              driver.formula.tripType === "ghep_roundtrip" ? "bg-cyan-100 text-cyan-700" :
+                              driver.formula.tripType === "bao" ? "bg-amber-100 text-amber-700" :
+                              "bg-orange-100 text-orange-700"
+                            }`}>
+                              {driver.formula.tripType === "ghep" ? "Ghép" :
+                               driver.formula.tripType === "ghep_roundtrip" ? "Ghép 2C" :
+                               driver.formula.tripType === "bao" ? "Bao" : "Bao 2C"}
+                              {driver.formula.seats ? ` ${driver.formula.seats}G` : ""}
+                            </span>
+                            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
+                              <Star className="w-2.5 h-2.5" />
+                              {driver.formula.points}đ
+                            </span>
+                            {profitPerTrip !== null && (
+                              <span className="text-[10px] text-green-600 font-medium">
+                                ≈ {new Intl.NumberFormat("vi-VN").format(profitPerTrip)} VNĐ/cuốc
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-xs text-slate-400 italic">Chưa gán công thức</div>
+                        )}
+                        {/* Profit rate */}
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-xs text-slate-500">
+                            Tỉ lệ: <span className="font-medium text-slate-700">
+                              {new Intl.NumberFormat("vi-VN").format(driver.profitRate)} VNĐ/điểm
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 self-center">
+                        <div className="text-xs text-blue-600 font-medium whitespace-nowrap">
+                          Chọn →
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -1268,10 +1376,24 @@ export default function ScheduleList() {
                 <div>
                   <p className="text-xs text-slate-400">Mã cuốc #{editingTrip.id}</p>
                   <h2 className="text-lg font-bold text-slate-800">
-                    Thông tin của {editingTrip.driver?.fullName || "Zom"} 
+                    {editingTrip.driver?.fullName || "Zom"}
                     {editingTrip.totalSeats > 0 && editingTrip.passengerCount >= editingTrip.totalSeats ? " (Bao)" : " (Ghép)"}
                     {editingTrip.totalSeats > 0 && ` - ${editingTrip.totalSeats} ghế`}
                     {editingTrip.price && ` - ${formatCurrency(editingTrip.price)}`}
+                    {editingTrip.profit != null && ` - Lợi nhuận ${formatCurrency(editingTrip.profit)}`}
+                    {editingTrip.driver?.formulas && editingTrip.matchedFormulaId && (() => {
+                      const matched = editingTrip.driver!.formulas!.find(f => f.id === editingTrip.matchedFormulaId);
+                      return matched ? ` - CT: ${matched.name}` : "";
+                    })()}
+                    {/* Nếu đã gán Zom nhưng chưa có công thức áp cho cuốc này thì báo rõ */}
+                    {editingTrip.driver &&
+                      (!editingTrip.driver.formulas ||
+                        editingTrip.driver.formulas.length === 0 ||
+                        !editingTrip.matchedFormulaId) && (
+                        <span className="ml-1 text-sm font-semibold text-red-500">
+                          - Chưa có công thức cho cuốc này
+                        </span>
+                      )}
                   </h2>
                 </div>
                 <button onClick={() => setShowEditSheet(false)} className="p-2 rounded-full hover:bg-slate-100">
@@ -1363,10 +1485,35 @@ export default function ScheduleList() {
                       placeholder="Giá tiền"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Số ghế (nếu đi ghép)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editForm.totalSeats}
+                      onChange={(e) => setEditForm({ ...editForm, totalSeats: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                      placeholder="Ví dụ: 4"
+                    />
+                  </div>
+                  <div>
+                <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
+                <input
+                  type="number"
+                  value={editForm.profit}
+                  onChange={(e) => setEditForm({ ...editForm, profit: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  placeholder="Để trống để tự tính theo công thức (nếu có)"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Nếu <b>nhập lợi nhuận</b> thì hệ thống ưu tiên số này. Nếu <b>để trống</b> và Zom có công thức thì hệ
+                  thống sẽ tự tính.
+                </p>
+              </div>
                 </div>
               </div>
 
-              {/* Driver & Vehicle */}
+              {/* Zom Bắn */}
               <div className="bg-amber-50 rounded-xl p-3">
                 <p className="text-sm font-medium text-amber-800 mb-3">Zom Bắn</p>
                 <div className="space-y-3">
@@ -1383,19 +1530,16 @@ export default function ScheduleList() {
                       searchPlaceholder="Tìm Zom..."
                       emptyText="Không có Zom"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
-                    <input
-                      type="number"
-                      value={editForm.profit}
-                      onChange={(e) => setEditForm({ ...editForm, profit: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                      placeholder="Nhập lợi nhuận"
-                    />
-                    {!editForm.profit && (
-                      <p className="text-xs text-slate-400 mt-1">Chưa tính lợi nhuận</p>
-                    )}
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, driverId: null })}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 hover:bg-slate-50"
+                        title="Bỏ gán Zom khỏi cuốc này"
+                      >
+                        Bỏ gán Zom
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1510,16 +1654,6 @@ export default function ScheduleList() {
           </div>
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes slide-up {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 }

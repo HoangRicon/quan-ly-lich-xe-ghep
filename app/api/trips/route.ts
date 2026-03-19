@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
+import {
+  findMatchingFormula,
+  applyFormula,
+  TripMatchInput,
+} from "@/lib/formula-engine";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,11 +16,10 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const driverId = searchParams.get("driverId");
-    const vehicleType = searchParams.get("vehicleType");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "500");
 
-    const where: any = {};
+    const where: Prisma.TripWhereInput = {};
 
     if (status && status !== "all") {
       where.status = status;
@@ -22,12 +27,6 @@ export async function GET(request: NextRequest) {
 
     if (driverId) {
       where.driverId = parseInt(driverId);
-    }
-
-    if (vehicleType) {
-      where.vehicle = {
-        vehicleType: vehicleType,
-      };
     }
 
     if (date) {
@@ -70,22 +69,12 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit,
         include: {
-          vehicle: {
-            include: {
-              owner: {
-                select: {
-                  id: true,
-                  fullName: true,
-                  phone: true,
-                },
-              },
-            },
-          },
           driver: {
             select: {
               id: true,
               fullName: true,
               phone: true,
+              formulaIds: true,
             },
           },
           customers: {
@@ -99,7 +88,59 @@ export async function GET(request: NextRequest) {
       prisma.trip.count({ where }),
     ]);
 
+    // `User` does not have a `formulas` relation. It stores allowed formula ids in `formulaIds`.
+    // Fetch active formulas once, then attach to each driver in the formatted response.
+    const allFormulaIds = Array.from(
+      new Set(
+        trips
+          .flatMap((t) => t.driver?.formulaIds ?? [])
+          .filter((id): id is number => typeof id === "number")
+      )
+    );
+
+    type FormulaLite = Prisma.PricingFormulaGetPayload<{
+      select: {
+        id: true;
+        name: true;
+        tripType: true;
+        seats: true;
+        minPrice: true;
+        maxPrice: true;
+        points: true;
+        isActive: true;
+      };
+    }>;
+
+    const formulasById = new Map<number, FormulaLite>();
+    if (allFormulaIds.length > 0) {
+      const formulas: FormulaLite[] = await prisma.pricingFormula.findMany({
+        where: {
+          id: { in: allFormulaIds },
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          tripType: true,
+          seats: true,
+          minPrice: true,
+          maxPrice: true,
+          points: true,
+          isActive: true,
+        },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      });
+
+      for (const f of formulas) formulasById.set(f.id, f);
+    }
+
     const formattedTrips = trips.map((trip) => {
+      const driverFormulasRaw = trip.driver
+        ? (trip.driver.formulaIds ?? [])
+            .map((id) => formulasById.get(id))
+            .filter((f): f is FormulaLite => Boolean(f))
+        : [];
+
       return {
         id: trip.id,
         title: trip.title,
@@ -109,22 +150,28 @@ export async function GET(request: NextRequest) {
         arrivalTime: trip.arrivalTime,
         price: trip.price,
         profit: trip.profit,
+        tripDirection: trip.tripDirection,
+        pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
+        profitRate: trip.profitRate ? Number(trip.profitRate) : null,
+        matchedFormulaId: trip.matchedFormulaId,
         status: trip.status,
         totalSeats: trip.totalSeats,
-        availableSeats: trip.availableSeats,
         notes: trip.notes,
         createdAt: trip.createdAt,
-        vehicle: trip.vehicle ? {
-          id: trip.vehicle.id,
-          name: trip.vehicle.name,
-          licensePlate: trip.vehicle.licensePlate,
-          vehicleType: trip.vehicle.vehicleType,
-          seats: trip.vehicle.seats,
-        } : null,
         driver: trip.driver ? {
           id: trip.driver.id,
           fullName: trip.driver.fullName,
           phone: trip.driver.phone,
+          formulas: driverFormulasRaw.map((f) => ({
+            id: f.id,
+            name: f.name,
+            tripType: f.tripType,
+            seats: f.seats,
+            minPrice: f.minPrice ? Number(f.minPrice) : null,
+            maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+            points: Number(f.points),
+            isActive: f.isActive,
+          })),
         } : null,
         customer: trip.customers[0]?.customer ? {
           id: trip.customers[0].customer.id,
@@ -171,14 +218,16 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getSession();
     const body = await request.json();
-    const { 
+    const {
       title, description, departure, destination, departureTime, arrivalTime,
-      price, vehicleId, totalSeats, tripType, notes,
+      price, totalSeats, tripType, notes,
       customerPhone, customerName, customerEmail, customerNotes,
-      seats
+      seats, driverId: requestedDriverId, tripDirection,
     } = body;
 
     const parsedTotalSeats = parseInt(totalSeats) || 4;
+    const parsedPrice = parseFloat(price) || 0;
+    const parsedDirection = tripDirection === "roundtrip" ? "roundtrip" : "oneway";
 
     if (!title || !departure || !destination || !departureTime || !price) {
       return NextResponse.json(
@@ -213,18 +262,52 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Get default driver if needed
-    let driverId = null;
-    let finalVehicleId = vehicleId;
-    
-    if (vehicleId) {
-      const vehicle = await prisma.vehicle.findUnique({
-        where: { id: vehicleId },
+    // Determine driverId
+    const finalDriverId = requestedDriverId || null;
+
+    // Lấy profitRate của driver hoặc mặc định 1000
+    let driverProfitRate = 1000;
+    if (finalDriverId) {
+      const driver = await prisma.user.findUnique({
+        where: { id: finalDriverId },
+        select: { profitRate: true },
       });
-      if (vehicle?.ownerId) {
-        driverId = vehicle.ownerId;
+      if (driver) {
+        driverProfitRate = Number(driver.profitRate);
       }
     }
+
+    // === FORMULA ENGINE ===
+    // Match theo công thức được gán cho Zom (formulaIds) nếu có; nếu không thì fallback: tất cả công thức active
+    let driverFormulaIds: number[] = [];
+    if (finalDriverId) {
+      const driverFormula = await prisma.user.findUnique({
+        where: { id: finalDriverId },
+        select: { formulaIds: true },
+      });
+      driverFormulaIds = Array.isArray(driverFormula?.formulaIds) ? driverFormula!.formulaIds : [];
+    }
+
+    const allFormulas =
+      driverFormulaIds.length > 0
+        ? await prisma.pricingFormula.findMany({
+            where: { id: { in: driverFormulaIds }, isActive: true },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          })
+        : await prisma.pricingFormula.findMany({
+            where: { isActive: true },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          });
+
+    const tripInput: TripMatchInput = {
+      price: parsedPrice,
+      totalSeats: parsedTotalSeats,
+      tripType: tripType === "bao" ? "bao" : "ghep",
+      tripDirection: parsedDirection,
+    };
+
+    const matchedFormula = findMatchingFormula(allFormulas, tripInput);
+    const formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
 
     const trip = await prisma.trip.create({
       data: {
@@ -234,14 +317,18 @@ export async function POST(request: NextRequest) {
         destination,
         departureTime: new Date(departureTime),
         arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
-        price: parseFloat(price),
-        ...(finalVehicleId ? { vehicleId: finalVehicleId } : {}),
-        ...(driverId ? { driverId } : {}),
+        price: parsedPrice,
+        tripDirection: parsedDirection,
+        ...(finalDriverId ? { driverId: finalDriverId } : {}),
         ...(user ? { createdById: user.id } : {}),
         totalSeats: parsedTotalSeats,
-        availableSeats: tripType === "bao" ? 0 : parsedTotalSeats,
         status: "scheduled",
         ...(notes ? { notes } : {}),
+        // Formula fields
+        pointsEarned: formulaResult.pointsEarned,
+        profitRate: formulaResult.profitRate,
+        profit: formulaResult.profit,
+        matchedFormulaId: formulaResult.matchedFormulaId,
         ...(customerId ? {
           customers: {
             create: {
@@ -254,7 +341,6 @@ export async function POST(request: NextRequest) {
         } : {}),
       },
       include: {
-        vehicle: true,
         driver: true,
         customers: {
           include: {
@@ -274,16 +360,13 @@ export async function POST(request: NextRequest) {
       departureTime: trip.departureTime,
       arrivalTime: trip.arrivalTime,
       price: trip.price,
+      tripDirection: trip.tripDirection,
+      pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
+      profitRate: trip.profitRate ? Number(trip.profitRate) : null,
+      profit: trip.profit ? Number(trip.profit) : null,
+      matchedFormulaId: trip.matchedFormulaId,
       status: trip.status,
       totalSeats: trip.totalSeats,
-      availableSeats: trip.availableSeats,
-      vehicle: trip.vehicle ? {
-        id: trip.vehicle.id,
-        name: trip.vehicle.name,
-        licensePlate: trip.vehicle.licensePlate,
-        vehicleType: trip.vehicle.vehicleType,
-        seats: trip.vehicle.seats,
-      } : null,
       driver: trip.driver ? {
         id: trip.driver.id,
         fullName: trip.driver.fullName,

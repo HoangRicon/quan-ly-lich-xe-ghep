@@ -1,5 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+
+type FormulaLite = Prisma.PricingFormulaGetPayload<{
+  select: {
+    id: true;
+    name: true;
+    tripType: true;
+    seats: true;
+    minPrice: true;
+    maxPrice: true;
+    points: true;
+    isActive: true;
+  };
+}>;
+
+async function getActiveFormulasByIds(formulaIds: number[]) {
+  const uniqueIds = Array.from(new Set(formulaIds)).filter(Boolean);
+  if (uniqueIds.length === 0) return new Map<number, FormulaLite>();
+
+  const formulas = await prisma.pricingFormula.findMany({
+    where: { id: { in: uniqueIds }, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      tripType: true,
+      seats: true,
+      minPrice: true,
+      maxPrice: true,
+      points: true,
+      isActive: true,
+    },
+  });
+
+  return new Map<number, FormulaLite>(formulas.map((f) => [f.id, f]));
+}
 
 export async function GET(
   request: NextRequest,
@@ -15,7 +50,22 @@ export async function GET(
         id: true,
         fullName: true,
         totalRevenue: true,
+        profitRate: true,
         role: true,
+        formulaId: true,
+        formulaIds: true,
+        formula: {
+          select: {
+            id: true,
+            name: true,
+            tripType: true,
+            seats: true,
+            minPrice: true,
+            maxPrice: true,
+            points: true,
+            isActive: true,
+          },
+        },
       },
     });
 
@@ -23,12 +73,44 @@ export async function GET(
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
+    const formulasById = await getActiveFormulasByIds(
+      Array.isArray(driver.formulaIds) ? driver.formulaIds.map(Number) : []
+    );
+    const formulas = (driver.formulaIds ?? [])
+      .map((id) => formulasById.get(Number(id)))
+      .filter((f): f is FormulaLite => Boolean(f));
+
     return NextResponse.json({
       success: true,
       data: {
         id: driver.id,
         fullName: driver.fullName,
         totalRevenue: Number(driver.totalRevenue),
+        profitRate: Number(driver.profitRate),
+        formulaId: driver.formulaId,
+        formulaIds: driver.formulaIds,
+        formula: driver.formula
+          ? {
+              id: driver.formula.id,
+              name: driver.formula.name,
+              tripType: driver.formula.tripType,
+              seats: driver.formula.seats,
+              minPrice: driver.formula.minPrice ? Number(driver.formula.minPrice) : null,
+              maxPrice: driver.formula.maxPrice ? Number(driver.formula.maxPrice) : null,
+              points: Number(driver.formula.points),
+              isActive: driver.formula.isActive,
+            }
+          : null,
+        formulas: formulas.map((f) => ({
+          id: f.id,
+          name: f.name,
+          tripType: f.tripType,
+          seats: f.seats,
+          minPrice: f.minPrice ? Number(f.minPrice) : null,
+          maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+          points: Number(f.points),
+          isActive: f.isActive,
+        })),
       },
     });
   } catch (error) {
@@ -45,16 +127,54 @@ export async function PUT(
     const { id } = await params;
     const driverId = parseInt(id);
 
-    const { fullName } = await request.json();
+    const { fullName, profitRate, formulaId, formulaIds } = await request.json();
+
+    // Validate formulaId if provided
+    if (formulaId !== undefined && formulaId !== null) {
+      const formula = await prisma.pricingFormula.findUnique({ where: { id: parseInt(formulaId) } });
+      if (!formula) {
+        return NextResponse.json({ error: "Công thức không tồn tại" }, { status: 400 });
+      }
+    }
 
     // Update driver
+    const updateData: Prisma.UserUpdateInput = {};
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (profitRate !== undefined) updateData.profitRate = parseFloat(profitRate);
+    if (formulaId !== undefined) updateData.formulaId = formulaId !== null ? parseInt(formulaId) : null;
+    if (formulaIds !== undefined) updateData.formulaIds = Array.isArray(formulaIds) ? formulaIds.map(Number).filter(Boolean) : [];
+
     const driver = await prisma.user.update({
       where: { id: driverId },
-      data: {
-        fullName,
+      data: updateData,
+      select: {
+        id: true,
+        fullName: true,
+        totalRevenue: true,
+        profitRate: true,
+        formulaId: true,
+        formulaIds: true,
+        formula: {
+          select: {
+            id: true,
+            name: true,
+            tripType: true,
+            seats: true,
+            minPrice: true,
+            maxPrice: true,
+            points: true,
+            isActive: true,
+          },
+        },
       },
-      select: { id: true, fullName: true, totalRevenue: true },
     });
+
+    const formulasById = await getActiveFormulasByIds(
+      Array.isArray(driver.formulaIds) ? driver.formulaIds.map(Number) : []
+    );
+    const formulas = (driver.formulaIds ?? [])
+      .map((id) => formulasById.get(Number(id)))
+      .filter((f): f is FormulaLite => Boolean(f));
 
     return NextResponse.json({
       success: true,
@@ -62,6 +182,31 @@ export async function PUT(
         id: driver.id,
         fullName: driver.fullName,
         totalRevenue: Number(driver.totalRevenue),
+        profitRate: Number(driver.profitRate),
+        formulaId: driver.formulaId,
+        formulaIds: driver.formulaIds,
+        formula: driver.formula
+          ? {
+              id: driver.formula.id,
+              name: driver.formula.name,
+              tripType: driver.formula.tripType,
+              seats: driver.formula.seats,
+              minPrice: driver.formula.minPrice ? Number(driver.formula.minPrice) : null,
+              maxPrice: driver.formula.maxPrice ? Number(driver.formula.maxPrice) : null,
+              points: Number(driver.formula.points),
+              isActive: driver.formula.isActive,
+            }
+          : null,
+        formulas: formulas.map((f) => ({
+          id: f.id,
+          name: f.name,
+          tripType: f.tripType,
+          seats: f.seats,
+          minPrice: f.minPrice ? Number(f.minPrice) : null,
+          maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+          points: Number(f.points),
+          isActive: f.isActive,
+        })),
       },
     });
   } catch (error) {

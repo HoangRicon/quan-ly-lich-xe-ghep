@@ -18,44 +18,27 @@ model User {
   status       String    @default("offline") @db.VarChar(50)
   rating       Decimal   @default(5) @db.Decimal(2, 1)
   totalRevenue Decimal   @default(0) @map("total_revenue") @db.Decimal(15, 2)
+  // Tỉ lệ quy đổi: 1 điểm = X tiền (mặc định 1000 VNĐ)
+  profitRate   Decimal   @default(1000) @map("profit_rate") @db.Decimal(15, 2)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  vehicles     Vehicle[]
   trips        Trip[]
   createdTrips Trip[]      @relation("CreatedTrips")
   bookings     Booking[]
   notifications Notification[]
   settings     UserSettings?
+  // Công thức mặc định cho Zom này
+  formula     PricingFormula?  @relation(fields: [formulaId], references: [id])
+  formulaId   Int?       @map("formula_id")
+  // Nhiều công thức Zom này có thể dùng (quản lý trong API)
+  formulaIds  Int[]      @map("formula_ids")
 
   @@index([email], name: "idx_users_email")
   @@index([phone], name: "idx_users_phone")
   @@index([status], name: "idx_users_status")
+  @@index([formulaId], name: "idx_users_formula")
   @@map("users")
-}
-
-model Vehicle {
-  id          Int       @id @default(autoincrement())
-  name        String    @db.VarChar(255)
-  licensePlate String   @unique @db.VarChar(50)
-  vehicleType String    @default("car") @map("vehicle_type") @db.VarChar(50)
-  capacity    Int       @default(4)
-  seats       Int       @default(4)
-  color       String?   @db.VarChar(50)
-  brand       String?   @db.VarChar(100)
-  model       String?   @db.VarChar(100)
-  year        Int?
-  isActive    Boolean   @default(true) @map("is_active")
-  ownerId     Int       @map("owner_id")
-  owner       User      @relation(fields: [ownerId], references: [id])
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-
-  trips       Trip[]
-
-  @@index([ownerId], name: "idx_vehicles_owner")
-  @@index([licensePlate], name: "idx_vehicles_plate")
-  @@map("vehicles")
 }
 
 model Trip {
@@ -68,12 +51,17 @@ model Trip {
   arrivalTime   DateTime? @map("arrival_time") @db.Timestamptz
   price         Decimal   @db.Decimal(10, 2)
   profit        Decimal?  @db.Decimal(10, 2) // Lợi nhuận từ cuốc xe
-  availableSeats Int     @default(0) @map("available_seats")
+  // Hướng đi: "oneway" (1 chiều) | "roundtrip" (2 chiều)
+  tripDirection String    @default("oneway") @map("trip_direction") @db.VarChar(20)
+  // Số điểm nhận được khi match công thức
+  pointsEarned  Decimal?  @map("points_earned") @db.Decimal(10, 2)
+  // Tỉ lệ quy đổi điểm→tiền tại thời điểm tạo trip (snapshot từ zom hoặc mặc định)
+  profitRate    Decimal?  @map("profit_rate") @db.Decimal(15, 2)
+  // ID công thức đã match
+  matchedFormulaId Int?   @map("matched_formula_id")
   totalSeats    Int       @default(4) @map("total_seats")
   status        String    @default("scheduled") @db.VarChar(50)
   notes         String?   @db.Text
-  vehicleId     Int?      @map("vehicle_id")
-  vehicle       Vehicle?  @relation(fields: [vehicleId], references: [id])
   driverId      Int?      @map("driver_id")
   driver        User?     @relation(fields: [driverId], references: [id])
   createdById   Int?      @map("created_by_id")
@@ -85,7 +73,6 @@ model Trip {
   customers     TripCustomer[]
 
   @@index([driverId], name: "idx_trips_driver")
-  @@index([vehicleId], name: "idx_trips_vehicle")
   @@index([departureTime], name: "idx_trips_departure_time")
   @@index([status], name: "idx_trips_status")
   @@map("trips")
@@ -234,6 +221,37 @@ model EmailTemplate {
 
   @@index([isActive], name: "idx_email_templates_active")
   @@map("email_templates")
+}
+
+// Bảng công thức tính điểm & lợi nhuận
+// Mỗi công thức gồm: loại hình, giá đầu/cuối, số ghế, và số điểm nhận được
+model PricingFormula {
+  id            Int       @id @default(autoincrement())
+  name          String    @db.VarChar(255) // Tên công thức (vd: "Ghép 4 ghế HN-HP 150k-250k")
+  // Loại hình: "ghep" | "bao" | "bao_roundtrip"
+  tripType      String    @map("trip_type") @db.VarChar(30)
+  // Số ghế áp dụng: null = tất cả, 4 = xe 4 chỗ, 7 = xe 7 chỗ
+  seats         Int?
+  // Giá tối thiểu: null = không giới hạn, vd: 150000
+  minPrice      Decimal?  @map("min_price") @db.Decimal(10, 2)
+  // Giá tối đa: null = vô hạn, vd: 250000
+  maxPrice      Decimal?  @map("max_price") @db.Decimal(10, 2)
+  // Số điểm nhận được khi match công thức này
+  points        Decimal   @default(1) @db.Decimal(10, 2)
+  // Mô tả thêm (ghi chú nội bộ)
+  description   String?   @db.Text
+  // Công thức có đang active không
+  isActive      Boolean   @default(true) @map("is_active")
+  sortOrder     Int       @default(0) @map("sort_order")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Zom nào đang dùng công thức này (quản lý qua formulaIds ở User)
+  zoms          User[]
+
+  @@index([tripType], name: "idx_formulas_trip_type")
+  @@index([isActive, sortOrder], name: "idx_formulas_active_order")
+  @@map("pricing_formulas")
 }
 
 // Bảng lưu token reset mật khẩu

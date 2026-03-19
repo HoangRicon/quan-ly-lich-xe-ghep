@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUserFromRequest } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
-    // Temporarily disable auth check for development
-    // const user = await getUserFromRequest(request);
-    // if (!user) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
-
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") || "").trim();
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
 
-    // "Zom" is stored as users with role="driver", but we only expose minimal fields:
-    // name + revenue. No vehicle/phone/status/rating management is needed for this product.
-    const where: any = {
+    const where: Prisma.UserWhereInput = {
       role: "driver",
       ...(q
         ? {
@@ -40,18 +32,72 @@ export async function GET(request: NextRequest) {
           id: true,
           fullName: true,
           totalRevenue: true,
+          profitRate: true,
+          formulaId: true,
+          formulaIds: true,
+          formula: {
+            select: {
+              id: true,
+              name: true,
+              tripType: true,
+              seats: true,
+              minPrice: true,
+              maxPrice: true,
+              points: true,
+              isActive: true,
+            },
+          },
         },
       }),
       prisma.user.count({ where }),
     ]);
 
+    // Fetch all active formulas in one query, then filter per driver
+    const allFormulas = await prisma.pricingFormula.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        tripType: true,
+        seats: true,
+        minPrice: true,
+        maxPrice: true,
+        points: true,
+        isActive: true,
+      },
+      orderBy: { sortOrder: "asc" },
+    });
+
+    const formatFormula = (f: Prisma.PricingFormulaGetPayload<Record<string, never>>) => ({
+      id: f.id,
+      name: f.name,
+      tripType: f.tripType,
+      seats: f.seats,
+      minPrice: f.minPrice ? Number(f.minPrice) : null,
+      maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+      points: Number(f.points),
+      isActive: f.isActive,
+    });
+
+    const formulaMap = new Map(allFormulas.map(f => [f.id, formatFormula(f)]));
+
     return NextResponse.json({
       success: true,
-      data: drivers.map((d) => ({
-        id: d.id,
-        fullName: d.fullName,
-        totalRevenue: Number(d.totalRevenue),
-      })),
+      data: drivers.map((d) => {
+        const formulas = (d.formulaIds || [])
+          .map((id: number) => formulaMap.get(id))
+          .filter(Boolean);
+        return {
+          id: d.id,
+          fullName: d.fullName,
+          totalRevenue: Number(d.totalRevenue),
+          profitRate: Number(d.profitRate),
+          formulaId: d.formulaId,
+          formulaIds: d.formulaIds,
+          formula: d.formula ? formatFormula(d.formula) : null,
+          formulas,
+        };
+      }),
       pagination: {
         page,
         limit,
@@ -67,17 +113,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Temporarily disable auth check for development
-    // const user = await getUserFromRequest(request);
-    // if (!user) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
+    const { fullName, profitRate, formulaId, formulaIds } = await request.json();
 
-    const { fullName } = await request.json();
-
-    // Keep DB constraints happy (email/passwordHash are required), but we don't manage these in UI.
     const email = `zom-${Date.now()}@zom.local`;
-    const password = "zom123"; // Default password for demo
+    const password = "zom123";
 
     if (!fullName) {
       return NextResponse.json({ error: "Tên Zom là bắt buộc" }, { status: 400 });
@@ -94,8 +133,11 @@ export async function POST(request: NextRequest) {
         phone: null,
         role: "driver",
         status: "offline",
-        rating: 5, // unused for Zom, kept for compatibility
+        rating: 5,
         avatar: null,
+        profitRate: profitRate !== undefined ? parseFloat(profitRate) : 1000,
+        formulaId: formulaId ? parseInt(formulaId) : null,
+        formulaIds: Array.isArray(formulaIds) ? formulaIds.map(Number).filter(Boolean) : [],
       },
     });
 

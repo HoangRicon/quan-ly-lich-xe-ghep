@@ -1480,7 +1480,6 @@ function ZNSTemplates() {
     { key: "trip_time", label: "Giờ khởi hành", example: "15:00" },
     { key: "seats_booked", label: "Số ghế đặt", example: "2" },
     { key: "total_price", label: "Tổng tiền", example: "300.000" },
-    { key: "vehicle_name", label: "Tên xe", example: "Toyota Innova" },
     { key: "company_name", label: "Tên công ty", example: "Xe Ghép Việt" },
     { key: "hotline", label: "Hotline", example: "1900 xxxx" },
   ];

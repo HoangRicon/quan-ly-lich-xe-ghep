@@ -12,7 +12,8 @@ function generateAutoNote(
   price: string,
   phone: string,
   seats: number,
-  tripType: string
+  tripType: string,
+  tripDirection?: string
 ): string {
   // Tính thời gian chênh lệch
   const now = new Date();
@@ -46,6 +47,9 @@ function generateAutoNote(
   } else {
     seatType = "1k";
   }
+
+  // Thêm suffix cho 2 chiều
+  const directionSuffix = tripDirection === "roundtrip" ? " 2C" : "";
   
   // Format giá tiền (vd: 90000 -> 90k, 150000 -> 150k)
   const priceNum = parseInt(price.replace(/\./g, "")) || 0;
@@ -64,7 +68,7 @@ function generateAutoNote(
   }
   
   // Ghép các phần thành ghi chú
-  const note = `${timePart} ${departure} - ${destination} ${priceDisplay} ${phone}`;
+  const note = `${timePart}${directionSuffix} ${departure} - ${destination} ${priceDisplay} ${phone}`;
   
   return note;
 }
@@ -147,10 +151,18 @@ interface TripData {
   totalSeats: number;
   status: string;
   notes?: string;
+  tripDirection?: string;
   customer?: {
     name: string;
     phone: string;
   };
+}
+
+interface FormulaPreview {
+  formulaName: string;
+  points: number;
+  profit: number;
+  profitRate: number;
 }
 
 export default function TripForm() {
@@ -164,6 +176,7 @@ export default function TripForm() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
   const [tripData, setTripData] = useState<TripData | null>(null);
+  const [formulaPreview, setFormulaPreview] = useState<FormulaPreview | null>(null);
   
   const [formData, setFormData] = useState({
     customerPhone: "",
@@ -177,6 +190,7 @@ export default function TripForm() {
     price: "",
     totalSeats: "",
     tripType: "ghep",
+    tripDirection: "oneway",
     notes: "",
   });
 
@@ -189,6 +203,66 @@ export default function TripForm() {
       fetchTripData(editId);
     }
   }, [editId]);
+
+  // Fetch formulas once and derive tripType from seats
+  const [allFormulas, setAllFormulas] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/formulas", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setAllFormulas(d.data || []); })
+      .catch(() => {});
+  }, []);
+
+  // Compute formula preview whenever relevant fields change
+  useEffect(() => {
+    const price = parseInt((formData.price || "").replace(/\./g, "")) || 0;
+    const seats = parseInt(formData.totalSeats) || 4;
+    const dir = formData.tripDirection || "oneway";
+    const type = formData.tripType || "ghep";
+
+    if (!price || allFormulas.length === 0) {
+      setFormulaPreview(null);
+      return;
+    }
+
+    // Build effective formula type key
+    const typeKey = type === "bao"
+      ? (dir === "roundtrip" ? "bao_roundtrip" : "bao")
+      : (dir === "roundtrip" ? "ghep_roundtrip" : "ghep");
+
+    const candidates = allFormulas.filter((f) => f.tripType === typeKey && f.isActive);
+
+    // Ưu tiên: công thức đúng số ghế trước, nếu không có mới dùng công thức chung (seats = null)
+    const exactSeatMatch = candidates.find(
+      (f) =>
+        f.seats === seats &&
+        (f.minPrice == null || price >= f.minPrice) &&
+        (f.maxPrice == null || price <= f.maxPrice)
+    );
+
+    const anySeatMatch = candidates.find(
+      (f) =>
+        f.seats == null &&
+        (f.minPrice == null || price >= f.minPrice) &&
+        (f.maxPrice == null || price <= f.maxPrice)
+    );
+
+    const match = exactSeatMatch || anySeatMatch;
+
+    if (match) {
+      // Default profitRate = 1000 if not set
+      const defaultRate = 1000;
+      const profit = match.points * defaultRate;
+      setFormulaPreview({
+        formulaName: match.name,
+        points: match.points,
+        profit,
+        profitRate: defaultRate,
+      });
+    } else {
+      setFormulaPreview(null);
+    }
+  }, [formData.price, formData.tripType, formData.tripDirection, formData.totalSeats, allFormulas]);
 
   const fetchTripData = async (id: string) => {
     try {
@@ -210,6 +284,7 @@ export default function TripForm() {
           price: trip.price ? trip.price.toString() : "",
           totalSeats: trip.totalSeats?.toString() || "1",
           tripType: "ghep",
+          tripDirection: (trip as any).tripDirection === "roundtrip" ? "roundtrip" : "oneway",
           notes: trip.notes || "",
         });
       }
@@ -341,7 +416,8 @@ export default function TripForm() {
           formData.price,
           formData.customerPhone || "",
           parseInt(formData.totalSeats) || 1,
-          formData.tripType
+          formData.tripType,
+          formData.tripDirection
         );
       }
 
@@ -356,11 +432,13 @@ export default function TripForm() {
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
             totalSeats: parseInt(formData.totalSeats) || 4,
+            tripDirection: formData.tripDirection,
             notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
             customerEmail: formData.customerEmail || undefined,
             customerNotes: formData.customerNotes || undefined,
+            recalculate: true,
           }),
         });
 
@@ -380,9 +458,9 @@ export default function TripForm() {
             destination: formData.destination,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
-            vehicleId: null,
             totalSeats: parseInt(formData.totalSeats) || 4,
             tripType: formData.tripType,
+            tripDirection: formData.tripDirection,
             notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
@@ -575,35 +653,70 @@ export default function TripForm() {
         <h3 className="font-semibold text-slate-800">Loại hình & Thanh toán</h3>
         
         {!isEditMode && (
-          <div className="flex gap-4">
-            <label className="flex-1 cursor-pointer">
-              <input
-                type="radio"
-                name="tripType"
-                value="ghep"
-                checked={formData.tripType === "ghep"}
-                onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
-                className="peer sr-only"
-              />
-              <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors">
-                <div className="font-medium text-slate-800">Đi ghép</div>
-                <div className="text-sm text-slate-500">Ghép khách trên đường</div>
-              </div>
-            </label>
-            <label className="flex-1 cursor-pointer">
-              <input
-                type="radio"
-                name="tripType"
-                value="bao"
-                checked={formData.tripType === "bao"}
-                onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
-                className="peer sr-only"
-              />
-              <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors">
-                <div className="font-medium text-slate-800">Bao xe</div>
-                <div className="text-sm text-slate-500">Thuê cả xe</div>
-              </div>
-            </label>
+          <div className="space-y-3">
+            {/* Direction */}
+            <div className="flex gap-4">
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tripDirection"
+                  value="oneway"
+                  checked={formData.tripDirection === "oneway"}
+                  onChange={(e) => setFormData({ ...formData, tripDirection: e.target.value })}
+                  className="peer sr-only"
+                />
+                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors text-center">
+                  <div className="font-medium text-slate-800">1 chiều</div>
+                  <div className="text-xs text-slate-500">Một chiều đi</div>
+                </div>
+              </label>
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tripDirection"
+                  value="roundtrip"
+                  checked={formData.tripDirection === "roundtrip"}
+                  onChange={(e) => setFormData({ ...formData, tripDirection: e.target.value })}
+                  className="peer sr-only"
+                />
+                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-purple-500 peer-checked:bg-purple-50 transition-colors text-center">
+                  <div className="font-medium text-slate-800">2 chiều</div>
+                  <div className="text-xs text-slate-500">Đi & về</div>
+                </div>
+              </label>
+            </div>
+
+            {/* Trip Type */}
+            <div className="flex gap-4">
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tripType"
+                  value="ghep"
+                  checked={formData.tripType === "ghep"}
+                  onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
+                  className="peer sr-only"
+                />
+                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors text-center">
+                  <div className="font-medium text-slate-800">Đi ghép</div>
+                  <div className="text-xs text-slate-500">Ghép khách trên đường</div>
+                </div>
+              </label>
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="tripType"
+                  value="bao"
+                  checked={formData.tripType === "bao"}
+                  onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
+                  className="peer sr-only"
+                />
+                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50 transition-colors text-center">
+                  <div className="font-medium text-slate-800">Bao xe</div>
+                  <div className="text-xs text-slate-500">Thuê cả xe</div>
+                </div>
+              </label>
+            </div>
           </div>
         )}
 
@@ -629,6 +742,39 @@ export default function TripForm() {
           {formData.price && parseInt(formData.price.replace(/\./g, "")) > 0 && (
             <div className="mt-2 text-sm text-blue-600 font-medium bg-blue-50 px-3 py-2 rounded-lg">
               ({numberToVietnameseWords(parseInt(formData.price.replace(/\./g, "")))})
+            </div>
+          )}
+
+          {/* Formula Preview */}
+          {formulaPreview && (
+            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+              <div className="text-xs font-semibold text-green-700 mb-1 flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Công thức: {formulaPreview.formulaName}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-green-700">
+                    <span className="font-bold">{formulaPreview.points}</span> điểm
+                  </span>
+                  <span className="text-xs text-green-700">
+                    × {new Intl.NumberFormat("vi-VN").format(formulaPreview.profitRate)} VNĐ/điểm
+                  </span>
+                </div>
+                <span className="text-sm font-bold text-green-700">
+                  = {new Intl.NumberFormat("vi-VN").format(formulaPreview.profit)} VNĐ
+                </span>
+              </div>
+            </div>
+          )}
+
+          {!formulaPreview && formData.price && parseInt(formData.price.replace(/\./g, "")) > 0 && (
+            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-xs text-slate-500">
+                Điểm &amp; lợi nhuận sẽ được tính dựa trên công thức của Zom bắn khi gán cuốc xe.
+              </span>
             </div>
           )}
         </div>
@@ -660,7 +806,8 @@ export default function TripForm() {
                   formData.price,
                   formData.customerPhone,
                   parseInt(formData.totalSeats) || 1,
-                  formData.tripType
+                  formData.tripType,
+                  formData.tripDirection
                 );
                 setFormData({ ...formData, notes: note });
               }}
@@ -699,7 +846,8 @@ export default function TripForm() {
                     formData.price,
                     formData.customerPhone,
                     parseInt(formData.totalSeats) || 1,
-                    formData.tripType
+                    formData.tripType,
+                    formData.tripDirection
                   );
                 })()}
               </div>
@@ -709,7 +857,7 @@ export default function TripForm() {
 
         {!isEditMode && (
           <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg">
-            Lưu ý: Sau khi tạo chuyến, bạn có thể gán tài xế và xe trong trang Lịch trình
+            Lưu ý: Sau khi tạo chuyến, bạn có thể gán Zom trong trang Lịch trình
           </p>
         )}
       </div>
