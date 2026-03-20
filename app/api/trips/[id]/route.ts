@@ -133,7 +133,35 @@ export async function PUT(
     void customerEmail;
     void customerNotes;
 
-    const updateData: Prisma.TripUncheckedUpdateInput = {};
+    const DECIMAL_10_2_MAX = 99999999.99;
+    const DECIMAL_15_2_MAX = 9999999999999.99;
+    const round2 = (x: number) => Math.round(x * 100) / 100;
+    const clampDecimal10_2 = (x: number) => {
+      if (!Number.isFinite(x)) return 0;
+      return Math.max(0, Math.min(DECIMAL_10_2_MAX, round2(x)));
+    };
+    const sanitizeOptionalDecimal10_2 = (x: number | null | undefined) => {
+      if (x == null) return null;
+      const n = Number(x);
+      if (!Number.isFinite(n)) return null;
+      const r = round2(n);
+      if (Math.abs(r) > DECIMAL_10_2_MAX) return null;
+      return r;
+    };
+    const sanitizeOptionalDecimal15_2 = (x: number | null | undefined) => {
+      if (x == null) return null;
+      const n = Number(x);
+      if (!Number.isFinite(n)) return null;
+      const r = round2(n);
+      if (Math.abs(r) > DECIMAL_15_2_MAX) return null;
+      return r;
+    };
+    const parseVndNumber = (v: unknown) => {
+      const n = parseFloat(String(v ?? "").replace(/[.,]/g, ""));
+      return Number.isFinite(n) ? n : NaN;
+    };
+
+    const updateData: Prisma.TripUpdateInput = {};
 
     // Allow updating status even if the caller sends a falsy value (defensive).
     if (status !== undefined) {
@@ -145,7 +173,11 @@ export async function PUT(
     }
 
     if (driverId !== undefined) {
-      updateData.driverId = driverId;
+      // Prisma schema dùng field quan hệ `driver`, không dùng scalar `driverId` trực tiếp trong update
+      updateData.driver =
+        driverId === null
+          ? { disconnect: true }
+          : { connect: { id: driverId as number } };
     }
 
     if (departure !== undefined) {
@@ -157,7 +189,8 @@ export async function PUT(
     }
 
     if (price !== undefined) {
-      updateData.price = parseFloat(price);
+      const n = parseVndNumber(price);
+      if (Number.isFinite(n)) updateData.price = clampDecimal10_2(n);
     }
 
     // Nếu có recalculate=true thì bỏ qua profit thủ công, dùng formula engine
@@ -171,8 +204,11 @@ export async function PUT(
         return NextResponse.json({ error: "Trip not found" }, { status: 404 });
       }
 
-      const finalPrice = price !== undefined ? parseFloat(price) : Number(currentTrip.price);
-      const finalTotalSeats = totalSeats !== undefined ? parseInt(totalSeats) : currentTrip.totalSeats;
+      const finalPriceRaw = price !== undefined ? parseVndNumber(price) : Number(currentTrip.price);
+      const finalPrice = Number.isFinite(finalPriceRaw) ? clampDecimal10_2(finalPriceRaw) : clampDecimal10_2(Number(currentTrip.price));
+
+      const finalTotalSeatsParsed = totalSeats !== undefined ? parseInt(String(totalSeats), 10) : currentTrip.totalSeats;
+      const finalTotalSeats = Number.isFinite(finalTotalSeatsParsed) && finalTotalSeatsParsed > 0 ? finalTotalSeatsParsed : currentTrip.totalSeats;
       const finalDirection = tripDirection || currentTrip.tripDirection || "oneway";
       const finalDriverId = driverId !== undefined ? driverId : currentTrip.driverId;
 
@@ -185,61 +221,70 @@ export async function PUT(
         parsedTripType = passengerCount >= finalTotalSeats && passengerCount > 0 ? "bao" : "ghep";
       }
 
-      // Lấy profitRate của driver
-      let driverProfitRate = 1000;
-      let driverFormulaIds: number[] = [];
-      if (finalDriverId) {
+      // Chỉ tính profit/points khi đã có driverId (tức là đã chọn Zom)
+      if (!finalDriverId) {
+        updateData.pointsEarned = null;
+        updateData.profitRate = null;
+        updateData.profit = null;
+        updateData.matchedFormulaId = null;
+      } else {
+        // Lấy profitRate + công thức được phép của driver
         const driver = await prisma.user.findUnique({
           where: { id: finalDriverId },
           select: { profitRate: true, formulaIds: true },
         });
-        if (driver) {
-          driverProfitRate = Number(driver.profitRate);
-          driverFormulaIds = Array.isArray(driver.formulaIds) ? driver.formulaIds : [];
-        }
+
+        let driverProfitRate = 1000;
+        const driverFormulaIds = Array.isArray(driver?.formulaIds) ? driver!.formulaIds : [];
+        if (driver) driverProfitRate = Number(driver.profitRate);
+
+        const allFormulas =
+          driverFormulaIds.length > 0
+            ? await prisma.pricingFormula.findMany({
+                where: { id: { in: driverFormulaIds }, isActive: true },
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              })
+            : await prisma.pricingFormula.findMany({
+                where: { isActive: true },
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              });
+
+        const tripInput: TripMatchInput = {
+          price: finalPrice,
+          totalSeats: finalTotalSeats,
+          tripType: parsedTripType as "ghep" | "bao",
+          tripDirection: finalDirection as "oneway" | "roundtrip",
+        };
+
+        const normalizedFormulas = allFormulas.map((f) => ({
+          id: f.id,
+          name: f.name,
+          tripType: f.tripType,
+          seats: f.seats ?? null,
+          minPrice: f.minPrice ? Number(f.minPrice) : null,
+          maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+          points: Number(f.points),
+        }));
+
+        const matched = findMatchingFormula(normalizedFormulas, tripInput);
+        const formulaResult = applyFormula(tripInput, driverProfitRate, matched);
+
+        updateData.pointsEarned = sanitizeOptionalDecimal10_2(formulaResult.pointsEarned);
+        updateData.profitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
+        updateData.profit = sanitizeOptionalDecimal10_2(formulaResult.profit);
+        updateData.matchedFormulaId = formulaResult.matchedFormulaId;
       }
-
-      const allFormulas =
-        driverFormulaIds.length > 0
-          ? await prisma.pricingFormula.findMany({
-              where: { id: { in: driverFormulaIds }, isActive: true },
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            })
-          : await prisma.pricingFormula.findMany({
-              where: { isActive: true },
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            });
-
-      const tripInput: TripMatchInput = {
-        price: finalPrice,
-        totalSeats: finalTotalSeats,
-        tripType: parsedTripType as "ghep" | "bao",
-        tripDirection: finalDirection as "oneway" | "roundtrip",
-      };
-
-      const normalizedFormulas = allFormulas.map((f) => ({
-        id: f.id,
-        name: f.name,
-        tripType: f.tripType,
-        seats: f.seats ?? null,
-        minPrice: f.minPrice ? Number(f.minPrice) : null,
-        maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
-        points: Number(f.points),
-      }));
-
-      const matched = findMatchingFormula(normalizedFormulas, tripInput);
-      const formulaResult = applyFormula(tripInput, driverProfitRate, matched);
-
-      updateData.pointsEarned = formulaResult.pointsEarned;
-      updateData.profitRate = formulaResult.profitRate;
-      updateData.profit = formulaResult.profit;
-      updateData.matchedFormulaId = formulaResult.matchedFormulaId;
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
       if (tripType !== undefined) updateData.tripType = tripType;
     } else {
       // Chế độ bình thường: cho phép ghi đè profit thủ công
       if (profit !== undefined) {
-        updateData.profit = profit ? parseFloat(profit) : null;
+        if (profit === null || profit === "") {
+          updateData.profit = null;
+        } else {
+          const n = parseVndNumber(profit);
+          updateData.profit = Number.isFinite(n) ? sanitizeOptionalDecimal10_2(n) : null;
+        }
       }
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
       if (tripType !== undefined) updateData.tripType = tripType;
@@ -253,7 +298,8 @@ export async function PUT(
     }
 
     if (totalSeats !== undefined) {
-      updateData.totalSeats = parseInt(totalSeats);
+      const n = parseInt(String(totalSeats), 10);
+      if (Number.isFinite(n) && n > 0) updateData.totalSeats = n;
     }
 
     if (notes !== undefined) {

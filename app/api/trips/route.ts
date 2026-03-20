@@ -228,9 +228,37 @@ export async function POST(request: NextRequest) {
       seats, driverId: requestedDriverId, tripDirection,
     } = body;
 
-    const parsedTotalSeats = parseInt(totalSeats) || 1;
-    const parsedPrice = parseFloat(price) || 0;
+    const parsedTotalSeatsRaw = parseInt(String(totalSeats), 10);
+    const parsedTotalSeats = Number.isFinite(parsedTotalSeatsRaw) && parsedTotalSeatsRaw > 0 ? parsedTotalSeatsRaw : 1;
+
+    // Giá có thể ở format VN (vd: "1.111.000") → cần bỏ "."/"," trước khi parse
+    const parsedPriceRaw = parseFloat(String(price).replace(/[.,]/g, ""));
+    const parsedPrice = Number.isFinite(parsedPriceRaw) ? parsedPriceRaw : 0;
     const parsedDirection = tripDirection === "roundtrip" ? "roundtrip" : "oneway";
+
+    const DECIMAL_10_2_MAX = 99999999.99;
+    const DECIMAL_15_2_MAX = 9999999999999.99;
+    const round2 = (x: number) => Math.round(x * 100) / 100;
+    const clampDecimal10_2 = (x: number) => {
+      if (!Number.isFinite(x)) return 0;
+      return Math.max(0, Math.min(DECIMAL_10_2_MAX, round2(x)));
+    };
+    const sanitizeOptionalDecimal10_2 = (x: number | null | undefined) => {
+      if (x == null) return null;
+      const n = Number(x);
+      if (!Number.isFinite(n)) return null;
+      const r = round2(n);
+      if (Math.abs(r) > DECIMAL_10_2_MAX) return null;
+      return r;
+    };
+    const sanitizeOptionalDecimal15_2 = (x: number | null | undefined) => {
+      if (x == null) return null;
+      const n = Number(x);
+      if (!Number.isFinite(n)) return null;
+      const r = round2(n);
+      if (Math.abs(r) > DECIMAL_15_2_MAX) return null;
+      return r;
+    };
 
     if (!title || !departure || !destination || !departureTime || !price) {
       return NextResponse.json(
@@ -267,60 +295,68 @@ export async function POST(request: NextRequest) {
 
     // Determine driverId
     const finalDriverId = requestedDriverId || null;
+    const safePrice = clampDecimal10_2(parsedPrice);
 
-    // Lấy profitRate của driver hoặc mặc định 1000
-    let driverProfitRate = 1000;
+    // === FORMULA ENGINE ===
+    // Chỉ tính points/profit khi đã có driverId (tức là đã "chọn Zom").
+    // Trường hợp chưa chọn Zom: giữ các field lợi nhuận ở NULL để tránh hiển thị mặc định trên DOM.
+    let formulaResult: ReturnType<typeof applyFormula> = {
+      pointsEarned: null,
+      profitRate: null,
+      profit: null,
+      matchedFormulaId: null,
+    };
+
     if (finalDriverId) {
+      // Lấy profitRate của driver
+      let driverProfitRate = 1000;
       const driver = await prisma.user.findUnique({
         where: { id: finalDriverId },
-        select: { profitRate: true },
+        select: { profitRate: true, formulaIds: true },
       });
       if (driver) {
         driverProfitRate = Number(driver.profitRate);
       }
+
+      // Match theo công thức được gán cho Zom (formulaIds). Nếu không có thì fallback: tất cả công thức active
+      const driverFormulaIds = Array.isArray(driver?.formulaIds) ? driver!.formulaIds : [];
+      const allFormulas =
+        driverFormulaIds.length > 0
+          ? await prisma.pricingFormula.findMany({
+              where: { id: { in: driverFormulaIds }, isActive: true },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            })
+          : await prisma.pricingFormula.findMany({
+              where: { isActive: true },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            });
+
+      const tripInput: TripMatchInput = {
+        price: safePrice,
+        totalSeats: parsedTotalSeats,
+        tripType: tripType === "bao" ? "bao" : "ghep",
+        tripDirection: parsedDirection,
+      };
+
+      const normalizedFormulas = allFormulas.map((f) => ({
+        id: f.id,
+        name: f.name,
+        tripType: f.tripType,
+        seats: f.seats ?? null,
+        minPrice: f.minPrice ? Number(f.minPrice) : null,
+        maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+        points: Number(f.points),
+      }));
+
+      const matchedFormula = findMatchingFormula(normalizedFormulas, tripInput);
+      formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
     }
 
-    // === FORMULA ENGINE ===
-    // Match theo công thức được gán cho Zom (formulaIds) nếu có; nếu không thì fallback: tất cả công thức active
-    let driverFormulaIds: number[] = [];
-    if (finalDriverId) {
-      const driverFormula = await prisma.user.findUnique({
-        where: { id: finalDriverId },
-        select: { formulaIds: true },
-      });
-      driverFormulaIds = Array.isArray(driverFormula?.formulaIds) ? driverFormula!.formulaIds : [];
-    }
-
-    const allFormulas =
-      driverFormulaIds.length > 0
-        ? await prisma.pricingFormula.findMany({
-            where: { id: { in: driverFormulaIds }, isActive: true },
-            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          })
-        : await prisma.pricingFormula.findMany({
-            where: { isActive: true },
-            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          });
-
-    const tripInput: TripMatchInput = {
-      price: parsedPrice,
-      totalSeats: parsedTotalSeats,
-      tripType: tripType === "bao" ? "bao" : "ghep",
-      tripDirection: parsedDirection,
-    };
-
-    const normalizedFormulas = allFormulas.map((f) => ({
-      id: f.id,
-      name: f.name,
-      tripType: f.tripType,
-      seats: f.seats ?? null,
-      minPrice: f.minPrice ? Number(f.minPrice) : null,
-      maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
-      points: Number(f.points),
-    }));
-
-    const matchedFormula = findMatchingFormula(normalizedFormulas, tripInput);
-    const formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
+    // Guard giá trị Decimal để tránh overflow numeric của Postgres
+    const safePointsEarned = sanitizeOptionalDecimal10_2(formulaResult.pointsEarned);
+    const safeProfit = sanitizeOptionalDecimal10_2(formulaResult.profit);
+    // profitRate có thể lớn hơn decimal(10,2), nhưng vẫn cần guard cơ bản
+    const safeProfitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
 
     const trip = await prisma.trip.create({
       data: {
@@ -330,7 +366,7 @@ export async function POST(request: NextRequest) {
         destination,
         departureTime: new Date(departureTime),
         arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
-        price: parsedPrice,
+        price: safePrice,
         tripDirection: parsedDirection,
         tripType: tripType === "bao" ? "bao" : "ghep",
         ...(finalDriverId ? { driverId: finalDriverId } : {}),
@@ -339,9 +375,9 @@ export async function POST(request: NextRequest) {
         status: "scheduled",
         ...(notes ? { notes } : {}),
         // Formula fields
-        pointsEarned: formulaResult.pointsEarned,
-        profitRate: formulaResult.profitRate,
-        profit: formulaResult.profit,
+        pointsEarned: safePointsEarned,
+        profitRate: safeProfitRate,
+        profit: safeProfit,
         matchedFormulaId: formulaResult.matchedFormulaId,
         ...(customerId ? {
           customers: {

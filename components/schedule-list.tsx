@@ -426,6 +426,7 @@ export default function ScheduleList() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           driverId,
+          recalculate: true,
           status: "confirmed"
         }),
       });
@@ -1073,12 +1074,12 @@ export default function ScheduleList() {
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-bold text-sm text-slate-800">{formatCurrency(trip.price)}</span>
-                    {trip.pointsEarned != null && (
+                    {trip.driver && trip.matchedFormulaId != null && trip.pointsEarned != null && (
                       <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-xs font-bold">
                         {trip.pointsEarned}đ
                       </span>
                     )}
-                    {trip.profit !== null && trip.profit !== undefined ? (
+                    {trip.driver && trip.matchedFormulaId != null && trip.profit !== null && trip.profit !== undefined ? (
                       <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
                     ) : trip.driver &&
                       (
@@ -1290,7 +1291,7 @@ export default function ScheduleList() {
                             </button>
                           )}
                         </div>
-                          {trip.profit !== null && trip.profit !== undefined ? (
+                          {trip.driver && trip.matchedFormulaId != null && trip.profit !== null && trip.profit !== undefined ? (
                             <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
                           ) : trip.driver &&
                             (
@@ -1303,7 +1304,7 @@ export default function ScheduleList() {
                       </div>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-center">
-                      {trip.pointsEarned != null ? (
+                      {trip.driver && trip.matchedFormulaId != null && trip.pointsEarned != null ? (
                         <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
                           {trip.pointsEarned}đ
                         </span>
