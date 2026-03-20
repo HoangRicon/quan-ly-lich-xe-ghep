@@ -527,12 +527,13 @@ export default function ScheduleList() {
     return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: unknown) => {
+    const n = typeof amount === "number" ? amount : Number(amount);
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(Number.isFinite(n) ? n : 0);
   };
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -1074,20 +1075,17 @@ export default function ScheduleList() {
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-bold text-sm text-slate-800">{formatCurrency(trip.price)}</span>
-                    {trip.driver && trip.matchedFormulaId != null && trip.pointsEarned != null && (
+                    {trip.driver && trip.pointsEarned != null && trip.pointsEarned !== undefined && (
                       <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-xs font-bold">
                         {trip.pointsEarned}đ
                       </span>
                     )}
-                    {trip.driver && trip.matchedFormulaId != null && trip.profit !== null && trip.profit !== undefined ? (
+                    {trip.driver ? (
+                      trip.profit !== null && trip.profit !== undefined ? (
                       <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
-                    ) : trip.driver &&
-                      (
-                        !trip.driver.formulas ||
-                        trip.driver.formulas.length === 0 ||
-                        !trip.matchedFormulaId
-                      ) ? (
+                      ) : (
                       <span className="text-xs text-red-400 flex-shrink-0">Chưa tính được lợi nhuận</span>
+                      )
                     ) : null}
                     {trip.notes && (
                       <button
@@ -1291,20 +1289,17 @@ export default function ScheduleList() {
                             </button>
                           )}
                         </div>
-                          {trip.driver && trip.matchedFormulaId != null && trip.profit !== null && trip.profit !== undefined ? (
-                            <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
-                          ) : trip.driver &&
-                            (
-                              !trip.driver.formulas ||
-                              trip.driver.formulas.length === 0 ||
-                              !trip.matchedFormulaId
-                            ) ? (
-                            <span className="text-xs text-red-400">Chưa tính được lợi nhuận</span>
+                          {trip.driver ? (
+                            trip.profit !== null && trip.profit !== undefined ? (
+                              <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                            ) : (
+                              <span className="text-xs text-red-400">Chưa tính được lợi nhuận</span>
+                            )
                           ) : null}
                       </div>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-center">
-                      {trip.driver && trip.matchedFormulaId != null && trip.pointsEarned != null ? (
+                      {trip.driver && trip.pointsEarned != null && trip.pointsEarned !== undefined ? (
                         <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
                           {trip.pointsEarned}đ
                         </span>
