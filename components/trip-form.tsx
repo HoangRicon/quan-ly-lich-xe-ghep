@@ -156,13 +156,9 @@ interface TripData {
     name: string;
     phone: string;
   };
-}
-
-interface FormulaPreview {
-  formulaName: string;
-  points: number;
-  profit: number;
-  profitRate: number;
+  customers?: Array<{
+    seats: number;
+  }>;
 }
 
 export default function TripForm() {
@@ -176,7 +172,6 @@ export default function TripForm() {
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
   const [tripData, setTripData] = useState<TripData | null>(null);
-  const [formulaPreview, setFormulaPreview] = useState<FormulaPreview | null>(null);
   
   const [formData, setFormData] = useState({
     customerPhone: "",
@@ -192,6 +187,7 @@ export default function TripForm() {
     tripType: "ghep",
     tripDirection: "oneway",
     notes: "",
+    driverId: null as number | null,
   });
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
@@ -204,66 +200,6 @@ export default function TripForm() {
     }
   }, [editId]);
 
-  // Fetch formulas once and derive tripType from seats
-  const [allFormulas, setAllFormulas] = useState<any[]>([]);
-  useEffect(() => {
-    fetch("/api/formulas", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => { if (d.success) setAllFormulas(d.data || []); })
-      .catch(() => {});
-  }, []);
-
-  // Compute formula preview whenever relevant fields change
-  useEffect(() => {
-    const price = parseInt((formData.price || "").replace(/\./g, "")) || 0;
-    const seats = parseInt(formData.totalSeats) || 4;
-    const dir = formData.tripDirection || "oneway";
-    const type = formData.tripType || "ghep";
-
-    if (!price || allFormulas.length === 0) {
-      setFormulaPreview(null);
-      return;
-    }
-
-    // Build effective formula type key
-    const typeKey = type === "bao"
-      ? (dir === "roundtrip" ? "bao_roundtrip" : "bao")
-      : (dir === "roundtrip" ? "ghep_roundtrip" : "ghep");
-
-    const candidates = allFormulas.filter((f) => f.tripType === typeKey && f.isActive);
-
-    // Ưu tiên: công thức đúng số ghế trước, nếu không có mới dùng công thức chung (seats = null)
-    const exactSeatMatch = candidates.find(
-      (f) =>
-        f.seats === seats &&
-        (f.minPrice == null || price >= f.minPrice) &&
-        (f.maxPrice == null || price <= f.maxPrice)
-    );
-
-    const anySeatMatch = candidates.find(
-      (f) =>
-        f.seats == null &&
-        (f.minPrice == null || price >= f.minPrice) &&
-        (f.maxPrice == null || price <= f.maxPrice)
-    );
-
-    const match = exactSeatMatch || anySeatMatch;
-
-    if (match) {
-      // Default profitRate = 1000 if not set
-      const defaultRate = 1000;
-      const profit = match.points * defaultRate;
-      setFormulaPreview({
-        formulaName: match.name,
-        points: match.points,
-        profit,
-        profitRate: defaultRate,
-      });
-    } else {
-      setFormulaPreview(null);
-    }
-  }, [formData.price, formData.tripType, formData.tripDirection, formData.totalSeats, allFormulas]);
-
   const fetchTripData = async (id: string) => {
     try {
       const res = await fetch(`/api/trips/${id}`);
@@ -272,6 +208,11 @@ export default function TripForm() {
         const trip = data.data;
         const departureDate = new Date(trip.departureTime);
         setTripData(trip);
+        const passengerCount = (trip as any).customers
+          ? (trip as any).customers.reduce((sum: number, c: any) => sum + (c.seats || 0), 0)
+          : 0;
+        const computedTripType =
+          passengerCount >= (trip.totalSeats || 1) && passengerCount > 0 ? "bao" : "ghep";
         setFormData({
           customerPhone: trip.customer?.phone || "",
           customerName: trip.customer?.name || "",
@@ -283,9 +224,10 @@ export default function TripForm() {
           departureTime: departureDate.toTimeString().slice(0, 5),
           price: trip.price ? trip.price.toString() : "",
           totalSeats: trip.totalSeats?.toString() || "1",
-          tripType: "ghep",
+          tripType: computedTripType,
           tripDirection: (trip as any).tripDirection === "roundtrip" ? "roundtrip" : "oneway",
           notes: trip.notes || "",
+          driverId: (trip as any).driver?.id || null,
         });
       }
     } catch (error) {
@@ -431,13 +373,15 @@ export default function TripForm() {
             destination: formData.destination,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
-            totalSeats: parseInt(formData.totalSeats) || 4,
+            totalSeats: parseInt(formData.totalSeats) || 1,
+            tripType: formData.tripType,
             tripDirection: formData.tripDirection,
             notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
             customerEmail: formData.customerEmail || undefined,
             customerNotes: formData.customerNotes || undefined,
+            ...(formData.driverId ? { driverId: formData.driverId } : {}),
             recalculate: true,
           }),
         });
@@ -458,7 +402,7 @@ export default function TripForm() {
             destination: formData.destination,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
-            totalSeats: parseInt(formData.totalSeats) || 4,
+            totalSeats: parseInt(formData.totalSeats) || 1,
             tripType: formData.tripType,
             tripDirection: formData.tripDirection,
             notes: autoNotes || undefined,
@@ -467,6 +411,7 @@ export default function TripForm() {
             customerEmail: formData.customerEmail || undefined,
             customerNotes: formData.customerNotes || undefined,
             seats: 1,
+            ...(formData.driverId ? { driverId: formData.driverId } : {}),
           }),
         });
 
@@ -745,38 +690,6 @@ export default function TripForm() {
             </div>
           )}
 
-          {/* Formula Preview */}
-          {formulaPreview && (
-            <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl">
-              <div className="text-xs font-semibold text-green-700 mb-1 flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                Công thức: {formulaPreview.formulaName}
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-green-700">
-                    <span className="font-bold">{formulaPreview.points}</span> điểm
-                  </span>
-                  <span className="text-xs text-green-700">
-                    × {new Intl.NumberFormat("vi-VN").format(formulaPreview.profitRate)} VNĐ/điểm
-                  </span>
-                </div>
-                <span className="text-sm font-bold text-green-700">
-                  = {new Intl.NumberFormat("vi-VN").format(formulaPreview.profit)} VNĐ
-                </span>
-              </div>
-            </div>
-          )}
-
-          {!formulaPreview && formData.price && parseInt(formData.price.replace(/\./g, "")) > 0 && (
-            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
-              <span className="text-xs text-slate-500">
-                Điểm &amp; lợi nhuận sẽ được tính dựa trên công thức của Zom bắn khi gán cuốc xe.
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Notes */}

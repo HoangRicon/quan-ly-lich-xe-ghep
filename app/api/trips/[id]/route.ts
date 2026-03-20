@@ -62,6 +62,7 @@ export async function GET(
       price: trip.price,
       profit: trip.profit,
       tripDirection: trip.tripDirection,
+      tripType: (trip as any).tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
       profitRate: trip.profitRate ? Number(trip.profitRate) : null,
       matchedFormulaId: trip.matchedFormulaId,
@@ -93,6 +94,7 @@ export async function GET(
         name: mainCustomer.name,
         phone: mainCustomer.phone,
       } : null,
+      customers: trip.customers,
     };
 
     return NextResponse.json({ success: true, data: formattedTrip });
@@ -118,7 +120,7 @@ export async function PUT(
       customerName,
       customerEmail,
       customerNotes,
-      tripDirection, recalculate,
+      tripDirection, tripType, recalculate,
     } = await request.json();
 
     void customerPhone;
@@ -169,9 +171,14 @@ export async function PUT(
       const finalDirection = tripDirection || currentTrip.tripDirection || "oneway";
       const finalDriverId = driverId !== undefined ? driverId : currentTrip.driverId;
 
-      // Xác định tripType: nếu số ghế đã đặt >= totalSeats thì coi là "bao", ngược lại "ghep"
+      // Dùng tripType từ request nếu có; nếu không thì tính từ passengerCount
       const passengerCount = (currentTrip.customers ?? []).reduce((sum, c) => sum + (c.seats || 0), 0);
-      const parsedTripType = passengerCount >= finalTotalSeats ? "bao" : "ghep";
+      let parsedTripType: "ghep" | "bao";
+      if (tripType === "bao" || tripType === "ghep") {
+        parsedTripType = tripType;
+      } else {
+        parsedTripType = passengerCount >= finalTotalSeats && passengerCount > 0 ? "bao" : "ghep";
+      }
 
       // Lấy profitRate của driver
       let driverProfitRate = 1000;
@@ -223,12 +230,14 @@ export async function PUT(
       updateData.profit = formulaResult.profit;
       updateData.matchedFormulaId = formulaResult.matchedFormulaId;
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
+      if (tripType !== undefined) updateData.tripType = tripType;
     } else {
       // Chế độ bình thường: cho phép ghi đè profit thủ công
       if (profit !== undefined) {
         updateData.profit = profit ? parseFloat(profit) : null;
       }
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
+      if (tripType !== undefined) updateData.tripType = tripType;
     }
 
     if (departureTime !== undefined && departureTime) {
@@ -270,6 +279,7 @@ export async function PUT(
       price: trip.price,
       profit: trip.profit,
       tripDirection: trip.tripDirection,
+      tripType: (trip as any).tripType || "ghep",
       pointsEarned: trip.pointsEarned,
       profitRate: trip.profitRate ? Number(trip.profitRate) : null,
       matchedFormulaId: trip.matchedFormulaId,

@@ -53,13 +53,15 @@ model Trip {
   profit        Decimal?  @db.Decimal(10, 2) // Lợi nhuận từ cuốc xe
   // Hướng đi: "oneway" (1 chiều) | "roundtrip" (2 chiều)
   tripDirection String    @default("oneway") @map("trip_direction") @db.VarChar(20)
+  // Loại hình: "ghep" (đi ghép) | "bao" (bao xe)
+  tripType      String    @default("ghep") @map("trip_type") @db.VarChar(20)
   // Số điểm nhận được khi match công thức
   pointsEarned  Decimal?  @map("points_earned") @db.Decimal(10, 2)
   // Tỉ lệ quy đổi điểm→tiền tại thời điểm tạo trip (snapshot từ zom hoặc mặc định)
   profitRate    Decimal?  @map("profit_rate") @db.Decimal(15, 2)
   // ID công thức đã match
   matchedFormulaId Int?   @map("matched_formula_id")
-  totalSeats    Int       @default(4) @map("total_seats")
+  totalSeats    Int       @default(1) @map("total_seats")
   status        String    @default("scheduled") @db.VarChar(50)
   notes         String?   @db.Text
   driverId      Int?      @map("driver_id")

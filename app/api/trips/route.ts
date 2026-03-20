@@ -151,6 +151,7 @@ export async function GET(request: NextRequest) {
         price: trip.price,
         profit: trip.profit,
         tripDirection: trip.tripDirection,
+        tripType: (trip as any).tripType || "ghep",
         pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
         profitRate: trip.profitRate ? Number(trip.profitRate) : null,
         matchedFormulaId: trip.matchedFormulaId,
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
       seats, driverId: requestedDriverId, tripDirection,
     } = body;
 
-    const parsedTotalSeats = parseInt(totalSeats) || 4;
+    const parsedTotalSeats = parseInt(totalSeats) || 1;
     const parsedPrice = parseFloat(price) || 0;
     const parsedDirection = tripDirection === "roundtrip" ? "roundtrip" : "oneway";
 
@@ -329,6 +330,7 @@ export async function POST(request: NextRequest) {
         arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
         price: parsedPrice,
         tripDirection: parsedDirection,
+        tripType: tripType === "bao" ? "bao" : "ghep",
         ...(finalDriverId ? { driverId: finalDriverId } : {}),
         ...(user ? { createdById: user.id } : {}),
         totalSeats: parsedTotalSeats,
@@ -371,6 +373,7 @@ export async function POST(request: NextRequest) {
       arrivalTime: trip.arrivalTime,
       price: trip.price,
       tripDirection: trip.tripDirection,
+      tripType: (trip as any).tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
       profitRate: trip.profitRate ? Number(trip.profitRate) : null,
       profit: trip.profit ? Number(trip.profit) : null,
