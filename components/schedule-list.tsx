@@ -233,19 +233,17 @@ export default function ScheduleList() {
     driverId: null as number | null,
     status: "scheduled",
     notes: "",
-    tripType: "ghep" as "ghep" | "bao",
+    tripType: "ghep" as "ghep" | "ghep_roundtrip" | "bao" | "bao_roundtrip",
     tripDirection: "oneway" as "oneway" | "roundtrip",
   });
 
   // Computed realtime profit preview from editForm
   const editProfitPreview = useMemo(() => {
     const price = parseInt((editForm.price || "").replace(/\./g, "")) || 0;
-    const seats = parseInt(editForm.totalSeats) || 1;
+    const seats = editForm.totalSeats ? parseInt(editForm.totalSeats) : null;
     const dir = editForm.tripDirection || "oneway";
     const type = editForm.tripType || "ghep";
-    const typeKey = type === "bao"
-      ? (dir === "roundtrip" ? "bao_roundtrip" : "bao")
-      : (dir === "roundtrip" ? "ghep_roundtrip" : "ghep");
+    const typeKey = type;
 
     if (!editForm.driverId || !price) return null;
 
@@ -766,12 +764,17 @@ export default function ScheduleList() {
     const deptDate = new Date(trip.departureTime);
     const passengerCount = trip.passengerCount ?? 0;
     // Ưu tiên dùng tripType từ DB nếu có; fallback tính từ passengerCount
-    const computedTripType: "ghep" | "bao" =
-      (trip as any).tripType === "bao" || (trip as any).tripType === "ghep"
+    const rawType: string =
+      (trip as any).tripType === "bao" || (trip as any).tripType === "ghep" ||
+      (trip as any).tripType === "bao_roundtrip" || (trip as any).tripType === "ghep_roundtrip"
         ? (trip as any).tripType
         : passengerCount >= (trip.totalSeats || 1) && passengerCount > 0
           ? "bao"
           : "ghep";
+    const computedTripType: "ghep" | "ghep_roundtrip" | "bao" | "bao_roundtrip" =
+      rawType.includes("roundtrip")
+        ? rawType as "ghep_roundtrip" | "bao_roundtrip"
+        : rawType as "ghep" | "bao";
     setEditForm({
       departure: trip.departure,
       destination: trip.destination,
@@ -1503,10 +1506,10 @@ export default function ScheduleList() {
                     {editForm.departure || "?"}
                     <span className="text-slate-400 mx-1">→</span>
                     {editForm.destination || "?"}
-                    {editForm.tripType === "bao" ? " (Bao)" : " (Ghep)"}
-                    {editForm.totalSeats && parseInt(editForm.totalSeats) > 0 && ` - ${editForm.totalSeats} ghe`}
+                    {editForm.tripType === "bao" || editForm.tripType === "bao_roundtrip" ? " (Bao)" : " (Ghép)"}
+                    {editForm.totalSeats && parseInt(editForm.totalSeats) > 0 && ` - ${editForm.totalSeats} ghế`}
                     {editForm.price && ` - ${formatCurrency(parseInt(editForm.price.replace(/\./g, "")) || 0)}`}
-                    {editForm.tripDirection === "roundtrip" && " - 2 chieu"}
+                    {editForm.tripDirection === "roundtrip" && " - 2 chiều"}
                   </h2>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     {editForm.driverId ? (
@@ -1620,6 +1623,57 @@ export default function ScheduleList() {
                       placeholder="Giá tiền"
                     />
                   </div>
+                  {/* Loại hình */}
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Loại hình</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, tripType: "ghep", tripDirection: "oneway", totalSeats: editForm.totalSeats || "1" })}
+                        className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                          editForm.tripType === "ghep"
+                            ? "border-blue-300 bg-blue-50 text-blue-700"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        Ghép
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, tripType: "ghep_roundtrip", tripDirection: "roundtrip", totalSeats: editForm.totalSeats || "1" })}
+                        className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                          editForm.tripType === "ghep_roundtrip"
+                            ? "border-blue-300 bg-blue-50 text-blue-700"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        Ghép 2C
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, tripType: "bao", tripDirection: "oneway", totalSeats: "" })}
+                        className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                          editForm.tripType === "bao"
+                            ? "border-amber-300 bg-amber-50 text-amber-700"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        Bao
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, tripType: "bao_roundtrip", tripDirection: "roundtrip", totalSeats: "" })}
+                        className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                          editForm.tripType === "bao_roundtrip"
+                            ? "border-amber-300 bg-amber-50 text-amber-700"
+                            : "border-slate-200 bg-white text-slate-600"
+                        }`}
+                      >
+                        Bao 2C
+                      </button>
+                    </div>
+                  </div>
+                  {editForm.tripType === "ghep" || editForm.tripType === "ghep_roundtrip" ? (
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Số ghế (nếu đi ghép)</label>
                     <div className="flex items-center gap-2">
@@ -1653,61 +1707,34 @@ export default function ScheduleList() {
                       </button>
                     </div>
                   </div>
-                  {/* Hướng đi */}
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Hướng đi</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, tripDirection: "oneway" })}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                          editForm.tripDirection === "oneway"
-                            ? "border-purple-300 bg-purple-50 text-purple-700"
-                            : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                      >
-                        1 chiều
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, tripDirection: "roundtrip" })}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                          editForm.tripDirection === "roundtrip"
-                            ? "border-purple-300 bg-purple-50 text-purple-700"
-                            : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                      >
-                        2 chiều
-                      </button>
-                    </div>
+                  ) : (
+                  <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Bao xe — không cần chọn số ghế
                   </div>
-                  {/* Loại hình */}
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Loại hình</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, tripType: "ghep" })}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                          editForm.tripType === "ghep"
-                            ? "border-blue-300 bg-blue-50 text-blue-700"
-                            : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                      >
-                        Ghép
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, tripType: "bao" })}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                          editForm.tripType === "bao"
-                            ? "border-amber-300 bg-amber-50 text-amber-700"
-                            : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                      >
-                        Bao xe
-                      </button>
+                  )}
+                  {/* Zom Bắn */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                    <Combobox
+                      options={drivers.map(driver => ({
+                        value: driver.id,
+                        label: driver.fullName || "(Chưa đặt tên)",
+                      }))}
+                      value={editForm.driverId}
+                      onChange={(val) => setEditForm({ ...editForm, driverId: val as number | null })}
+                      placeholder="-- Chọn Zom Bắn --"
+                      searchPlaceholder="Tìm Zom..."
+                      emptyText="Không có Zom"
+                    />
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, driverId: null })}
+                      className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                      title="Bỏ gán Zom khỏi cuốc này"
+                    >
+                      Bỏ gán
+                    </button>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
@@ -1737,42 +1764,11 @@ export default function ScheduleList() {
                       </button>
                     </div>
                     <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                      Neu <b>nhap loi nhuan</b> thi he thong uu tien so nay.{" "}
+                      Nếu <b>nhập lợi nhuận</b> thì hệ thống ưu tiên số này.{" "}
                       <span className="font-semibold">
-                        Neu <b>de trong</b> va Zom co cong thuc thi he thong se tu tinh.
+                        Nếu <b>để trống</b> và Zom có công thức thì hệ thống sẽ tự tính.
                       </span>
                     </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Zom Bắn */}
-              <div className="bg-amber-50 rounded-xl p-3">
-                <p className="text-sm font-medium text-amber-800 mb-3">Zom Bắn</p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Zom Bắn</label>
-                    <Combobox
-                      options={drivers.map(driver => ({
-                        value: driver.id,
-                        label: driver.fullName || "(Chưa đặt tên)",
-                      }))}
-                      value={editForm.driverId}
-                      onChange={(val) => setEditForm({ ...editForm, driverId: val as number | null })}
-                      placeholder="-- Chọn Zom Bắn --"
-                      searchPlaceholder="Tìm Zom..."
-                      emptyText="Không có Zom"
-                    />
-                    <div className="mt-2 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setEditForm({ ...editForm, driverId: null })}
-                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-700 hover:bg-slate-50"
-                        title="Bỏ gán Zom khỏi cuốc này"
-                      >
-                        Bỏ gán Zom
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>

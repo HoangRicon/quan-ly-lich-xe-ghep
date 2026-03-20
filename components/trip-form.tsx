@@ -183,12 +183,16 @@ export default function TripForm() {
     departureDate: new Date().toISOString().split("T")[0],
     departureTime: new Date().toTimeString().slice(0, 5),
     price: "",
-    totalSeats: "",
+    totalSeats: "1",
+    // 4 loại hình: ghep | ghep_roundtrip | bao | bao_roundtrip
     tripType: "ghep",
-    tripDirection: "oneway",
     notes: "",
     driverId: null as number | null,
   });
+
+  // Helper: trích direction từ tripType
+  const getDirection = (t: string) =>
+    t === "ghep_roundtrip" || t === "bao_roundtrip" ? "roundtrip" : "oneway";
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
@@ -211,8 +215,13 @@ export default function TripForm() {
         const passengerCount = (trip as any).customers
           ? (trip as any).customers.reduce((sum: number, c: any) => sum + (c.seats || 0), 0)
           : 0;
-        const computedTripType =
-          passengerCount >= (trip.totalSeats || 1) && passengerCount > 0 ? "bao" : "ghep";
+        const tripDirection = (trip as any).tripDirection === "roundtrip" ? "roundtrip" : "oneway";
+        const rawTripType = (trip as any).tripType === "bao" || (trip as any).tripType === "ghep"
+          ? (trip as any).tripType
+          : (passengerCount >= (trip.totalSeats || 1) && passengerCount > 0 ? "bao" : "ghep");
+        const computedTripType = tripDirection === "roundtrip"
+          ? (rawTripType === "bao" ? "bao_roundtrip" : "ghep_roundtrip")
+          : rawTripType;
         setFormData({
           customerPhone: trip.customer?.phone || "",
           customerName: trip.customer?.name || "",
@@ -223,9 +232,8 @@ export default function TripForm() {
           departureDate: departureDate.toISOString().split("T")[0],
           departureTime: departureDate.toTimeString().slice(0, 5),
           price: trip.price ? trip.price.toString() : "",
-          totalSeats: trip.totalSeats?.toString() || "1",
+          totalSeats: trip.totalSeats ? trip.totalSeats.toString() : "1",
           tripType: computedTripType,
-          tripDirection: (trip as any).tripDirection === "roundtrip" ? "roundtrip" : "oneway",
           notes: trip.notes || "",
           driverId: (trip as any).driver?.id || null,
         });
@@ -349,6 +357,7 @@ export default function TripForm() {
         : formData.departureTime;
 
       // Tự động tạo ghi chú nếu chưa có và đủ thông tin
+      const direction = getDirection(formData.tripType);
       let autoNotes = formData.notes;
       if (!autoNotes && formData.departureTime && formData.departure && formData.destination && formData.price) {
         autoNotes = generateAutoNote(
@@ -358,8 +367,8 @@ export default function TripForm() {
           formData.price,
           formData.customerPhone || "",
           parseInt(formData.totalSeats) || 1,
-          formData.tripType,
-          formData.tripDirection
+          direction === "roundtrip" ? "ghep" : formData.tripType.replace("_roundtrip", ""),
+          direction
         );
       }
 
@@ -373,9 +382,9 @@ export default function TripForm() {
             destination: formData.destination,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
-            totalSeats: parseInt(formData.totalSeats) || 1,
-            tripType: formData.tripType,
-            tripDirection: formData.tripDirection,
+            totalSeats: formData.tripType.startsWith("bao") ? 0 : (parseInt(formData.totalSeats) || 1),
+            tripType: formData.tripType.replace("_roundtrip", ""),
+            tripDirection: direction,
             notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
@@ -402,9 +411,9 @@ export default function TripForm() {
             destination: formData.destination,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
-            totalSeats: parseInt(formData.totalSeats) || 1,
-            tripType: formData.tripType,
-            tripDirection: formData.tripDirection,
+            totalSeats: formData.tripType.startsWith("bao") ? 0 : (parseInt(formData.totalSeats) || 1),
+            tripType: formData.tripType.replace("_roundtrip", ""),
+            tripDirection: direction,
             notes: autoNotes || undefined,
             customerPhone: formData.customerPhone || undefined,
             customerName: formData.customerName || undefined,
@@ -448,45 +457,46 @@ export default function TripForm() {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Thông tin khách hàng</h3>
         
-        <div className="relative" ref={customerDropdownRef}>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Số điện thoại <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="tel"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={formData.customerPhone}
-            onChange={(e) => handlePhoneChange(e.target.value)}
-            ref={phoneInputRef}
-            placeholder="Nhập số điện thoại"
-            className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-            required
-          />
-          
-          {showCustomerDropdown && customerSuggestions.length > 0 && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              {customerSuggestions.map((customer) => (
-                <button
-                  key={customer.id}
-                  type="button"
-                  onClick={() => selectCustomer(customer)}
-                  className="w-full px-4 py-3 text-left hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0"
-                >
-                  <div>
-                    <div className="font-medium text-slate-800">{customer.name}</div>
-                    <div className="text-sm text-slate-500">{customer.phone}</div>
-                  </div>
-                  <div className="text-sm text-blue-600">
-                    {customer.totalTrips} chuyến
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Số điện thoại + Tên khách hàng gộp 1 cột */}
+        <div className="space-y-3">
+          <div className="relative" ref={customerDropdownRef}>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Số điện thoại <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={formData.customerPhone}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              ref={phoneInputRef}
+              placeholder="Nhập số điện thoại"
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
+              required
+            />
 
-        <div className="grid grid-cols-2 gap-3">
+            {showCustomerDropdown && customerSuggestions.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {customerSuggestions.map((customer) => (
+                  <button
+                    key={customer.id}
+                    type="button"
+                    onClick={() => selectCustomer(customer)}
+                    className="w-full px-4 py-3 text-left hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0"
+                  >
+                    <div>
+                      <div className="font-medium text-slate-800">{customer.name}</div>
+                      <div className="text-sm text-slate-500">{customer.phone}</div>
+                    </div>
+                    <div className="text-sm text-blue-600">
+                      {customer.totalTrips} chuyến
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Tên khách hàng
@@ -498,20 +508,6 @@ export default function TripForm() {
               placeholder={formData.customerPhone.length >= 2 ? "Nhập tên khách" : "Nhập SĐT trước"}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
               disabled={formData.customerPhone.length < 3 && !isEditMode}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Số ghế
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={formData.totalSeats}
-              onChange={(e) => setFormData({ ...formData, totalSeats: e.target.value })}
-              placeholder="1"
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
             />
           </div>
         </div>
@@ -595,74 +591,116 @@ export default function TripForm() {
 
       {/* Trip Type & Price */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <h3 className="font-semibold text-slate-800">Loại hình & Thanh toán</h3>
-        
-        {!isEditMode && (
-          <div className="space-y-3">
-            {/* Direction */}
-            <div className="flex gap-4">
-              <label className="flex-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="tripDirection"
-                  value="oneway"
-                  checked={formData.tripDirection === "oneway"}
-                  onChange={(e) => setFormData({ ...formData, tripDirection: e.target.value })}
-                  className="peer sr-only"
-                />
-                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors text-center">
-                  <div className="font-medium text-slate-800">1 chiều</div>
-                  <div className="text-xs text-slate-500">Một chiều đi</div>
-                </div>
-              </label>
-              <label className="flex-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="tripDirection"
-                  value="roundtrip"
-                  checked={formData.tripDirection === "roundtrip"}
-                  onChange={(e) => setFormData({ ...formData, tripDirection: e.target.value })}
-                  className="peer sr-only"
-                />
-                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-purple-500 peer-checked:bg-purple-50 transition-colors text-center">
-                  <div className="font-medium text-slate-800">2 chiều</div>
-                  <div className="text-xs text-slate-500">Đi & về</div>
-                </div>
-              </label>
-            </div>
+        <h3 className="font-semibold text-slate-800">Loại hình</h3>
 
-            {/* Trip Type */}
-            <div className="flex gap-4">
-              <label className="flex-1 cursor-pointer">
+        {!isEditMode && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Ghép 1 chiều */}
+              <label className="cursor-pointer">
                 <input
                   type="radio"
                   name="tripType"
                   value="ghep"
                   checked={formData.tripType === "ghep"}
-                  onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
+                  onChange={() => setFormData({ ...formData, tripType: "ghep" })}
                   className="peer sr-only"
                 />
-                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition-colors text-center">
-                  <div className="font-medium text-slate-800">Đi ghép</div>
-                  <div className="text-xs text-slate-500">Ghép khách trên đường</div>
+                <div className="px-3 py-2.5 rounded-lg border-2 text-center text-sm font-medium transition-colors
+                  peer-checked:border-blue-500 peer-checked:bg-blue-50
+                  border-slate-200 text-slate-600 bg-white hover:bg-slate-50">
+                  Ghép
                 </div>
               </label>
-              <label className="flex-1 cursor-pointer">
+              {/* Ghép 2 chiều */}
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="tripType"
+                  value="ghep_roundtrip"
+                  checked={formData.tripType === "ghep_roundtrip"}
+                  onChange={() => setFormData({ ...formData, tripType: "ghep_roundtrip" })}
+                  className="peer sr-only"
+                />
+                <div className="px-3 py-2.5 rounded-lg border-2 text-center text-sm font-medium transition-colors
+                  peer-checked:border-blue-500 peer-checked:bg-blue-50
+                  border-slate-200 text-slate-600 bg-white hover:bg-slate-50">
+                  Ghép 2C
+                </div>
+              </label>
+              {/* Bao 1 chiều */}
+              <label className="cursor-pointer">
                 <input
                   type="radio"
                   name="tripType"
                   value="bao"
                   checked={formData.tripType === "bao"}
-                  onChange={(e) => setFormData({ ...formData, tripType: e.target.value })}
+                  onChange={() => setFormData({ ...formData, tripType: "bao" })}
                   className="peer sr-only"
                 />
-                <div className="px-4 py-3 rounded-lg border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50 transition-colors text-center">
-                  <div className="font-medium text-slate-800">Bao xe</div>
-                  <div className="text-xs text-slate-500">Thuê cả xe</div>
+                <div className="px-3 py-2.5 rounded-lg border-2 text-center text-sm font-medium transition-colors
+                  peer-checked:border-amber-500 peer-checked:bg-amber-50
+                  border-slate-200 text-slate-600 bg-white hover:bg-slate-50">
+                  Bao
+                </div>
+              </label>
+              {/* Bao 2 chiều */}
+              <label className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="tripType"
+                  value="bao_roundtrip"
+                  checked={formData.tripType === "bao_roundtrip"}
+                  onChange={() => setFormData({ ...formData, tripType: "bao_roundtrip" })}
+                  className="peer sr-only"
+                />
+                <div className="px-3 py-2.5 rounded-lg border-2 text-center text-sm font-medium transition-colors
+                  peer-checked:border-amber-500 peer-checked:bg-amber-50
+                  border-slate-200 text-slate-600 bg-white hover:bg-slate-50">
+                  Bao 2C
                 </div>
               </label>
             </div>
-          </div>
+
+            {/* Số ghế — hiện khi ghép, ẩn khi bao */}
+            {formData.tripType === "ghep" || formData.tripType === "ghep_roundtrip" ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-slate-700 shrink-0">Số ghế</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={formData.totalSeats}
+                  onChange={(e) => setFormData({ ...formData, totalSeats: e.target.value })}
+                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm text-center focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cur = parseInt(formData.totalSeats) || 1;
+                    if (cur > 1) setFormData({ ...formData, totalSeats: String(cur - 1) });
+                  }}
+                  className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 text-base font-bold"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cur = parseInt(formData.totalSeats) || 0;
+                    setFormData({ ...formData, totalSeats: String(cur + 1) });
+                  }}
+                  className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 text-base font-bold"
+                >
+                  +
+                </button>
+              </div>
+            ) : (
+              <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Bao xe — không cần chọn số ghế
+              </div>
+            )}
+          </>
         )}
 
         <div>
@@ -711,6 +749,8 @@ export default function TripForm() {
                 const actualTime = tripDate < nowWithBuffer
                   ? now.toTimeString().slice(0, 5)
                   : formData.departureTime;
+                const direction = getDirection(formData.tripType);
+                const rawType = formData.tripType.replace("_roundtrip", "") as "ghep" | "bao";
 
                 const note = generateAutoNote(
                   actualTime,
@@ -719,8 +759,8 @@ export default function TripForm() {
                   formData.price,
                   formData.customerPhone,
                   parseInt(formData.totalSeats) || 1,
-                  formData.tripType,
-                  formData.tripDirection
+                  rawType,
+                  direction
                 );
                 setFormData({ ...formData, notes: note });
               }}
@@ -751,6 +791,8 @@ export default function TripForm() {
                   const actualTime = tripDate < nowWithBuffer
                     ? now.toTimeString().slice(0, 5)
                     : formData.departureTime;
+                  const direction = getDirection(formData.tripType);
+                  const rawType = formData.tripType.replace("_roundtrip", "") as "ghep" | "bao";
 
                   return generateAutoNote(
                     actualTime,
@@ -759,8 +801,8 @@ export default function TripForm() {
                     formData.price,
                     formData.customerPhone,
                     parseInt(formData.totalSeats) || 1,
-                    formData.tripType,
-                    formData.tripDirection
+                    rawType,
+                    direction
                   );
                 })()}
               </div>
