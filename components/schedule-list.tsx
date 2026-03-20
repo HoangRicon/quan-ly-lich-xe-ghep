@@ -766,18 +766,40 @@ export default function ScheduleList() {
     fetchDrivers(); // fetch drivers with formulas for realtime profit preview
     const deptDate = new Date(trip.departureTime);
     const passengerCount = trip.passengerCount ?? 0;
-    // Ưu tiên dùng tripType từ DB nếu có; fallback tính từ passengerCount
-    const rawType: string =
-      (trip as any).tripType === "bao" || (trip as any).tripType === "ghep" ||
-      (trip as any).tripType === "bao_roundtrip" || (trip as any).tripType === "ghep_roundtrip"
-        ? (trip as any).tripType
-        : passengerCount >= (trip.totalSeats || 1) && passengerCount > 0
+    const tripDirection: "oneway" | "roundtrip" =
+      trip.tripDirection === "roundtrip" ? "roundtrip" : "oneway";
+
+    // Backend/DB có thể lưu `trip.tripType` dạng base ("bao" | "ghep"),
+    // còn chiều 1C/2C nằm ở `trip.tripDirection`. ScheduleList preview lại match công thức theo `editForm.tripType`
+    // nên cần ghép đúng suffix `_roundtrip` ở đây.
+    let baseTripType: "ghep" | "bao" | null = null;
+    const rawTripType = (trip as any).tripType as unknown;
+    if (rawTripType === "bao" || rawTripType === "bao_roundtrip") baseTripType = "bao";
+    else if (rawTripType === "ghep" || rawTripType === "ghep_roundtrip") baseTripType = "ghep";
+
+    // fallback tính từ passengerCount khi không có tripType hợp lệ
+    if (!baseTripType) {
+      baseTripType = passengerCount >= (trip.totalSeats || 1) && passengerCount > 0 ? "bao" : "ghep";
+    }
+
+    const computedTripType: "ghep" | "ghep_roundtrip" | "bao" | "bao_roundtrip" =
+      tripDirection === "roundtrip"
+        ? (baseTripType === "bao" ? "bao_roundtrip" : "ghep_roundtrip")
+        : baseTripType === "bao"
           ? "bao"
           : "ghep";
-    const computedTripType: "ghep" | "ghep_roundtrip" | "bao" | "bao_roundtrip" =
-      rawType.includes("roundtrip")
-        ? rawType as "ghep_roundtrip" | "bao_roundtrip"
-        : rawType as "ghep" | "bao";
+
+    // Công thức `bao*` thường có `seats = null` (không dùng số ghế), nên để preview match đúng
+    // cần không truyền seats vào `editProfitPreview` khi tripType là bao.
+    const isBao = computedTripType === "bao" || computedTripType === "bao_roundtrip";
+    const seatBase =
+      trip.totalSeats && trip.totalSeats > 0
+        ? trip.totalSeats
+        : passengerCount > 0
+          ? passengerCount
+          : 1;
+    const totalSeatsForForm = isBao ? "" : seatBase.toString();
+
     setEditForm({
       departure: trip.departure,
       destination: trip.destination,
@@ -785,14 +807,14 @@ export default function ScheduleList() {
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: trip.price?.toString() || "",
       profit: trip.profit != null ? trip.profit.toString() : "",
-      totalSeats: trip.totalSeats ? trip.totalSeats.toString() : "",
+      totalSeats: totalSeatsForForm,
       customerName: trip.customer?.name || "",
       customerPhone: trip.customer?.phone || "",
       driverId: trip.driver?.id || null,
       status: trip.status || "scheduled",
       notes: trip.notes || "",
       tripType: computedTripType,
-      tripDirection: trip.tripDirection === "roundtrip" ? "roundtrip" : "oneway",
+      tripDirection,
     });
     // Fetch drivers for combobox
     fetchDrivers();
