@@ -21,7 +21,9 @@ interface Zom {
   fullName: string | null;
   profitRate: number;
   formulaId: number | null;
+  formulaIds: number[];
   formula: Formula | null;
+  formulas: Formula[];
 }
 
 const TRIP_TYPE_SHORT: Record<string, string> = {
@@ -274,15 +276,18 @@ export default function DriverList() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {zom.formula ? (
+                    {zom.formulas && zom.formulas.length > 0 ? (
                       <div className="flex items-center justify-center gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${TRIP_TYPE_COLORS[zom.formula.tripType] || "bg-slate-100 text-slate-700"}`}>
-                          {TRIP_TYPE_SHORT[zom.formula.tripType] || zom.formula.tripType}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${TRIP_TYPE_COLORS[zom.formulas[0].tripType] || "bg-slate-100 text-slate-700"}`}>
+                          {TRIP_TYPE_SHORT[zom.formulas[0].tripType] || zom.formulas[0].tripType}
                         </span>
                         <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                           <Star className="w-3 h-3" />
-                          {zom.formula.points}đ
+                          {zom.formulas[0].points}đ
                         </span>
+                        {zom.formulas.length > 1 && (
+                          <span className="text-xs text-slate-400">+{zom.formulas.length - 1}</span>
+                        )}
                       </div>
                     ) : (
                       <span className="text-xs text-slate-400 italic">Chưa gán</span>
@@ -341,15 +346,18 @@ export default function DriverList() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-slate-800 truncate">{zom.fullName || "(Chưa đặt tên)"}</div>
-                    {zom.formula ? (
+                    {zom.formulas && zom.formulas.length > 0 ? (
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TRIP_TYPE_COLORS[zom.formula.tripType] || "bg-slate-100 text-slate-700"}`}>
-                          {TRIP_TYPE_SHORT[zom.formula.tripType]}
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${TRIP_TYPE_COLORS[zom.formulas[0].tripType] || "bg-slate-100 text-slate-700"}`}>
+                          {TRIP_TYPE_SHORT[zom.formulas[0].tripType]}
                         </span>
                         <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
                           <Star className="w-2.5 h-2.5" />
-                          {zom.formula.points}đ
+                          {zom.formulas[0].points}đ
                         </span>
+                        {zom.formulas.length > 1 && (
+                          <span className="text-[10px] text-slate-400">+{zom.formulas.length - 1}</span>
+                        )}
                         <span className="text-[10px] text-slate-400">{formatCurrency(zom.profitRate)}/đ</span>
                       </div>
                     ) : (

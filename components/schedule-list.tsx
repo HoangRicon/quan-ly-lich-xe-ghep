@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import {
   Search, Plus, MapPin, Clock, Phone, MessageCircle,
@@ -237,7 +237,7 @@ export default function ScheduleList() {
   });
 
   // Computed realtime profit preview from editForm
-  const editProfitPreview = (() => {
+  const editProfitPreview = useMemo(() => {
     const price = parseInt((editForm.price || "").replace(/\./g, "")) || 0;
     const seats = parseInt(editForm.totalSeats) || 1;
     const dir = editForm.tripDirection || "oneway";
@@ -246,11 +246,24 @@ export default function ScheduleList() {
       ? (dir === "roundtrip" ? "bao_roundtrip" : "bao")
       : (dir === "roundtrip" ? "ghep_roundtrip" : "ghep");
 
-    // Tìm driver đã chọn trong danh sách drivers
-    const selectedDriver = drivers.find(d => d.id === editForm.driverId);
-    if (!selectedDriver || !price) return null;
+    if (!editForm.driverId || !price) return null;
 
-    const matched = selectedDriver.formulas?.find(f =>
+    // Ưu tiên formulas từ editingTrip.driver (có ngay khi mở sheet)
+    // Fallback sang drivers list (fetch khi chọn driver trong modal)
+    const driverFromTrip = editingTrip?.driver;
+    const driverFromList = drivers.find(d => d.id === editForm.driverId);
+    const isFromTrip = driverFromTrip?.id === editForm.driverId;
+    const driver = isFromTrip ? driverFromTrip : driverFromList;
+    const formulas = isFromTrip
+      ? driverFromTrip?.formulas
+      : driverFromList?.formulas;
+    const profitRate = isFromTrip
+      ? (driverFromList ? Number(driverFromList.profitRate) || 1000 : 1000)
+      : (Number(driverFromList?.profitRate) || 1000);
+
+    if (!driver) return null;
+
+    const matched = formulas?.find(f =>
       f.tripType === typeKey &&
       f.isActive &&
       (f.seats == null || f.seats === seats) &&
@@ -259,9 +272,8 @@ export default function ScheduleList() {
     );
     if (!matched) return null;
 
-    const profitRate = Number(selectedDriver.profitRate) || 1000;
     return { points: matched.points, profit: matched.points * profitRate, formulaName: matched.name };
-  })();
+  }, [editForm.price, editForm.totalSeats, editForm.tripDirection, editForm.tripType, editForm.driverId, drivers, editingTrip]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -705,6 +717,7 @@ export default function ScheduleList() {
   // Edit sheet functions
   const openEditSheet = (trip: Trip) => {
     setEditingTrip(trip);
+    fetchDrivers(); // fetch drivers with formulas for realtime profit preview
     const deptDate = new Date(trip.departureTime);
     const passengerCount = trip.passengerCount ?? 0;
     // Ưu tiên dùng tripType từ DB nếu có; fallback tính từ passengerCount
@@ -1445,21 +1458,23 @@ export default function ScheduleList() {
                     {editForm.departure || "?"}
                     <span className="text-slate-400 mx-1">→</span>
                     {editForm.destination || "?"}
-                    {editForm.tripType === "bao" ? " (Bao)" : " (Ghép)"}
-                    {editForm.totalSeats && parseInt(editForm.totalSeats) > 0 && ` - ${editForm.totalSeats} ghế`}
+                    {editForm.tripType === "bao" ? " (Bao)" : " (Ghep)"}
+                    {editForm.totalSeats && parseInt(editForm.totalSeats) > 0 && ` - ${editForm.totalSeats} ghe`}
                     {editForm.price && ` - ${formatCurrency(parseInt(editForm.price.replace(/\./g, "")) || 0)}`}
-                    {editForm.tripDirection === "roundtrip" && " - Hai chieu"}
+                    {editForm.tripDirection === "roundtrip" && " - 2 chieu"}
                   </h2>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     <span className="text-sm font-medium text-blue-600">
                       {editForm.driverId
                         ? (drivers.find(d => d.id === editForm.driverId)?.fullName || "Zom")
-                        : (editingTrip.driver?.fullName || "Chưa gán Zom")}
+                        : (editingTrip.driver?.fullName || "Chua gan Zom")}
                     </span>
                     {editProfitPreview ? (
-                      <span className="text-sm font-bold text-green-600">+{formatCurrency(editProfitPreview.profit)}</span>
+                      <span className="text-sm font-bold text-green-600">
+                        +{formatCurrency(editProfitPreview.profit)} · {editProfitPreview.points} diem · {editProfitPreview.formulaName}
+                      </span>
                     ) : (
-                      <span className="text-sm font-medium text-red-500">Chưa co cong thuc</span>
+                      <span className="text-sm font-medium text-red-500">Chua co cong thuc</span>
                     )}
                   </div>
                 </div>
@@ -1554,14 +1569,36 @@ export default function ScheduleList() {
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Số ghế (nếu đi ghép)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={editForm.totalSeats}
-                      onChange={(e) => setEditForm({ ...editForm, totalSeats: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                      placeholder="Ví dụ: 4"
-                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = parseInt(editForm.totalSeats) || 1;
+                          if (cur > 1) setEditForm({ ...editForm, totalSeats: String(cur - 1) });
+                        }}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 text-base font-bold"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        value={editForm.totalSeats}
+                        onChange={(e) => setEditForm({ ...editForm, totalSeats: e.target.value })}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm text-center"
+                        placeholder="1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = parseInt(editForm.totalSeats) || 0;
+                          setEditForm({ ...editForm, totalSeats: String(cur + 1) });
+                        }}
+                        className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 text-base font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                   {/* Hướng đi */}
                   <div>
@@ -1620,21 +1657,34 @@ export default function ScheduleList() {
                     </div>
                   </div>
                   <div>
-                <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
-                <input
-                  type="number"
-                  value={editForm.profit}
-                  onChange={(e) => setEditForm({ ...editForm, profit: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                  placeholder="Để trống để tự tính theo công thức (nếu có)"
-                />
-                <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                  Nếu <b>nhập lợi nhuận</b> thì hệ thống ưu tiên số này.{" "}
-                  <span className="font-semibold">
-                    Nếu <b>để trống</b> và Zom có công thức thì hệ thống sẽ tự tính.
-                  </span>
-                </p>
-              </div>
+                    <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={editForm.profit}
+                        onChange={(e) => setEditForm({ ...editForm, profit: e.target.value })}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                        placeholder="Tu tinh theo cong thuc"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editProfitPreview != null) {
+                            setEditForm({ ...editForm, profit: editProfitPreview.profit.toString() });
+                          }
+                        }}
+                        className="px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Tinh lai
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                      Neu <b>nhap loi nhuan</b> thi he thong uu tien so nay.{" "}
+                      <span className="font-semibold">
+                        Neu <b>de trong</b> va Zom co cong thuc thi he thong se tu tinh.
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
 

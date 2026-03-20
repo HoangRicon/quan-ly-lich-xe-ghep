@@ -82,7 +82,7 @@ export default function EditDriverPage() {
   const [formulaForm, setFormulaForm] = useState({
     name: "",
     tripType: "ghep",
-    seats: "",
+    seats: "1",
     minPrice: "",
     maxPrice: "",
     points: "1",
@@ -168,7 +168,7 @@ export default function EditDriverPage() {
     setFormulaForm({
       name: "",
       tripType: "ghep",
-      seats: "",
+      seats: "1",
       minPrice: "",
       maxPrice: "",
       points: "1",
