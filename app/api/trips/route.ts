@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
               fullName: true,
               phone: true,
               formulaIds: true,
+              profitRate: true,
             },
           },
           customers: {
@@ -163,6 +164,7 @@ export async function GET(request: NextRequest) {
           id: trip.driver.id,
           fullName: trip.driver.fullName,
           phone: trip.driver.phone,
+          profitRate: trip.driver.profitRate ? Number(trip.driver.profitRate) : 1000,
           formulas: driverFormulasRaw.map((f) => ({
             id: f.id,
             name: f.name,

@@ -36,6 +36,7 @@ interface Trip {
     id: number;
     fullName: string;
     phone: string;
+    profitRate?: number;
     formulas?: Array<{
       id: number;
       name: string;
@@ -248,31 +249,75 @@ export default function ScheduleList() {
 
     if (!editForm.driverId || !price) return null;
 
-    // Ưu tiên formulas từ editingTrip.driver (có ngay khi mở sheet)
-    // Fallback sang drivers list (fetch khi chọn driver trong modal)
+    // Determine formulas source: prefer editingTrip.driver.formulas (available immediately when sheet opens
+    // from /api/trips/{id} which fetches driver formulas), fallback to drivers list (from /api/drivers).
+    // Also fall back to trip formulas even if ID doesn't perfectly match (e.g., stale ID mismatch).
+    type FormulaType = Array<{
+      id: number; name: string; tripType: string; seats: number | null;
+      points: number; minPrice?: number | null; maxPrice?: number | null; isActive: boolean;
+    }>;
+    let formulas: FormulaType | undefined = undefined;
+    let profitRate = 1000;
+
     const driverFromTrip = editingTrip?.driver;
     const driverFromList = drivers.find(d => d.id === editForm.driverId);
     const isFromTrip = driverFromTrip?.id === editForm.driverId;
-    const driver = isFromTrip ? driverFromTrip : driverFromList;
-    const formulas = isFromTrip
-      ? driverFromTrip?.formulas
-      : driverFromList?.formulas;
-    const profitRate = isFromTrip
-      ? (driverFromList ? Number(driverFromList.profitRate) || 1000 : 1000)
-      : (Number(driverFromList?.profitRate) || 1000);
 
-    if (!driver) return null;
+    if (isFromTrip && driverFromTrip?.formulas && driverFromTrip.formulas.length > 0) {
+      formulas = driverFromTrip.formulas;
+      profitRate = Number(driverFromTrip.profitRate) || 1000;
+    } else if (driverFromList?.formulas && driverFromList.formulas.length > 0) {
+      formulas = driverFromList.formulas;
+      profitRate = Number(driverFromList.profitRate) || 1000;
+    } else if (driverFromTrip?.formulas && driverFromTrip.formulas.length > 0) {
+      formulas = driverFromTrip.formulas;
+      profitRate = Number(driverFromTrip.profitRate) || 1000;
+    }
 
-    const matched = formulas?.find(f =>
+    if (!formulas || formulas.length === 0) {
+      return { points: 0, profit: 0, formulaName: null, reason: "no_formula" as const };
+    }
+
+    // Bước 1: Tìm TẤT CẢ formulas match tripType + isActive + giá
+    const priceMatch = formulas.filter(f =>
       f.tripType === typeKey &&
       f.isActive &&
-      (f.seats == null || f.seats === seats) &&
       (f.minPrice == null || price >= f.minPrice) &&
       (f.maxPrice == null || price <= f.maxPrice)
     );
-    if (!matched) return null;
 
-    return { points: matched.points, profit: matched.points * profitRate, formulaName: matched.name };
+    if (priceMatch.length === 0) {
+      // Không có formula nào cùng tripType + giá → báo không phù hợp
+      const hasAnyOfType = formulas.some(f => f.tripType === typeKey && f.isActive);
+      if (!hasAnyOfType) {
+        return { points: 0, profit: 0, formulaName: null, reason: "no_formula" as const };
+      }
+      // Có formula cùng tripType nhưng không phù hợp giá → hiển thị tên formula gần nhất
+      const nearestFormula = priceMatch.length === 0
+        ? formulas.find(f => f.tripType === typeKey && f.isActive)
+        : undefined;
+      return {
+        points: 0, profit: 0,
+        formulaName: nearestFormula?.name || null,
+        reason: "not_matching" as const
+      };
+    }
+
+    // Bước 2: Ưu tiên formula có seats CHÍNH XÁC với số ghế đang chọn
+    const exactSeatMatch = priceMatch.filter(f => f.seats === seats);
+    if (exactSeatMatch.length > 0) {
+      const matched = exactSeatMatch[0];
+      return { points: matched.points, profit: matched.points * profitRate, formulaName: matched.name, reason: null as null };
+    }
+
+    // Bước 3: Không có formula đúng số ghế → báo không phù hợp
+    // (KHÔNG dùng seats: null như "tấm thỏa" vì sẽ gây hiểu nhầm)
+    const nearestFormula = priceMatch.find(f => f.tripType === typeKey && f.isActive);
+    return {
+      points: 0, profit: 0,
+      formulaName: nearestFormula?.name || null,
+      reason: "not_matching" as const
+    };
   }, [editForm.price, editForm.totalSeats, editForm.tripDirection, editForm.tripType, editForm.driverId, drivers, editingTrip]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -1452,7 +1497,7 @@ export default function ScheduleList() {
             {/* Header */}
             <div className="px-4 pb-4 border-b border-slate-100 flex-shrink-0">
               <div className="flex items-center justify-between mb-3">
-                <div>
+                <div className="min-w-0 flex-1 mr-2">
                   <p className="text-xs text-slate-400">Mã cuốc #{editingTrip.id}</p>
                   <h2 className="text-lg font-bold text-slate-800 leading-tight">
                     {editForm.departure || "?"}
@@ -1464,21 +1509,29 @@ export default function ScheduleList() {
                     {editForm.tripDirection === "roundtrip" && " - 2 chieu"}
                   </h2>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                    <span className="text-sm font-medium text-blue-600">
-                      {editForm.driverId
-                        ? (drivers.find(d => d.id === editForm.driverId)?.fullName || "Zom")
-                        : (editingTrip.driver?.fullName || "Chua gan Zom")}
-                    </span>
-                    {editProfitPreview ? (
-                      <span className="text-sm font-bold text-green-600">
-                        +{formatCurrency(editProfitPreview.profit)} · {editProfitPreview.points} diem · {editProfitPreview.formulaName}
+                    {editForm.driverId ? (
+                      <span className="text-sm font-medium text-blue-600">
+                        {(drivers.find(d => d.id === editForm.driverId)?.fullName) || (editingTrip.driver?.fullName) || "Zom"}
                       </span>
                     ) : (
-                      <span className="text-sm font-medium text-red-500">Chua co cong thuc</span>
+                      <span className="text-sm font-medium text-slate-400">Chưa gán Zom</span>
+                    )}
+                    {editProfitPreview === null ? (
+                      <span className="text-sm font-medium text-slate-400">Chưa đủ thông tin</span>
+                    ) : editProfitPreview.reason === "no_formula" ? (
+                      <span className="text-sm font-medium text-red-500">Chưa có công thức</span>
+                    ) : editProfitPreview.reason === "not_matching" ? (
+                      <span className="text-sm font-medium text-red-500">
+                        Công thức "{editProfitPreview.formulaName || "?"}" không phù hợp số ghế/giá này
+                      </span>
+                    ) : (
+                      <span className="text-sm font-bold text-green-600">
+                        +{formatCurrency(editProfitPreview.profit)} · {editProfitPreview.points} điểm · {editProfitPreview.formulaName}
+                      </span>
                     )}
                   </div>
                 </div>
-                <button onClick={() => setShowEditSheet(false)} className="p-2 rounded-full hover:bg-slate-100">
+                <button onClick={() => setShowEditSheet(false)} className="p-2 rounded-full hover:bg-slate-100 flex-shrink-0">
                   <X className="w-5 h-5 text-slate-500" />
                 </button>
               </div>
@@ -1669,11 +1722,16 @@ export default function ScheduleList() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (editProfitPreview != null) {
+                          if (editProfitPreview?.reason === null) {
                             setEditForm({ ...editForm, profit: editProfitPreview.profit.toString() });
                           }
                         }}
-                        className="px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                        className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                          editProfitPreview?.reason === null
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                        }`}
+                        disabled={editProfitPreview?.reason !== null}
                       >
                         Tinh lai
                       </button>

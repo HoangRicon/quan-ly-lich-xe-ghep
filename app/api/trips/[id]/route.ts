@@ -24,18 +24,7 @@ export async function GET(
             fullName: true,
             phone: true,
             formulaIds: true,
-            formula: {
-              select: {
-                id: true,
-                name: true,
-                tripType: true,
-                seats: true,
-                minPrice: true,
-                maxPrice: true,
-                points: true,
-                isActive: true,
-              },
-            },
+            profitRate: true,
           },
         },
         customers: {
@@ -48,6 +37,34 @@ export async function GET(
 
     if (!trip) {
       return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+    }
+
+    // Fetch all formulas that this driver has access to
+    let driverFormulas: Array<{
+      id: number;
+      name: string;
+      tripType: string;
+      seats: number | null;
+      minPrice: number | null;
+      maxPrice: number | null;
+      points: number;
+      isActive: boolean;
+    }> = [];
+    if (trip.driver && trip.driver.formulaIds && trip.driver.formulaIds.length > 0) {
+      const formulas = await prisma.pricingFormula.findMany({
+        where: { id: { in: trip.driver.formulaIds } },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      });
+      driverFormulas = formulas.map(f => ({
+        id: f.id,
+        name: f.name,
+        tripType: f.tripType,
+        seats: f.seats ?? null,
+        minPrice: f.minPrice ? Number(f.minPrice) : null,
+        maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+        points: Number(f.points),
+        isActive: f.isActive,
+      }));
     }
 
     const mainCustomer = trip.customers[0]?.customer;
@@ -74,20 +91,8 @@ export async function GET(
         id: trip.driver.id,
         fullName: trip.driver.fullName,
         phone: trip.driver.phone,
-        formulas: trip.driver.formula?.isActive
-          ? [
-              {
-                id: trip.driver.formula.id,
-                name: trip.driver.formula.name,
-                tripType: trip.driver.formula.tripType,
-                seats: trip.driver.formula.seats,
-                minPrice: trip.driver.formula.minPrice ? Number(trip.driver.formula.minPrice) : null,
-                maxPrice: trip.driver.formula.maxPrice ? Number(trip.driver.formula.maxPrice) : null,
-                points: Number(trip.driver.formula.points),
-                isActive: trip.driver.formula.isActive,
-              },
-            ]
-          : [],
+        profitRate: trip.driver.profitRate ? Number(trip.driver.profitRate) : 1000,
+        formulas: driverFormulas,
       } : null,
       customer: mainCustomer ? {
         id: mainCustomer.id,
@@ -259,7 +264,16 @@ export async function PUT(
       where: { id: tripId },
       data: updateData,
       include: {
-        driver: { include: { formula: true } },
+        driver: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            formulaIds: true,
+            profitRate: true,
+            formula: { select: { isActive: true } },
+          },
+        },
         customers: {
           include: {
             customer: true,
@@ -267,6 +281,34 @@ export async function PUT(
         },
       },
     });
+
+    // Fetch all formulas for the driver
+    let putDriverFormulas: Array<{
+      id: number;
+      name: string;
+      tripType: string;
+      seats: number | null;
+      minPrice: number | null;
+      maxPrice: number | null;
+      points: number;
+      isActive: boolean;
+    }> = [];
+    if (trip.driver && trip.driver.formulaIds && trip.driver.formulaIds.length > 0) {
+      const formulas = await prisma.pricingFormula.findMany({
+        where: { id: { in: trip.driver.formulaIds } },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      });
+      putDriverFormulas = formulas.map(f => ({
+        id: f.id,
+        name: f.name,
+        tripType: f.tripType,
+        seats: f.seats ?? null,
+        minPrice: f.minPrice ? Number(f.minPrice) : null,
+        maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
+        points: Number(f.points),
+        isActive: f.isActive,
+      }));
+    }
 
     const mainCustomer = trip.customers[0]?.customer;
     const formattedTrip = {
@@ -291,20 +333,8 @@ export async function PUT(
         id: trip.driver.id,
         fullName: trip.driver.fullName,
         phone: trip.driver.phone,
-        formulas: trip.driver.formula?.isActive
-          ? [
-              {
-                id: trip.driver.formula.id,
-                name: trip.driver.formula.name,
-                tripType: trip.driver.formula.tripType,
-                seats: trip.driver.formula.seats,
-                minPrice: trip.driver.formula.minPrice ? Number(trip.driver.formula.minPrice) : null,
-                maxPrice: trip.driver.formula.maxPrice ? Number(trip.driver.formula.maxPrice) : null,
-                points: Number(trip.driver.formula.points),
-                isActive: trip.driver.formula.isActive,
-              },
-            ]
-          : [],
+        profitRate: trip.driver.profitRate ? Number(trip.driver.profitRate) : 1000,
+        formulas: putDriverFormulas,
       } : null,
       customer: mainCustomer ? {
         id: mainCustomer.id,
