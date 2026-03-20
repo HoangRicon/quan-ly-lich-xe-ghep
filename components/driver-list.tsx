@@ -189,51 +189,21 @@ export default function DriverList() {
     <div>
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Tìm Zom..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
-          />
-        </div>
-        <div className="flex gap-2">
-          {/* Export Button */}
-          <div className="relative" ref={exportMenuRef}>
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Xuất</span>
-            </button>
-            {showExportMenu && (
-              <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1 min-w-[140px]">
-                <button
-                  onClick={exportToCSV}
-                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4 text-green-600" />
-                  Xuất CSV
-                </button>
-                <button
-                  onClick={exportToExcel}
-                  className="w-full px-4 py-2.5 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4 text-amber-600" />
-                  Xuất Excel
-                </button>
-              </div>
-            )}
+        <div className="relative flex-1 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm Zom..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+            />
           </div>
           <Link href="/dashboard/drivers/add">
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Thêm Zom</span>
-              <span className="sm:hidden">Thêm</span>
-            </Button>
+            <button className="flex items-center justify-center w-10 h-[42px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-lg font-bold flex-shrink-0">
+              +
+            </button>
           </Link>
         </div>
       </div>
