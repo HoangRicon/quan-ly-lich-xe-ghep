@@ -212,12 +212,28 @@ export async function PUT(
       const finalDirection = tripDirection || currentTrip.tripDirection || "oneway";
       const finalDriverId = driverId !== undefined ? driverId : currentTrip.driverId;
 
-      // Dùng tripType từ request nếu có; nếu không thì tính từ passengerCount
-      const passengerCount = (currentTrip.customers ?? []).reduce((sum, c) => sum + (c.seats || 0), 0);
+      // Normalize tripType đầu vào về 2 loại "ghep" | "bao" (formula engine sẽ tự map theo tripDirection).
+      // Lưu ý: frontend có thể gửi tripType dạng "*_roundtrip", nên không được suy sai bằng passengerCount.
+      const normalizeBaseTripType = (t: unknown): "ghep" | "bao" | null => {
+        if (t === "ghep" || t === "ghep_roundtrip") return "ghep";
+        if (t === "bao" || t === "bao_roundtrip") return "bao";
+        return null;
+      };
+
+      const parsedTripTypeFromReq = normalizeBaseTripType(tripType);
+      const parsedTripTypeFromCurrent = normalizeBaseTripType((currentTrip as any).tripType);
+
+      // Ưu tiên tripType đã lưu trong DB. Chỉ fallback sang suy luận passengerCount khi không có thông tin hợp lệ.
       let parsedTripType: "ghep" | "bao";
-      if (tripType === "bao" || tripType === "ghep") {
-        parsedTripType = tripType;
+      if (parsedTripTypeFromReq) {
+        parsedTripType = parsedTripTypeFromReq;
+      } else if (parsedTripTypeFromCurrent) {
+        parsedTripType = parsedTripTypeFromCurrent;
       } else {
+        const passengerCount = (currentTrip.customers ?? []).reduce(
+          (sum, c) => sum + (c.seats || 0),
+          0
+        );
         parsedTripType = passengerCount >= finalTotalSeats && passengerCount > 0 ? "bao" : "ghep";
       }
 

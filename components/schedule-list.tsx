@@ -1504,7 +1504,10 @@ export default function ScheduleList() {
                     <span className="text-slate-400 mx-1">→</span>
                     {editForm.destination || "?"}
                     {editForm.tripType === "bao" || editForm.tripType === "bao_roundtrip" ? " (Bao)" : " (Ghép)"}
-                    {editForm.totalSeats && parseInt(editForm.totalSeats) > 0 && ` - ${editForm.totalSeats} ghế`}
+                    {(editForm.tripType === "ghep" || editForm.tripType === "ghep_roundtrip") &&
+                      editForm.totalSeats &&
+                      parseInt(editForm.totalSeats) > 0 &&
+                      ` - ${editForm.totalSeats} ghế`}
                     {editForm.price && ` - ${formatCurrency(parseInt(editForm.price.replace(/\./g, "")) || 0)}`}
                     {editForm.tripDirection === "roundtrip" && " - 2 chiều"}
                   </h2>
