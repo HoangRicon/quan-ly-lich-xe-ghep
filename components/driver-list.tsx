@@ -47,6 +47,8 @@ export default function DriverList() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
+  const LIMIT_STORAGE_KEY = "driverList.limit";
+  const [hydrated, setHydrated] = useState(false);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -55,13 +57,38 @@ export default function DriverList() {
   const [deletingZom, setDeletingZom] = useState<Zom | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Restore page size after refresh (F5)
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LIMIT_STORAGE_KEY);
+      const n = raw ? parseInt(raw, 10) : NaN;
+      if ([10, 20, 50].includes(n)) {
+        setLimit(n);
+      }
+    } catch {
+      // ignore storage errors (private mode / disabled)
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
     fetchZoms();
-  }, [page, limit, searchTerm]);
+  }, [page, limit, searchTerm, hydrated]);
 
   useEffect(() => {
     setPage(1);
   }, [limit, searchTerm]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(LIMIT_STORAGE_KEY, String(limit));
+    } catch {
+      // ignore storage errors
+    }
+  }, [limit, hydrated]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

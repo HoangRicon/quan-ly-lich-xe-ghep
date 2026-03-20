@@ -29,6 +29,7 @@ interface Trip {
   departureTime: string;
   status: string;
   price: number;
+  pointsEarned?: number | null;
   profit?: number | null;
   notes?: string;
   driver?: {
@@ -93,7 +94,15 @@ export default function ReportsPage() {
   const [selectedDriver, setSelectedDriver] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "customers">("overview");
+
+  // Draft filters (so người dùng chọn xong mới nhấn "Áp dụng" để fetch lại)
+  const [draftDateFilter, setDraftDateFilter] = useState<DateFilter>("all");
+  const [draftStartDate, setDraftStartDate] = useState("");
+  const [draftEndDate, setDraftEndDate] = useState("");
+  const [draftSelectedDriver, setDraftSelectedDriver] = useState("");
+  const [draftStatusFilter, setDraftStatusFilter] = useState<string>("all");
+
+  const [activeTab, setActiveTab] = useState<"overview" | "details">("overview");
   const [tripSearchDraft, setTripSearchDraft] = useState("");
   const [tripSearchApplied, setTripSearchApplied] = useState("");
 
@@ -107,6 +116,67 @@ export default function ReportsPage() {
   const [tripPage, setTripPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
 
+  // Customer detail modal: xem tất cả cuốc xe của 1 khách (có phân trang + tìm kiếm/bộ lọc)
+  const [customerTripsModalOpen, setCustomerTripsModalOpen] = useState(false);
+  const [selectedCustomerForTrips, setSelectedCustomerForTrips] = useState<CustomerSummary | null>(null);
+  const [customerTripSearchDraft, setCustomerTripSearchDraft] = useState("");
+  const [customerTripSearchApplied, setCustomerTripSearchApplied] = useState("");
+  const [customerTripStatusFilter, setCustomerTripStatusFilter] = useState<string>("all");
+  const [customerTripPage, setCustomerTripPage] = useState(1);
+  const customerTripsPageSize = 8;
+
+  const topListPageSize = 6;
+  const [topDriversPage, setTopDriversPage] = useState(1);
+  const [topRoutesPage, setTopRoutesPage] = useState(1);
+
+  const draftDateRangeInvalid =
+    Boolean(draftStartDate && draftEndDate) && draftStartDate > draftEndDate;
+
+  const isDraftDirty =
+    draftDateFilter !== dateFilter ||
+    draftStartDate !== startDate ||
+    draftEndDate !== endDate ||
+    draftSelectedDriver !== selectedDriver ||
+    draftStatusFilter !== statusFilter;
+
+  const dateFilterForButtons = filtersOpen ? draftDateFilter : dateFilter;
+
+  const applyDraftFilters = () => {
+    if (draftDateRangeInvalid) return;
+    setDateFilter(draftDateFilter);
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+    setSelectedDriver(draftSelectedDriver);
+    setStatusFilter(draftStatusFilter);
+  };
+
+  const clearAllFilters = () => {
+    setDateFilter("all");
+    setStartDate("");
+    setEndDate("");
+    setSelectedDriver("");
+    setStatusFilter("all");
+
+    setDraftDateFilter("all");
+    setDraftStartDate("");
+    setDraftEndDate("");
+    setDraftSelectedDriver("");
+    setDraftStatusFilter("all");
+  };
+
+  const openCustomerTripsModal = (customer: CustomerSummary) => {
+    setSelectedCustomerForTrips(customer);
+    setCustomerTripSearchDraft("");
+    setCustomerTripSearchApplied("");
+    setCustomerTripStatusFilter("all");
+    setCustomerTripPage(1);
+    setCustomerTripsModalOpen(true);
+  };
+
+  const closeCustomerTripsModal = () => {
+    setCustomerTripsModalOpen(false);
+  };
+
   const selectedDriverName = useMemo(() => {
     if (!selectedDriver) return "";
     const idNum = Number(selectedDriver);
@@ -117,39 +187,56 @@ export default function ReportsPage() {
   const handleQuickFilter = (filter: DateFilter) => {
     const today = new Date();
     const todayStr = today.toISOString().split("T")[0];
-    
+
+    let nextStart = "";
+    let nextEnd = "";
+
     if (filter === "today") {
-      setStartDate(todayStr);
-      setEndDate(todayStr);
+      nextStart = todayStr;
+      nextEnd = todayStr;
     } else if (filter === "week") {
       const weekStart = new Date(today);
+      // Sunday -> Monday logic: trừ đi số ngày để về đầu tuần
       weekStart.setDate(today.getDate() - today.getDay());
-      setStartDate(weekStart.toISOString().split("T")[0]);
-      setEndDate(todayStr);
+      nextStart = weekStart.toISOString().split("T")[0];
+      nextEnd = todayStr;
     } else if (filter === "month") {
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      setStartDate(monthStart.toISOString().split("T")[0]);
-      setEndDate(todayStr);
+      nextStart = monthStart.toISOString().split("T")[0];
+      nextEnd = todayStr;
     } else if (filter === "all") {
-      setStartDate("");
-      setEndDate("");
+      nextStart = "";
+      nextEnd = "";
     }
-    
+
+    // Quick filter = áp dụng ngay
     setDateFilter(filter);
+    setStartDate(nextStart);
+    setEndDate(nextEnd);
+
+    setDraftDateFilter(filter);
+    setDraftStartDate(nextStart);
+    setDraftEndDate(nextEnd);
   };
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (startDate) params.set("startDate", startDate);
-      if (endDate) params.set("endDate", endDate);
-      if (selectedDriver) params.set("driverId", selectedDriver);
-      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      const baseParams = new URLSearchParams();
+      if (selectedDriver) baseParams.set("driverId", selectedDriver);
+      if (statusFilter && statusFilter !== "all") baseParams.set("status", statusFilter);
+
+      const currentParams = new URLSearchParams(baseParams);
+      if (startDate) currentParams.set("startDate", startDate);
+      if (endDate) currentParams.set("endDate", endDate);
+
+      const tripsQuery = currentParams.toString();
+      const allTripsQuery = baseParams.toString();
 
       const [tripsRes, allTripsRes, driversRes] = await Promise.all([
-        fetch(`/api/trips?${params}&limit=500`),
-        fetch("/api/trips?limit=1000"),
+        fetch(`/api/trips?${tripsQuery ? `${tripsQuery}&` : ""}limit=500`),
+        // All trips (không giới hạn theo start/end) để tính so sánh "kỳ trước" chính xác hơn theo driver/status
+        fetch(`/api/trips?${allTripsQuery ? `${allTripsQuery}&` : ""}limit=5000`),
         fetch("/api/drivers"),
       ]);
 
@@ -186,6 +273,20 @@ export default function ReportsPage() {
   useEffect(() => {
     setCustomerPage(1);
   }, [startDate, endDate, selectedDriver, statusFilter, tripSearchApplied, customerSearchApplied]);
+
+  useEffect(() => {
+    setCustomerTripPage(1);
+  }, [
+    customerTripSearchApplied,
+    customerTripStatusFilter,
+    selectedCustomerForTrips,
+    customerTripsModalOpen,
+  ]);
+
+  useEffect(() => {
+    setTopDriversPage(1);
+    setTopRoutesPage(1);
+  }, [startDate, endDate, selectedDriver, statusFilter]);
 
   // Computed stats for filtered data
   const stats: Stats = useMemo(() => {
@@ -277,6 +378,229 @@ export default function ReportsPage() {
     };
   }, [trips, allTrips, startDate, endDate]);
 
+  const safeMoney = (val: unknown) => {
+    const num = Number(val ?? 0);
+    // Giữ logic tương tự phần KPI để loại giá/profit bất thường
+    return num > 0 && num < 100000000 ? num : 0;
+  };
+
+  type TrendPoint = {
+    bucketTs: number;
+    label: string;
+    completedRevenue: number;
+    forecastRevenue: number;
+    completedProfit: number;
+  };
+
+  const revenueTrend = useMemo<TrendPoint[]>(() => {
+    if (trips.length === 0) return [];
+
+    const pricesOk = (t: Trip) => safeMoney(t.price);
+    const profitOk = (t: Trip) => safeMoney(t.profit);
+
+    const tripDates = trips.map((t) => new Date(t.departureTime).getTime()).filter(Boolean);
+    const minTs = Math.min(...tripDates);
+    const maxTs = Math.max(...tripDates);
+
+    const rangeStart = startDate ? new Date(startDate).getTime() : minTs;
+    const rangeEnd = endDate ? new Date(endDate).getTime() : maxTs;
+
+    const diffDays = Math.ceil(Math.abs(rangeEnd - rangeStart) / (1000 * 60 * 60 * 24));
+
+    let unit: "day" | "week" | "month" = "day";
+    if (diffDays > 120) unit = "month";
+    else if (diffDays > 45) unit = "week";
+
+    const toDayTs = (d: Date) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x.getTime();
+    };
+
+    const startOfWeekMon = (d: Date) => {
+      const x = new Date(d);
+      const day = (x.getDay() + 6) % 7; // Mon=0..Sun=6
+      x.setDate(x.getDate() - day);
+      x.setHours(0, 0, 0, 0);
+      return x;
+    };
+
+    const toMonthTs = (d: Date) => {
+      const x = new Date(d);
+      x.setDate(1);
+      x.setHours(0, 0, 0, 0);
+      return x.getTime();
+    };
+
+    const formatLabel = (bucketDateTs: number) => {
+      const d = new Date(bucketDateTs);
+      if (unit === "day") {
+        return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+      }
+      if (unit === "week") {
+        return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+      }
+      return d.toLocaleDateString("vi-VN", { month: "2-digit", year: "numeric" });
+    };
+
+    const map = new Map<string, TrendPoint>();
+
+    trips.forEach((t) => {
+      const d = new Date(t.departureTime);
+      const bucketDate =
+        unit === "day" ? toDayTs(d) : unit === "week" ? startOfWeekMon(d).getTime() : toMonthTs(d);
+      const key =
+        unit === "day"
+          ? new Date(bucketDate).toISOString().slice(0, 10)
+          : unit === "week"
+            ? new Date(bucketDate).toISOString().slice(0, 10)
+            : `${new Date(bucketDate).getFullYear()}-${String(new Date(bucketDate).getMonth() + 1).padStart(2, "0")}`;
+
+      const existing = map.get(key) ?? {
+        bucketTs: bucketDate,
+        label: formatLabel(bucketDate),
+        completedRevenue: 0,
+        forecastRevenue: 0,
+        completedProfit: 0,
+      };
+
+      const isCompleted = t.status === "completed";
+      const isCancelled = t.status === "cancelled";
+      const isForecast = Boolean(t.driver) && !isCompleted && !isCancelled;
+
+      if (isCompleted) {
+        existing.completedRevenue += pricesOk(t);
+        existing.completedProfit += profitOk(t);
+      } else if (isForecast) {
+        existing.forecastRevenue += pricesOk(t);
+      }
+
+      map.set(key, existing);
+    });
+
+    const points = Array.from(map.values()).sort((a, b) => a.bucketTs - b.bucketTs);
+
+    const maxBuckets = 12;
+    if (points.length <= maxBuckets) return points;
+
+    const step = Math.ceil(points.length / maxBuckets);
+    const merged: TrendPoint[] = [];
+    for (let i = 0; i < points.length; i += step) {
+      const chunk = points.slice(i, i + step);
+      if (chunk.length === 0) continue;
+
+      const bucketTs = chunk[0].bucketTs;
+      merged.push({
+        bucketTs,
+        label: chunk[0].label,
+        completedRevenue: chunk.reduce((s, p) => s + p.completedRevenue, 0),
+        forecastRevenue: chunk.reduce((s, p) => s + p.forecastRevenue, 0),
+        completedProfit: chunk.reduce((s, p) => s + p.completedProfit, 0),
+      });
+    }
+
+    return merged;
+  }, [trips, startDate, endDate]);
+
+  const statusCounts = useMemo(() => {
+    const base = {
+      scheduled: 0,
+      in_progress: 0,
+      completed: 0,
+      cancelled: 0,
+    } as Record<"scheduled" | "in_progress" | "completed" | "cancelled", number>;
+
+    trips.forEach((t) => {
+      if (t.status in base) base[t.status as keyof typeof base] += 1;
+    });
+
+    return base;
+  }, [trips]);
+
+  type TopItem = {
+    key: string;
+    label: string;
+    totalTrips: number;
+    completedTrips: number;
+    completedRevenue: number;
+  };
+
+  const topDrivers = useMemo<TopItem[]>(() => {
+    const map = new Map<string, TopItem>();
+
+    trips.forEach((t) => {
+      const label = t.driver?.fullName || "Chưa gán";
+      const key = label;
+      const existing =
+        map.get(key) ??
+        ({
+          key,
+          label,
+          totalTrips: 0,
+          completedTrips: 0,
+          completedRevenue: 0,
+        } satisfies TopItem);
+
+      existing.totalTrips += 1;
+      if (t.status === "completed") {
+        existing.completedTrips += 1;
+        existing.completedRevenue += safeMoney(t.price);
+      }
+
+      map.set(key, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.completedRevenue !== a.completedRevenue) return b.completedRevenue - a.completedRevenue;
+      return b.completedTrips - a.completedTrips;
+    });
+  }, [trips]);
+
+  const topRoutes = useMemo<TopItem[]>(() => {
+    const map = new Map<string, TopItem>();
+
+    trips.forEach((t) => {
+      const label = `${t.departure} → ${t.destination}`;
+      const key = label;
+      const existing =
+        map.get(key) ??
+        ({
+          key,
+          label,
+          totalTrips: 0,
+          completedTrips: 0,
+          completedRevenue: 0,
+        } satisfies TopItem);
+
+      existing.totalTrips += 1;
+      if (t.status === "completed") {
+        existing.completedTrips += 1;
+        existing.completedRevenue += safeMoney(t.price);
+      }
+
+      map.set(key, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.completedRevenue !== a.completedRevenue) return b.completedRevenue - a.completedRevenue;
+      return b.completedTrips - a.completedTrips;
+    });
+  }, [trips]);
+
+  const topDriversTotalPages = Math.max(1, Math.ceil(topDrivers.length / topListPageSize));
+  const effectiveTopDriversPage = Math.min(Math.max(1, topDriversPage), topDriversTotalPages);
+  const pagedTopDrivers = topDrivers.slice(
+    (effectiveTopDriversPage - 1) * topListPageSize,
+    effectiveTopDriversPage * topListPageSize
+  );
+
+  const topRoutesTotalPages = Math.max(1, Math.ceil(topRoutes.length / topListPageSize));
+  const effectiveTopRoutesPage = Math.min(Math.max(1, topRoutesPage), topRoutesTotalPages);
+  const pagedTopRoutes = topRoutes.slice(
+    (effectiveTopRoutesPage - 1) * topListPageSize,
+    effectiveTopRoutesPage * topListPageSize
+  );
+
   const visibleTrips = useMemo(() => {
     const q = tripSearchApplied.trim().toLowerCase();
     if (!q) return trips;
@@ -298,6 +622,53 @@ export default function ReportsPage() {
       return haystack.includes(q);
     });
   }, [trips, tripSearchApplied]);
+
+  const customerTripsVisible = useMemo(() => {
+    if (!selectedCustomerForTrips) return [];
+
+    const customerId = selectedCustomerForTrips.id;
+    let list = trips.filter((t) => (t.customers || []).some((tc) => tc.customer?.id === customerId));
+
+    if (customerTripStatusFilter !== "all") {
+      list = list.filter((t) => t.status === customerTripStatusFilter);
+    }
+
+    const q = customerTripSearchApplied.trim().toLowerCase();
+    if (q) {
+      list = list.filter((t) => {
+        const firstCustomer = t.customers?.[0]?.customer;
+        const haystack = [
+          String(t.id),
+          t.departure,
+          t.destination,
+          t.driver?.fullName ?? "",
+          t.status,
+          firstCustomer?.name ?? "",
+          firstCustomer?.phone ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(q);
+      });
+    }
+
+    // Newest first for better “xem chi tiết” UX
+    return [...list].sort((a, b) => new Date(b.departureTime).getTime() - new Date(a.departureTime).getTime());
+  }, [selectedCustomerForTrips, trips, customerTripSearchApplied, customerTripStatusFilter]);
+
+  const customerTripsTotalPages = Math.max(
+    1,
+    Math.ceil(customerTripsVisible.length / customerTripsPageSize)
+  );
+  const effectiveCustomerTripsPage = Math.min(
+    Math.max(1, customerTripPage),
+    customerTripsTotalPages
+  );
+  const pagedCustomerTrips = useMemo(() => {
+    const startIdx = (effectiveCustomerTripsPage - 1) * customerTripsPageSize;
+    return customerTripsVisible.slice(startIdx, startIdx + customerTripsPageSize);
+  }, [customerTripsVisible, effectiveCustomerTripsPage]);
 
   const tripTotalPages = Math.max(1, Math.ceil(visibleTrips.length / tripsPageSize));
   const effectiveTripPage = Math.min(Math.max(1, tripPage), tripTotalPages);
@@ -577,14 +948,14 @@ export default function ReportsPage() {
               Tổng quan
             </button>
             <button
-              onClick={() => setActiveTab("customers")}
+              onClick={() => setActiveTab("details")}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                activeTab === "customers"
+                activeTab === "details"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              Khách hàng
+              Chi tiết
             </button>
           </div>
 
@@ -593,7 +964,7 @@ export default function ReportsPage() {
             <button
               onClick={() => handleQuickFilter("today")}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                dateFilter === "today" 
+                dateFilterForButtons === "today" 
                   ? "bg-blue-600 text-white" 
                   : "bg-white text-slate-600 border border-slate-200"
               }`}
@@ -603,7 +974,7 @@ export default function ReportsPage() {
             <button
               onClick={() => handleQuickFilter("week")}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                dateFilter === "week" 
+                dateFilterForButtons === "week" 
                   ? "bg-blue-600 text-white" 
                   : "bg-white text-slate-600 border border-slate-200"
               }`}
@@ -613,7 +984,7 @@ export default function ReportsPage() {
             <button
               onClick={() => handleQuickFilter("month")}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                dateFilter === "month" 
+                dateFilterForButtons === "month" 
                   ? "bg-blue-600 text-white" 
                   : "bg-white text-slate-600 border border-slate-200"
               }`}
@@ -623,7 +994,7 @@ export default function ReportsPage() {
             <button
               onClick={() => handleQuickFilter("all")}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                dateFilter === "all" 
+                dateFilterForButtons === "all" 
                   ? "bg-blue-600 text-white" 
                   : "bg-white text-slate-600 border border-slate-200"
               }`}
@@ -633,7 +1004,7 @@ export default function ReportsPage() {
             <button
               onClick={() => handleQuickFilter("custom")}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                dateFilter === "custom" 
+                dateFilterForButtons === "custom" 
                   ? "bg-blue-600 text-white" 
                   : "bg-white text-slate-600 border border-slate-200"
               }`}
@@ -674,10 +1045,10 @@ export default function ReportsPage() {
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input
                         type="date"
-                        value={startDate}
+                        value={draftStartDate}
                         onChange={(e) => {
-                          setStartDate(e.target.value);
-                          setDateFilter("custom");
+                          setDraftStartDate(e.target.value);
+                          setDraftDateFilter("custom");
                         }}
                         className="w-full pl-10 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                       />
@@ -690,10 +1061,10 @@ export default function ReportsPage() {
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input
                         type="date"
-                        value={endDate}
+                        value={draftEndDate}
                         onChange={(e) => {
-                          setEndDate(e.target.value);
-                          setDateFilter("custom");
+                          setDraftEndDate(e.target.value);
+                          setDraftDateFilter("custom");
                         }}
                         className="w-full pl-10 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                       />
@@ -705,8 +1076,8 @@ export default function ReportsPage() {
                     <label className="text-xs text-slate-500 mb-1 block">Zom</label>
                     <div className="relative">
                       <select
-                        value={selectedDriver}
-                        onChange={(e) => setSelectedDriver(e.target.value)}
+                        value={draftSelectedDriver}
+                        onChange={(e) => setDraftSelectedDriver(e.target.value)}
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none appearance-none bg-white"
                       >
                         <option value="">Tất cả</option>
@@ -725,8 +1096,8 @@ export default function ReportsPage() {
                     <label className="text-xs text-slate-500 mb-1 block">Trạng thái cuốc</label>
                     <div className="relative">
                       <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        value={draftStatusFilter}
+                        onChange={(e) => setDraftStatusFilter(e.target.value)}
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none appearance-none bg-white"
                       >
                         <option value="all">Tất cả</option>
@@ -740,20 +1111,31 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2">
                   <button
-                    onClick={() => {
-                      setStartDate("");
-                      setEndDate("");
-                      setSelectedDriver("");
-                      setStatusFilter("all");
-                      setDateFilter("all");
-                    }}
+                    onClick={clearAllFilters}
                     className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     Xóa lọc
                   </button>
+
+                  <div className="flex items-center gap-2">
+                    {draftDateRangeInvalid && (
+                      <span className="text-xs text-red-600 font-medium">
+                        Từ ngày không được lớn hơn đến ngày
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={applyDraftFilters}
+                      disabled={!isDraftDirty || draftDateRangeInvalid}
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Filter className="w-3.5 h-3.5" />
+                      Áp dụng
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
@@ -793,13 +1175,7 @@ export default function ReportsPage() {
                   <span className="text-xs text-slate-500">Chưa có bộ lọc</span>
                 ) : (
                   <button
-                    onClick={() => {
-                      setStartDate("");
-                      setEndDate("");
-                      setSelectedDriver("");
-                      setStatusFilter("all");
-                      setDateFilter("all");
-                    }}
+                    onClick={clearAllFilters}
                     className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -813,9 +1189,9 @@ export default function ReportsPage() {
           {activeTab === "overview" && (
             <>
               {/* KPI Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                 {/* Doanh thu thực tế */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
                       <DollarSign className="w-5 h-5 text-green-600" />
@@ -841,13 +1217,10 @@ export default function ReportsPage() {
                   <p className="text-xl font-bold text-slate-800">
                     {formatCurrency(stats.completedRevenue)}
                   </p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Chỉ tính các cuốc <b>đã hoàn thành</b>.
-                  </p>
                 </div>
 
                 {/* Lợi nhuận thực tế */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
                       <DollarSign className="w-5 h-5 text-emerald-600" />
@@ -857,13 +1230,10 @@ export default function ReportsPage() {
                   <p className="text-xl font-bold text-slate-800">
                     {formatCurrency(stats.completedProfit)}
                   </p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Ưu tiên số <b>lợi nhuận đã tính từ công thức</b>.
-                  </p>
                 </div>
 
                 {/* Doanh thu dự kiến */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
                       <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -873,13 +1243,10 @@ export default function ReportsPage() {
                   <p className="text-xl font-bold text-slate-800">
                     {formatCurrency(stats.forecastRevenue)}
                   </p>
-                  <p className="mt-1 text-[11px] text-amber-700">
-                    Từ các cuốc đã <b>gán Zom</b> nhưng <b>chưa hoàn thành</b>.
-                  </p>
                 </div>
 
                 {/* Lợi nhuận dự kiến */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
                       <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -889,16 +1256,13 @@ export default function ReportsPage() {
                   <p className="text-xl font-bold text-slate-800">
                     {formatCurrency(stats.forecastProfit)}
                   </p>
-                  <p className="mt-1 text-[11px] text-amber-700">
-                    Dùng để <b>dự phóng</b> theo số cuốc đã gán.
-                  </p>
                 </div>
               </div>
 
               {/* Secondary KPI Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                 {/* Tổng cuốc */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
                       <Car className="w-5 h-5 text-blue-600" />
@@ -927,7 +1291,7 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Đã hoàn thành */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
                       <Car className="w-5 h-5 text-emerald-600" />
@@ -940,7 +1304,7 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Chưa gán Zom */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
                       <AlertTriangle className="w-5 h-5 text-red-600" />
@@ -953,7 +1317,7 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Đã gán, chưa hoàn thành */}
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
                     <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
                       <Car className="w-5 h-5 text-amber-600" />
@@ -965,6 +1329,405 @@ export default function ReportsPage() {
                   <p className="text-xl font-bold text-slate-800">
                     {stats.assignedNotCompleted}
                   </p>
+                </div>
+              </div>
+
+              {/* Charts & Top insights */}
+              <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Xu hướng doanh thu</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Hoàn thành vs dự kiến (gán Zom, chưa hoàn thành)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px] text-slate-500 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-green-600" />
+                        Hoàn thành
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        Dự kiến
+                      </span>
+                    </div>
+                  </div>
+
+                  {loading ? (
+                    <div className="h-44 flex items-center justify-center text-slate-500 text-sm">
+                      Đang tải...
+                    </div>
+                  ) : revenueTrend.length === 0 ? (
+                    <div className="h-44 flex items-center justify-center text-slate-500 text-sm">
+                      Không có dữ liệu
+                    </div>
+                  ) : (
+                    (() => {
+                      const maxVal = Math.max(
+                        1,
+                        ...revenueTrend.map((p) =>
+                          Math.max(p.completedRevenue, p.forecastRevenue)
+                        )
+                      );
+                      const chartH = 150;
+
+                      return (
+                        <div className="flex items-end justify-between h-44 gap-2">
+                          {revenueTrend.map((p) => {
+                            const completedH =
+                              p.completedRevenue > 0
+                                ? Math.round((p.completedRevenue / maxVal) * chartH)
+                                : 0;
+                            const forecastH =
+                              p.forecastRevenue > 0
+                                ? Math.round((p.forecastRevenue / maxVal) * chartH)
+                                : 0;
+
+                            return (
+                              <div
+                                key={p.bucketTs}
+                                className="flex flex-col items-center flex-1 min-w-0"
+                              >
+                                <div className="flex items-end gap-1">
+                                  <div
+                                    className="w-2 rounded bg-green-600"
+                                    style={{ height: completedH }}
+                                  />
+                                  <div
+                                    className="w-2 rounded bg-amber-500"
+                                    style={{ height: forecastH }}
+                                  />
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-2 truncate">
+                                  {p.label}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Lợi nhuận</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Chỉ tính cuốc đã hoàn thành
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                      Lợi nhuận
+                    </span>
+                  </div>
+
+                  {loading ? (
+                    <div className="h-44 flex items-center justify-center text-slate-500 text-sm">
+                      Đang tải...
+                    </div>
+                  ) : revenueTrend.length === 0 ? (
+                    <div className="h-44 flex items-center justify-center text-slate-500 text-sm">
+                      Không có dữ liệu
+                    </div>
+                  ) : (
+                    (() => {
+                      const maxVal = Math.max(
+                        1,
+                        ...revenueTrend.map((p) => p.completedProfit)
+                      );
+                      const chartH = 150;
+
+                      return (
+                        <div className="flex items-end justify-between h-44 gap-2">
+                          {revenueTrend.map((p) => {
+                            const h =
+                              p.completedProfit > 0
+                                ? Math.round((p.completedProfit / maxVal) * chartH)
+                                : 0;
+
+                            return (
+                              <div
+                                key={p.bucketTs}
+                                className="flex flex-col items-center flex-1 min-w-0"
+                              >
+                                <div className="flex items-end gap-1">
+                                  <div
+                                    className="w-2 rounded bg-emerald-600"
+                                    style={{ height: h }}
+                                  />
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-2 truncate">
+                                  {p.label}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                  <p className="text-sm font-semibold text-slate-800">Cơ cấu trạng thái</p>
+
+                  {loading ? (
+                    <div className="mt-4 text-sm text-slate-500">Đang tải...</div>
+                  ) : (
+                    (() => {
+                      const total =
+                        statusCounts.scheduled +
+                        statusCounts.in_progress +
+                        statusCounts.completed +
+                        statusCounts.cancelled;
+
+                      const rows: Array<{
+                        k: "scheduled" | "in_progress" | "completed" | "cancelled";
+                        label: string;
+                        color: string;
+                      }> = [
+                        { k: "scheduled", label: "Chờ", color: "bg-blue-600" },
+                        { k: "in_progress", label: "Đang chạy", color: "bg-amber-500" },
+                        { k: "completed", label: "Hoàn thành", color: "bg-green-600" },
+                        { k: "cancelled", label: "Hủy", color: "bg-slate-400" },
+                      ];
+
+                      return (
+                        <div className="mt-4 space-y-3">
+                          {rows.map((r) => {
+                            const count = statusCounts[r.k];
+                            const pct = total > 0 ? (count / total) * 100 : 0;
+                            return (
+                              <div key={r.k}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-xs text-slate-700 font-medium">
+                                    {r.label}
+                                  </span>
+                                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                                    {count} • {pct.toFixed(0)}%
+                                  </span>
+                                </div>
+                                <div className="mt-2 h-2 bg-slate-100 rounded overflow-hidden">
+                                  <div
+                                    className={`${r.color} h-2`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+
+                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Top Zom theo doanh thu</p>
+                      <p className="text-xs text-slate-500 mt-1">Thể hiện theo cuốc đã hoàn thành</p>
+                    </div>
+                    <div className="text-xs text-slate-500 whitespace-nowrap">
+                      Trang {effectiveTopDriversPage}/{topDriversTotalPages}
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
+                    {loading ? (
+                      <div className="py-6 text-center text-slate-500">Đang tải...</div>
+                    ) : topDrivers.length === 0 ? (
+                      <div className="py-6 text-center text-slate-500">Không có dữ liệu</div>
+                    ) : (
+                      (() => {
+                        const maxVal = Math.max(
+                          1,
+                          ...topDrivers.map((d) => d.completedRevenue)
+                        );
+                        return (
+                          <div>
+                            <div className="divide-y divide-slate-100">
+                              {pagedTopDrivers.map((d, idx) => {
+                                const rank =
+                                  (effectiveTopDriversPage - 1) * topListPageSize + idx + 1;
+                                const widthPct =
+                                  d.completedRevenue > 0
+                                    ? (d.completedRevenue / maxVal) * 100
+                                    : 0;
+
+                                return (
+                                  <div key={d.key} className="py-3 flex items-center gap-3">
+                                    <div className="text-xs font-semibold text-slate-500 w-8">
+                                      #{rank}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs text-slate-800 font-medium truncate">
+                                          {d.label}
+                                        </span>
+                                        <span className="text-xs font-semibold text-slate-800 whitespace-nowrap">
+                                          {formatCurrency(d.completedRevenue)}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 flex items-center gap-2">
+                                        <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+                                          <div
+                                            className="bg-green-600 h-2"
+                                            style={{ width: `${widthPct}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                          {d.completedTrips}/{d.totalTrips}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+                              <button
+                                onClick={() =>
+                                  setTopDriversPage((p) => Math.max(1, p - 1))
+                                }
+                                disabled={effectiveTopDriversPage === 1 || loading}
+                                className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Trang trước"
+                              >
+                                <ChevronLeft className="w-4 h-4 text-slate-600" />
+                              </button>
+                              <div className="text-xs text-slate-500">
+                                {pagedTopDrivers.length} dòng
+                              </div>
+                              <button
+                                onClick={() =>
+                                  setTopDriversPage((p) =>
+                                    Math.min(topDriversTotalPages, p + 1)
+                                  )
+                                }
+                                disabled={effectiveTopDriversPage === topDriversTotalPages || loading}
+                                className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Trang sau"
+                              >
+                                <ChevronRight className="w-4 h-4 text-slate-600" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 bg-white rounded-xl border border-slate-200 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Top tuyến theo doanh thu</p>
+                    <p className="text-xs text-slate-500 mt-1">Điểm đi → Điểm đến</p>
+                  </div>
+                  <div className="text-xs text-slate-500 whitespace-nowrap">
+                    Trang {effectiveTopRoutesPage}/{topRoutesTotalPages}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  {loading ? (
+                    <div className="py-6 text-center text-slate-500">Đang tải...</div>
+                  ) : topRoutes.length === 0 ? (
+                    <div className="py-6 text-center text-slate-500">Không có dữ liệu</div>
+                  ) : (
+                    (() => {
+                      const maxVal = Math.max(
+                        1,
+                        ...topRoutes.map((d) => d.completedRevenue)
+                      );
+                      return (
+                        <div>
+                          <div className="divide-y divide-slate-100">
+                            {pagedTopRoutes.map((d, idx) => {
+                              const rank =
+                                (effectiveTopRoutesPage - 1) * topListPageSize + idx + 1;
+                              const widthPct =
+                                d.completedRevenue > 0
+                                  ? (d.completedRevenue / maxVal) * 100
+                                  : 0;
+
+                              return (
+                                <div
+                                  key={d.key}
+                                  className="py-3 flex items-center gap-3"
+                                >
+                                  <div className="text-xs font-semibold text-slate-500 w-8">
+                                    #{rank}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-xs text-slate-800 font-medium truncate">
+                                        {d.label}
+                                      </span>
+                                      <span className="text-xs font-semibold text-slate-800 whitespace-nowrap">
+                                        {formatCurrency(d.completedRevenue)}
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 flex items-center gap-2">
+                                      <div className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
+                                        <div
+                                          className="bg-amber-500 h-2"
+                                          style={{ width: `${widthPct}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                        {d.completedTrips}/{d.totalTrips}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+                            <button
+                              onClick={() =>
+                                setTopRoutesPage((p) => Math.max(1, p - 1))
+                              }
+                              disabled={effectiveTopRoutesPage === 1 || loading}
+                              className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label="Trang trước"
+                            >
+                              <ChevronLeft className="w-4 h-4 text-slate-600" />
+                            </button>
+                            <div className="text-xs text-slate-500">
+                              {pagedTopRoutes.length} dòng
+                            </div>
+                            <button
+                              onClick={() =>
+                                setTopRoutesPage((p) =>
+                                  Math.min(topRoutesTotalPages, p + 1)
+                                )
+                              }
+                              disabled={
+                                effectiveTopRoutesPage === topRoutesTotalPages ||
+                                loading
+                              }
+                              className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label="Trang sau"
+                            >
+                              <ChevronRight className="w-4 h-4 text-slate-600" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
               </div>
 
@@ -1054,8 +1817,24 @@ export default function ReportsPage() {
                             <div className="text-xs text-slate-500">
                               Khách: {trip.customers?.[0]?.customer?.name || "-"}
                             </div>
-                            <div className="text-xs text-slate-500">
-                              Giá: {formatCurrency(trip.price || 0)}
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              <span className="text-xs text-slate-500 whitespace-nowrap">
+                                Giá: {formatCurrency(trip.price || 0)}
+                              </span>
+                              {trip.pointsEarned != null ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 whitespace-nowrap">
+                                  {trip.pointsEarned}đ
+                                </span>
+                              ) : null}
+                              {trip.profit != null ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
+                                  +{formatCurrency(trip.profit || 0)}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 whitespace-nowrap">
+                                  LN —
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1226,7 +2005,7 @@ export default function ReportsPage() {
             </>
           )}
 
-          {activeTab === "customers" && (
+          {activeTab === "details" && (
             <>
               <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1347,44 +2126,35 @@ export default function ReportsPage() {
                               </div>
                             </div>
 
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 whitespace-nowrap">
-                              Xem trong bảng cuốc xe
+                            <button
+                              type="button"
+                              onClick={() => openCustomerTripsModal(c)}
+                              className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-blue-600 text-white whitespace-nowrap hover:bg-blue-700"
+                            >
+                              Chi tiết cuốc
+                            </button>
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-medium">
+                              Cuốc: <span className="ml-1 font-bold text-slate-800">{c.totalTrips}</span>
+                            </span>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium">
+                              DT: <span className="ml-1 font-bold text-emerald-800">{formatCurrency(c.totalRevenue)}</span>
+                            </span>
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium ${
+                                c.totalProfit >= 0
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              LN: <span className="ml-1 font-bold">{formatCurrency(c.totalProfit)}</span>
                             </span>
                           </div>
 
-                          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                            <div>
-                              <div className="text-[11px] text-slate-500">
-                                Số cuốc
-                              </div>
-                              <div className="font-medium text-slate-800">
-                                {c.totalTrips}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[11px] text-slate-500">
-                                Chuyến gần nhất
-                              </div>
-                              <div className="font-medium text-slate-800">
-                                {formatDateTimeShort(c.lastTripDate)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[11px] text-slate-500">
-                                Doanh thu
-                              </div>
-                              <div className="font-medium text-slate-800">
-                                {formatCurrency(c.totalRevenue)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[11px] text-slate-500">
-                                Lợi nhuận
-                              </div>
-                              <div className="font-medium text-slate-800">
-                                {formatCurrency(c.totalProfit)}
-                              </div>
-                            </div>
+                          <div className="mt-2 text-[11px] text-slate-500">
+                            Gần nhất: {formatDateTimeShort(c.lastTripDate)}
                           </div>
                         </div>
                       ))}
@@ -1475,9 +2245,13 @@ export default function ReportsPage() {
                                 {formatDateTimeShort(c.lastTripDate)}
                               </td>
                               <td className="px-3 py-3 text-sm text-slate-700">
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
-                                  Xem trong bảng cuốc xe
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openCustomerTripsModal(c)}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700"
+                                >
+                                  Chi tiết cuốc
+                                </button>
                               </td>
                             </tr>
                           ))
@@ -1588,6 +2362,22 @@ export default function ReportsPage() {
               <div className="bg-slate-50 rounded-lg p-3">
                 <p className="text-xs text-slate-500 mb-1">Giá tiền</p>
                 <p className="text-xl font-bold text-slate-800">{formatCurrency(selectedTrip.price || 0)}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {selectedTrip.pointsEarned != null ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">
+                      {selectedTrip.pointsEarned}đ
+                    </span>
+                  ) : null}
+                  {selectedTrip.profit != null ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                      +{formatCurrency(selectedTrip.profit || 0)}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                      LN —
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Status */}

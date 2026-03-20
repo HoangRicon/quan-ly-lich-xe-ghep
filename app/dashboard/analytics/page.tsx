@@ -18,7 +18,9 @@ interface Trip {
   status: string;
   price: number;
   notes?: string | null;
+  pointsEarned?: number | null;
   profit?: number | null;
+  profitRate?: number | null;
   tripDirection?: string;
   totalSeats?: number;
   createdAt?: string;
@@ -547,6 +549,22 @@ export default function AnalyticsPage() {
                         <div className="flex flex-col items-end gap-1">
                           {getStatusBadge(trip.status)}
                           <div className="text-sm font-bold text-slate-800">{formatCurrency(trip.price || 0)}</div>
+                          <div className="flex items-center gap-1.5">
+                            {trip.pointsEarned != null ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 whitespace-nowrap">
+                                {trip.pointsEarned}đ
+                              </span>
+                            ) : null}
+                            {trip.profit != null ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
+                                +{formatCurrency(trip.profit || 0)}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 whitespace-nowrap">
+                                LN —
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -768,6 +786,11 @@ export default function AnalyticsPage() {
                 <div className="bg-white rounded-xl border border-slate-200 p-3">
                   <div className="text-xs font-semibold text-slate-600 mb-2">Giá</div>
                   <div className="text-lg font-bold text-slate-800">{formatCurrency(selectedTrip.price || 0)}</div>
+                  {selectedTrip.pointsEarned != null ? (
+                    <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1 mt-2 inline-block">
+                      {selectedTrip.pointsEarned}đ
+                    </div>
+                  ) : null}
                   {selectedTrip.profit != null ? (
                     <div className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-2 py-1 mt-2 inline-block">
                       Lợi nhuận: {formatCurrency(selectedTrip.profit || 0)}

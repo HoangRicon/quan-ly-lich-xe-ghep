@@ -172,7 +172,8 @@ export default function ScheduleList() {
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<"departureTime" | "price" | "status">("departureTime");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // Default: "Mới nhất" trước
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const itemsPerPage = 999999;
 
   // Status dropdown state
