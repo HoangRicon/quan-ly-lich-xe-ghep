@@ -171,10 +171,26 @@ export default function ScheduleList() {
   
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortField, setSortField] = useState<"departureTime" | "price" | "status">("departureTime");
-  // Default: "Mới nhất" trước
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const itemsPerPage = 999999;
+  const [sortField, setSortField] = useState<"departureTime" | "price" | "status">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("schedule-sort-field") as "departureTime" | "price" | "status") || "departureTime";
+    }
+    return "departureTime";
+  });
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("schedule-sort-dir") as "asc" | "desc") || "desc";
+    }
+    return "desc";
+  });
+  const [itemsPerPage, setItemsPerPage] = useState(() => {
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem("schedule-limit");
+      const n = raw ? parseInt(raw, 10) : NaN;
+      return [5, 10, 20, 50].includes(n) ? n : 10;
+    }
+    return 10;
+  });
 
   // Status dropdown state
   const [openStatusMenu, setOpenStatusMenu] = useState<number | null>(null);
@@ -753,11 +769,20 @@ export default function ScheduleList() {
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+      const next = sortDirection === "asc" ? "desc" : "asc";
+      setSortDirection(next);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("schedule-sort-dir", next);
+      }
     } else {
       setSortField(field);
       setSortDirection("asc");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("schedule-sort-field", field);
+        localStorage.setItem("schedule-sort-dir", "asc");
+      }
     }
+    setCurrentPage(1);
   };
 
   // Edit sheet functions
@@ -920,15 +945,23 @@ export default function ScheduleList() {
             if (e.target.value === "newest") {
               setSortField("departureTime");
               setSortDirection("desc");
+              localStorage.setItem("schedule-sort-field", "departureTime");
+              localStorage.setItem("schedule-sort-dir", "desc");
             } else if (e.target.value === "oldest") {
               setSortField("departureTime");
               setSortDirection("asc");
+              localStorage.setItem("schedule-sort-field", "departureTime");
+              localStorage.setItem("schedule-sort-dir", "asc");
             } else if (e.target.value === "price_desc") {
               setSortField("price");
               setSortDirection("desc");
+              localStorage.setItem("schedule-sort-field", "price");
+              localStorage.setItem("schedule-sort-dir", "desc");
             } else if (e.target.value === "price_asc") {
               setSortField("price");
               setSortDirection("asc");
+              localStorage.setItem("schedule-sort-field", "price");
+              localStorage.setItem("schedule-sort-dir", "asc");
             }
             setCurrentPage(1);
           }}
@@ -938,6 +971,23 @@ export default function ScheduleList() {
           <option value="oldest">Cũ nhất</option>
           <option value="price_desc">Giá cao nhất</option>
           <option value="price_asc">Giá thấp nhất</option>
+        </select>
+
+        {/* Items per page */}
+        <select
+          value={itemsPerPage}
+          onChange={(e) => {
+            const n = parseInt(e.target.value, 10);
+            setItemsPerPage(n);
+            localStorage.setItem("schedule-limit", String(n));
+            setCurrentPage(1);
+          }}
+          className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
+        >
+          <option value="5">5 / trang</option>
+          <option value="10">10 / trang</option>
+          <option value="20">20 / trang</option>
+          <option value="50">50 / trang</option>
         </select>
 
         {/* Status Filter Select */}
@@ -1134,6 +1184,36 @@ export default function ScheduleList() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-3 px-1">
+          <div className="text-xs text-slate-500">
+            {sortedTrips.length > 0
+              ? `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, sortedTrips.length)} / ${sortedTrips.length}`
+              : "0 kết quả"}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              <ChevronLeft className="w-4 h-4 text-slate-600" />
+            </button>
+            <span className="text-xs text-slate-600 min-w-[3rem] text-center">
+              {currentPage}/{totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              <ChevronRight className="w-4 h-4 text-slate-600" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Desktop DataTable View */}
       <div className="hidden lg:block bg-white rounded-xl border border-slate-200 overflow-hidden">
