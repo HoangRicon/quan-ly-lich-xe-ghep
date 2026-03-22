@@ -472,15 +472,15 @@ export default function ZomStatistics() {
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center">
-            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wide mb-0.5">Doanh thu</div>
+            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wide mb-0.5">Lợi nhuận</div>
             <div className="text-sm font-bold text-green-600 truncate">
-              {formatCurrency(zoms.reduce((s, z) => s + z.actualRevenue, 0))}
+              {formatCurrency(zoms.reduce((s, z) => s + z.actualProfit, 0))}
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center">
-            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wide mb-0.5">Lợi nhuận</div>
+            <div className="text-[9px] text-slate-500 font-medium uppercase tracking-wide mb-0.5">LN dự kiến</div>
             <div className="text-sm font-bold text-teal-600 truncate">
-              {formatCurrency(zoms.reduce((s, z) => s + z.actualProfit, 0))}
+              {formatCurrency(zoms.reduce((s, z) => s + z.expectedProfit, 0))}
             </div>
           </div>
         </div>
@@ -536,15 +536,15 @@ export default function ZomStatistics() {
                 <div className="grid grid-cols-4 gap-1.5">
                   <div className="bg-green-50 rounded-lg p-1.5 text-center">
                     <div className="text-sm font-bold text-green-700 leading-tight">
-                      {formatCurrency(zom.actualRevenue)}
+                      {formatCurrency(zom.actualProfit)}
                     </div>
-                    <div className="text-[8px] text-green-500">Doanh thu</div>
+                    <div className="text-[8px] text-green-500">Lợi nhuận</div>
                   </div>
                   <div className="bg-blue-50 rounded-lg p-1.5 text-center">
                     <div className="text-sm font-bold text-blue-700 leading-tight">
-                      {formatCurrency(zom.expectedRevenue)}
+                      {formatCurrency(zom.expectedProfit)}
                     </div>
-                    <div className="text-[8px] text-blue-500">Dự kiến</div>
+                    <div className="text-[8px] text-blue-500">LN dự kiến</div>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-1.5 text-center">
                     <div className="text-sm font-bold text-emerald-700 leading-tight">

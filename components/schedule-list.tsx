@@ -1133,14 +1133,26 @@ export default function ScheduleList() {
 
                 {/* Customer Phone - Left under route */}
                 {trip.customer?.phone && (
-                  <a
-                    href={`tel:${String(trip.customer.phone).replace(/[^\d+]/g, "")}`}
-                    className="text-xs text-blue-600 mb-0.5 inline-block hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Bấm để gọi"
-                  >
-                    {trip.customer.phone}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${String(trip.customer.phone).replace(/[^\d+]/g, "")}`}
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Bấm để gọi"
+                    >
+                      {trip.customer.phone}
+                    </a>
+                    <a
+                      href={`https://zalo.me/${String(trip.customer.phone).replace(/[^\d+]/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"
+                      title="Nhắn Zalo"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 )}
 
                 {/* Row 4: Price - Points - Profit - Copy - Delete */}
@@ -1426,7 +1438,7 @@ export default function ScheduleList() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="hidden lg:flex p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"
+                              className="p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"
                               title="Zalo"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
