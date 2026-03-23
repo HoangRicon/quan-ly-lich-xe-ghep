@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const driverId = searchParams.get("driverId");
+    const customerPhone = searchParams.get("customerPhone");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "500");
 
@@ -27,6 +28,16 @@ export async function GET(request: NextRequest) {
 
     if (driverId) {
       where.driverId = parseInt(driverId);
+    }
+
+    if (customerPhone) {
+      where.customers = {
+        some: {
+          customer: {
+            phone: customerPhone,
+          },
+        },
+      };
     }
 
     if (date) {
@@ -84,7 +95,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        orderBy: { departureTime: "asc" },
+        orderBy: customerPhone ? { departureTime: "desc" } : { departureTime: "asc" },
       }),
       prisma.trip.count({ where }),
     ]);

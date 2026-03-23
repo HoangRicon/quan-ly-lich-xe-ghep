@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, User, MapPin } from "lucide-react";
+import { Search, User, MapPin, ArrowLeftRight } from "lucide-react";
 
 // Hàm tạo ghi chú tự động theo mẫu
 function generateAutoNote(
@@ -309,7 +309,7 @@ export default function TripForm() {
     }
   };
 
-  const selectCustomer = (customer: Customer) => {
+  const selectCustomer = async (customer: Customer) => {
     setFormData({
       ...formData,
       customerPhone: customer.phone,
@@ -318,6 +318,38 @@ export default function TripForm() {
     });
     setShowCustomerDropdown(false);
     setShowDuplicateWarning(false);
+
+    // Fetch most recent trip for this customer
+    await fetchRecentTripForCustomer(customer.phone);
+  };
+
+  const fetchRecentTripForCustomer = async (phone: string) => {
+    try {
+      const res = await fetch(`/api/trips?customerPhone=${phone}&limit=1`);
+      const data = await res.json();
+      if (data.success && data.data && data.data.length > 0) {
+        const recentTrip = data.data[0];
+
+        // Xác định tripType từ recentTrip
+        const tripType = recentTrip.tripType || "ghep";
+        const tripDirection = recentTrip.tripDirection || "oneway";
+        const combinedTripType = tripDirection === "roundtrip"
+          ? (tripType === "bao" ? "bao_roundtrip" : "ghep_roundtrip")
+          : tripType;
+
+        // Auto-fill departure, destination, price, trip type, and seats from most recent trip
+        setFormData(prev => ({
+          ...prev,
+          departure: recentTrip.departure || prev.departure,
+          destination: recentTrip.destination || prev.destination,
+          price: recentTrip.price ? recentTrip.price.toString() : prev.price,
+          tripType: combinedTripType,
+          totalSeats: recentTrip.totalSeats ? recentTrip.totalSeats.toString() : prev.totalSeats,
+        }));
+      }
+    } catch (error) {
+      console.error("Fetch recent trip error:", error);
+    }
   };
 
   // Hàm kiểm tra và chuyển giờ đi thành "0-1p" nếu giờ đã qua
@@ -526,8 +558,25 @@ export default function TripForm() {
 
       {/* Route Info */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <h3 className="font-semibold text-slate-800">Lộ trình</h3>
-        
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-slate-800">Lộ trình</h3>
+          <button
+            type="button"
+            onClick={() => {
+              setFormData({
+                ...formData,
+                departure: formData.destination,
+                destination: formData.departure,
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+            title="Đảo chiều điểm đón và điểm đến"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+            Đảo chiều
+          </button>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
