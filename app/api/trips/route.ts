@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
         departureTime: trip.departureTime,
         arrivalTime: trip.arrivalTime,
         price: trip.price,
-        profit: trip.profit,
+        profit: trip.profit != null ? Number(trip.profit) : null,
         tripDirection: trip.tripDirection,
         tripType: (trip as any).tripType || "ghep",
         pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
