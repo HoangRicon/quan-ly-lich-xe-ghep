@@ -177,10 +177,10 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="page-wrapper">
         <Sidebar>
           <Header />
-          <div className="p-4 lg:p-6 pb-24 lg:pb-6 flex items-center justify-center py-12">
+          <div className="p-4 lg:p-6 pb-24 lg:pb-0 flex items-center justify-center">
             <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
           </div>
         </Sidebar>
@@ -190,10 +190,10 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-6">
+        <div className="p-4 lg:p-6 pb-24 lg:pb-0">
           {/* Page Title */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-800">Quản lý tài khoản</h1>

@@ -334,7 +334,7 @@ export default function EditDriverPage() {
 
   if (fetching) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="page-wrapper flex items-center justify-center">
         <div className="text-slate-500">Đang tải...</div>
       </div>
     );
@@ -342,24 +342,24 @@ export default function EditDriverPage() {
 
   if (!driver) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="page-wrapper flex items-center justify-center">
         <div className="text-slate-500">Không tìm thấy Zom</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link href="/dashboard/drivers" className="p-2 -ml-2 rounded-lg hover:bg-slate-100">
+          <Link href="/dashboard/drivers" className="p-2 -ml-2 rounded-lg hover:bg-slate-100 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <h1 className="text-lg font-semibold text-slate-800">{driver.fullName || "Sửa Zom"}</h1>
           <button
             onClick={() => setDeletingDriver(true)}
-            className="p-2 -mr-2 rounded-lg hover:bg-red-50 text-red-500"
+            className="p-2 -mr-2 rounded-lg hover:bg-red-50 text-red-500 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <Trash2 className="w-5 h-5" />
           </button>
@@ -405,8 +405,9 @@ export default function EditDriverPage() {
         </div>
       )}
 
-      {/* Content */}
-      <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-8 max-w-3xl mx-auto space-y-4">
+      {/* Content - scrollable */}
+      <div className="page-scroll">
+        <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-8 max-w-3xl mx-auto space-y-4">
 
         {/* Zom Info Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
@@ -928,6 +929,44 @@ export default function EditDriverPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Driver Confirmation */}
+      {deletingDriver && (
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className="text-xl font-semibold text-slate-800 mb-2">Xóa Zom</h2>
+              <p className="text-slate-600">
+                Xóa <strong>"{driver?.fullName}"</strong>? Hành động này không thể hoàn tác.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setDeletingDriver(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleDeleteDriver}
+                disabled={loading}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold shadow-lg shadow-red-500/25 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : "Xóa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

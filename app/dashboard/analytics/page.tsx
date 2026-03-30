@@ -259,10 +259,10 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-6 space-y-4">
+        <div className="p-4 lg:p-6 pb-24 lg:pb-0 space-y-4">
           <h1 className="text-2xl font-bold text-slate-800 mb-2">Báo cáo & Thống kê</h1>
 
           {/* Filter Bar */}

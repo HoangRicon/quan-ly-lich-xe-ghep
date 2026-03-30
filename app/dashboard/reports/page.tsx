@@ -902,10 +902,10 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-6 space-y-4">
+        <div className="p-4 lg:p-6 pb-24 lg:pb-0 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-800">Báo cáo tổng hợp</h1>

@@ -184,10 +184,10 @@ export default function NotificationsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-6">
+        <div className="p-4 lg:p-6 pb-24 lg:pb-0">
           {/* Header Card */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
             <div className="flex items-center justify-between">

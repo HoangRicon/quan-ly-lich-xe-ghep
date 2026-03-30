@@ -81,11 +81,11 @@ export default function AddDriverPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link href="/dashboard/drivers" className="p-2 -ml-2 rounded-lg hover:bg-slate-100">
+          <Link href="/dashboard/drivers" className="p-2 -ml-2 rounded-lg hover:bg-slate-100 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <h1 className="text-lg font-semibold text-slate-800">Thêm Zom</h1>
@@ -103,9 +103,10 @@ export default function AddDriverPage() {
         </div>
       </header>
 
-      {/* Form Content */}
-      <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-8">
-        <div className="max-w-lg mx-auto">
+      {/* Form Content - scrollable */}
+      <div className="page-scroll">
+        <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-8">
+          <div className="max-w-lg mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Input Fields */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 lg:p-6 space-y-5">
@@ -231,6 +232,7 @@ export default function AddDriverPage() {
             </div>
           </form>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -2327,10 +2327,10 @@ export default function NotificationSettingsPage() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-6">
+        <div className="p-4 lg:p-6 pb-24 lg:pb-0">
           {/* Page Title */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-800">Cài đặt thông báo</h1>
