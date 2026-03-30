@@ -18,7 +18,7 @@ function TripFormLoader() {
 
 export default function AddTripPage() {
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-slate-50">
+    <div className="page-wrapper">
       {/* Mobile Header - Fixed with safe area */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 py-3">
@@ -46,12 +46,14 @@ export default function AddTripPage() {
         </div>
       </header>
 
-      {/* Form Content - accounts for fixed header */}
-      <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-6">
-        <div className="max-w-2xl mx-auto">
-          <Suspense fallback={<TripFormLoader />}>
-            <TripForm />
-          </Suspense>
+      {/* Form Content - scrollable */}
+      <div className="page-scroll">
+        <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-6">
+          <div className="max-w-2xl mx-auto">
+            <Suspense fallback={<TripFormLoader />}>
+              <TripForm />
+            </Suspense>
+          </div>
         </div>
       </div>
     </div>

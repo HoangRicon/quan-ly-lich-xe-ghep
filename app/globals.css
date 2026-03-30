@@ -29,7 +29,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--mued);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
@@ -128,19 +128,93 @@
   }
 }
 
-/* iOS Safari: use contain on body so individual scroll containers handle their own scroll */
+/* === MOBILE SCROLL FIX - iOS Safari === */
+
+/*
+ * Layout strategy (mobile-first):
+ * - Sidebar uses .sidebar-fixed (position:fixed, full screen)
+ *   -> has .scroll-wrapper (overflow-y:auto) inside
+ * - Standalone pages use .page-wrapper (position:fixed)
+ *   -> has .page-scroll (overflow-y:auto) inside
+ * - html/body: overflow:hidden to PREVENT page-level scroll on iOS
+ *   -> this stops the bounce/glitch at scroll edges
+ * - Only one element on the page should be overflow-y:auto at a time
+ */
+
+html {
+  overflow: hidden;
+  scroll-behavior: smooth;
+  height: 100%;
+  /* prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
-  overscroll-behavior: contain;
+  overflow: hidden;
+  height: 100%;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Mobile tap highlight removal for interactive elements */
+#__next {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Sidebar: full-screen fixed container — scroll bên trong */
+.sidebar-fixed {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Container scroll bên trong sidebar (có header mobile) */
+.scroll-wrapper {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Standalone page wrapper */
+.page-wrapper {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.page-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Safe area cho iPhone notch / home indicator */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Mobile touch optimizations */
 @media (hover: none) and (pointer: coarse) {
-  button, a, [role="button"] {
+  /* Bỏ highlight xấu khi tap trên iOS */
+  button,
+  a,
+  [role="button"] {
     -webkit-tap-highlight-color: transparent;
   }
 }
 
+/* Custom animations */
 @keyframes slide-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
@@ -150,24 +224,7 @@ body {
   animation: slide-up 0.3s ease-out;
 }
 
-/* Safe area inset for mobile devices with notches */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .safe-area-inset-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
-
 /* Remove 300ms tap delay on touch devices */
 .touch-manipulation {
   touch-action: manipulation;
 }
-
-/* Mobile tap highlight removal for interactive elements */
-@media (hover: none) and (pointer: coarse) {
-  button, a, [role="button"] {
-    -webkit-tap-highlight-color: transparent;
-  }
-}
-
-/* Ensure fixed elements don't get overlapped by iOS Safari bottom bar */
-/* BottomNav already uses .safe-area-inset-bottom class for safe area handling */

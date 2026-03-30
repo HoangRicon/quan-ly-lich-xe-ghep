@@ -3,10 +3,10 @@ import ScheduleList from "@/components/schedule-list";
 
 export default function SchedulePage() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-2 lg:p-4 pb-24 lg:pb-4">
+        <div className="p-2 lg:p-4 pb-24 lg:pb-0">
           <ScheduleList />
         </div>
       </Sidebar>

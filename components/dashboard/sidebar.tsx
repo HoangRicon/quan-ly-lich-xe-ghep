@@ -53,9 +53,9 @@ export function Sidebar({ children }: SidebarProps) {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-full bg-slate-50 lg:relative lg:inset-auto lg:h-auto">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r border-slate-200">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r border-slate-200 h-full">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400">
@@ -163,8 +163,8 @@ export function Sidebar({ children }: SidebarProps) {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      {/* Main Content - scrollable on mobile, overflow-hidden on desktop */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0 h-full">
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 safe-area-inset-top flex-shrink-0">
           <button onClick={() => setIsMobileOpen(true)} className="p-2 -ml-2 min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">
@@ -180,7 +180,7 @@ export function Sidebar({ children }: SidebarProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden h-full">
           {children}
         </main>
       </div>

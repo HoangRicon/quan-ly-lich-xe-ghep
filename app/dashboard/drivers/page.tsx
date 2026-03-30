@@ -10,11 +10,12 @@ export default function DriversPage() {
   const [activeTab, setActiveTab] = useState<"list" | "stats">("list");
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-6">
-          {/* Tabs */}
+        <div className="scroll-wrapper">
+          <div className="p-4 lg:p-6 pb-24 lg:pb-0">
+            {/* Tabs */}
           <div className="flex gap-1 mb-4 bg-slate-100 p-1 rounded-xl w-fit">
             <button
               onClick={() => setActiveTab("list")}
@@ -41,6 +42,7 @@ export default function DriversPage() {
           </div>
 
           {activeTab === "list" ? <DriverList /> : <ZomStatistics />}
+        </div>
         </div>
       </Sidebar>
       <BottomNav />
