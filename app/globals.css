@@ -128,28 +128,16 @@
   }
 }
 
-/* iOS Safari: prevent rubber-banding / overscroll bounce that freezes UI */
-html,
+/* iOS Safari: use contain on body so individual scroll containers handle their own scroll */
 body {
-  overscroll-behavior: none;
-  overscroll-behavior-x: none;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-/* iOS Safari: prevent pull-to-refresh and momentum scroll issues */
+/* Mobile tap highlight removal for interactive elements */
 @media (hover: none) and (pointer: coarse) {
-  html,
-  body {
-    overscroll-behavior: none;
-  }
-}
-
-/* Ensure fixed elements don't shift when virtual keyboard opens on iOS */
-@supports (-webkit-touch-callout: all) {
-  /* iOS 12+ specific fixes */
-  .fixed {
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -174,19 +162,12 @@ body {
   touch-action: manipulation;
 }
 
-/* Prevent body scroll when modals are open */
-body.modal-open {
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-}
-
-/* Ensure fixed elements don't get overlapped by iOS Safari bottom bar */
-/* BottomNav already uses .safe-area-inset-bottom class for safe area handling */
-
 /* Mobile tap highlight removal for interactive elements */
 @media (hover: none) and (pointer: coarse) {
   button, a, [role="button"] {
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* Ensure fixed elements don't get overlapped by iOS Safari bottom bar */
+/* BottomNav already uses .safe-area-inset-bottom class for safe area handling */

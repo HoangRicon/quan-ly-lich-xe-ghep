@@ -180,7 +180,7 @@ export function Sidebar({ children }: SidebarProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto overscroll-none">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
