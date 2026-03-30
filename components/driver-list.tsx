@@ -409,7 +409,7 @@ export default function DriverList() {
 
       {/* Delete Confirmation Modal */}
       {deletingZom && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md">
             <div className="p-6 text-center">
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">

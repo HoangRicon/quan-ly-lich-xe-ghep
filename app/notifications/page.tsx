@@ -373,7 +373,7 @@ export default function NotificationsPage() {
 
       {/* Modal Chi tiết thông báo */}
       {selectedNotification && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeDetail}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[80] p-4" onClick={closeDetail}>
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">

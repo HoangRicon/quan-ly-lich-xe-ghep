@@ -167,8 +167,12 @@ export default function ScheduleList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(true);
   const todayStr = new Date().toISOString().split("T")[0];
-  
+
+  // View mode: "list" | "timeline"
+  const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
+
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<"departureTime" | "price" | "status">(() => {
@@ -922,137 +926,174 @@ export default function ScheduleList() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="mb-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Filter & Sort Row - Mobile optimized */}
-      <div className="flex flex-wrap gap-1 mb-2 items-center">
-        {/* Sort Select */}
-        <select
-          value={sortField === "price" ? (sortDirection === "desc" ? "price_desc" : "price_asc") : (sortDirection === "desc" ? "newest" : "oldest")}
-          onChange={(e) => {
-            if (e.target.value === "newest") {
-              setSortField("departureTime");
-              setSortDirection("desc");
-              localStorage.setItem("schedule-sort-field", "departureTime");
-              localStorage.setItem("schedule-sort-dir", "desc");
-            } else if (e.target.value === "oldest") {
-              setSortField("departureTime");
-              setSortDirection("asc");
-              localStorage.setItem("schedule-sort-field", "departureTime");
-              localStorage.setItem("schedule-sort-dir", "asc");
-            } else if (e.target.value === "price_desc") {
-              setSortField("price");
-              setSortDirection("desc");
-              localStorage.setItem("schedule-sort-field", "price");
-              localStorage.setItem("schedule-sort-dir", "desc");
-            } else if (e.target.value === "price_asc") {
-              setSortField("price");
-              setSortDirection("asc");
-              localStorage.setItem("schedule-sort-field", "price");
-              localStorage.setItem("schedule-sort-dir", "asc");
-            }
-            setCurrentPage(1);
-          }}
-          className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
-        >
-          <option value="newest">Mới nhất</option>
-          <option value="oldest">Cũ nhất</option>
-          <option value="price_desc">Giá cao nhất</option>
-          <option value="price_asc">Giá thấp nhất</option>
-        </select>
-
-        {/* Items per page */}
-        <select
-          value={itemsPerPage}
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            setItemsPerPage(n);
-            localStorage.setItem("schedule-limit", String(n));
-            setCurrentPage(1);
-          }}
-          className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
-        >
-          <option value="5">5 / trang</option>
-          <option value="10">10 / trang</option>
-          <option value="20">20 / trang</option>
-          <option value="50">50 / trang</option>
-        </select>
-
-        {/* Status Filter Select */}
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-          className="px-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
-        >
-          <option value="all">Tất cả</option>
-          {statuses.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Datepicker + Today/Week/Month */}
-        <div className="flex items-center gap-1">
-          <div className="relative">
-            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+      {/* Search & Filter Bar */}
+      <div className="mb-3">
+        {/* Search Row */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
-              type="date"
-              value={dateFilter && !dateFilter.includes(",") ? dateFilter : ""}
-              onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
-              className="pl-7 pr-2 py-1 rounded border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white"
+              type="text"
+              placeholder="Tìm điểm đi, điểm đến, khách, Zom..."
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-white"
             />
           </div>
           <button
             type="button"
-            onClick={handleThisWeekFilter}
-            className={`px-2 py-1 rounded border text-xs ${isThisWeekActive ? "border-blue-300 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
-            title="Lọc tuần này"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-medium transition-colors ${
+              showFilters
+                ? "bg-blue-600 border-blue-600 text-white"
+                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
           >
-            Tuần này
+            <span className="flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Bộ lọc
+              {(statusFilter !== "all" || dateFilter) && (
+                <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+              )}
+            </span>
           </button>
-          <button
-            type="button"
-            onClick={handleThisMonthFilter}
-            className={`px-2 py-1 rounded border text-xs ${isThisMonthActive ? "border-blue-300 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
-            title="Lọc tháng này"
-          >
-            Tháng này
-          </button>
-          <button
-            type="button"
-            onClick={handleTodayFilter}
-            className={`px-2 py-1 rounded border text-xs ${isTodayActive ? "border-blue-300 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"}`}
-            title="Lọc hôm nay"
-          >
-            Hôm nay
-          </button>
-          {dateFilter && (
-            <button
-              type="button"
-              onClick={() => { setDateFilter(""); setCurrentPage(1); }}
-              className="px-2 py-1 rounded border border-slate-200 text-xs bg-white hover:bg-slate-50 text-slate-700"
-              title="Xóa lọc ngày"
-            >
-              Tất cả
-            </button>
-          )}
         </div>
+
+        {/* Expanded Filters */}
+        {showFilters && (
+          <>
+            {/* Filters Row 1: Date + Sort + Limit */}
+            <div className="flex flex-wrap items-center gap-1 mt-2">
+              {/* Date quick filters */}
+              <button
+                type="button"
+                onClick={() => { setDateFilter(todayStr); setCurrentPage(1); }}
+                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  isTodayActive
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                Hôm nay
+              </button>
+              <button
+                type="button"
+                onClick={() => { handleThisWeekFilter(); }}
+                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  isThisWeekActive
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                7 ngày
+              </button>
+              <button
+                type="button"
+                onClick={() => { handleThisMonthFilter(); }}
+                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                  isThisMonthActive
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                Tháng
+              </button>
+              {(dateFilter || isThisWeekActive || isThisMonthActive) && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFilter(""); setCurrentPage(1); }}
+                  className="px-1 py-1 rounded text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  ✕
+                </button>
+              )}
+
+              {/* Date range picker */}
+              <div className="flex items-center gap-0.5">
+                <input
+                  type="date"
+                  value={dateFilter && !dateFilter.includes(",") ? dateFilter : ""}
+                  onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
+                  className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
+                />
+                <span className="text-xs text-slate-400">-</span>
+                <input
+                  type="date"
+                  value={dateFilter && dateFilter.includes(",") ? dateFilter.split(",")[1] : ""}
+                  onChange={(e) => {
+                    const start = dateFilter && !dateFilter.includes(",") ? dateFilter : todayStr;
+                    setDateFilter(`${start},${e.target.value}`);
+                    setCurrentPage(1);
+                  }}
+                  className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
+                />
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-slate-200 mx-1" />
+
+              {/* Status filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
+              >
+                <option value="all">Tất cả</option>
+                <option value="pending">Chờ gán</option>
+                <option value="assigned">Đã gán</option>
+                <option value="in_progress">Hoàn thành</option>
+                <option value="cancelled">Đã hủy</option>
+              </select>
+
+              {/* Sort */}
+              <select
+                value={sortField === "price" ? (sortDirection === "desc" ? "price_desc" : "price_asc") : (sortDirection === "desc" ? "newest" : "oldest")}
+                onChange={(e) => {
+                  if (e.target.value === "newest") {
+                    setSortField("departureTime");
+                    setSortDirection("desc");
+                  } else if (e.target.value === "oldest") {
+                    setSortField("departureTime");
+                    setSortDirection("asc");
+                  } else if (e.target.value === "price_desc") {
+                    setSortField("price");
+                    setSortDirection("desc");
+                  } else if (e.target.value === "price_asc") {
+                    setSortField("price");
+                    setSortDirection("asc");
+                  }
+                  setCurrentPage(1);
+                }}
+                className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
+              >
+                <option value="newest">Mới nhất</option>
+                <option value="oldest">Cũ nhất</option>
+                <option value="price_desc">Giá ↓</option>
+                <option value="price_asc">Giá ↑</option>
+              </select>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  setItemsPerPage(n);
+                  setCurrentPage(1);
+                }}
+                className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Mobile DataTable View - Optimized for iPhone - No horizontal scroll */}
+      {viewMode === "list" && (
       <div className="lg:hidden -mx-4">
         {loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500 mx-4">
@@ -1196,6 +1237,7 @@ export default function ScheduleList() {
           </div>
         )}
       </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -1228,6 +1270,7 @@ export default function ScheduleList() {
       )}
 
       {/* Desktop DataTable View */}
+      {viewMode === "list" && (
       <div className="hidden lg:block bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -1494,6 +1537,7 @@ export default function ScheduleList() {
           </Table>
         </div>
       </div>
+      )}
 
       {/* Driver Selection Modal */}
       {showDriverModal && (

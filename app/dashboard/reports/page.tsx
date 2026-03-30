@@ -2323,7 +2323,7 @@ export default function ReportsPage() {
 
       {/* Trip Detail Modal */}
       {selectedTrip && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedTrip(null)}>
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedTrip(null)}>
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="sticky top-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between rounded-t-2xl">
               <h2 className="font-semibold text-slate-800">Chi tiết chuyến #{selectedTrip.id}</h2>
