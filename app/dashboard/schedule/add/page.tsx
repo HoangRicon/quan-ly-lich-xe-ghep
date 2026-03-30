@@ -18,13 +18,13 @@ function TripFormLoader() {
 
 export default function AddTripPage() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Mobile Header - Fixed */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200">
+    <div className="min-h-screen min-h-[100dvh] bg-slate-50">
+      {/* Mobile Header - Fixed with safe area */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-200 safe-area-inset-top">
         <div className="flex items-center justify-between px-4 py-3">
-          <Link 
-            href="/dashboard/schedule" 
-            className="p-2 -ml-2 rounded-lg hover:bg-slate-100"
+          <Link
+            href="/dashboard/schedule"
+            className="p-2 -ml-2 rounded-lg hover:bg-slate-100 active:bg-slate-200 touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
@@ -36,8 +36,8 @@ export default function AddTripPage() {
       {/* Desktop Header */}
       <header className="hidden lg:flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
         <div className="flex items-center gap-4">
-          <Link 
-            href="/dashboard/schedule" 
+          <Link
+            href="/dashboard/schedule"
             className="p-2 rounded-lg hover:bg-slate-100"
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
@@ -46,7 +46,7 @@ export default function AddTripPage() {
         </div>
       </header>
 
-      {/* Form Content */}
+      {/* Form Content - accounts for fixed header */}
       <div className="pt-16 lg:pt-20 px-4 lg:px-6 pb-6">
         <div className="max-w-2xl mx-auto">
           <Suspense fallback={<TripFormLoader />}>

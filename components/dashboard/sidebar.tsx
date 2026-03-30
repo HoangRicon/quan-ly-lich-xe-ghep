@@ -164,10 +164,10 @@ export function Sidebar({ children }: SidebarProps) {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Mobile Header */}
-        <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200">
-          <button onClick={() => setIsMobileOpen(true)} className="p-2 -ml-2">
+        <header className="lg:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 safe-area-inset-top flex-shrink-0">
+          <button onClick={() => setIsMobileOpen(true)} className="p-2 -ml-2 min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">
             <Menu className="w-6 h-6 text-slate-600" />
           </button>
           <div className="flex items-center gap-2">
@@ -180,7 +180,7 @@ export function Sidebar({ children }: SidebarProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overscroll-none">
           {children}
         </main>
       </div>

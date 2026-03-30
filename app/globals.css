@@ -128,6 +128,31 @@
   }
 }
 
+/* iOS Safari: prevent rubber-banding / overscroll bounce that freezes UI */
+html,
+body {
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS Safari: prevent pull-to-refresh and momentum scroll issues */
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+}
+
+/* Ensure fixed elements don't shift when virtual keyboard opens on iOS */
+@supports (-webkit-touch-callout: all) {
+  /* iOS 12+ specific fixes */
+  .fixed {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+}
+
 @keyframes slide-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
