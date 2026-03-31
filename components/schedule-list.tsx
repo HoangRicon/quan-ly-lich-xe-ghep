@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { flushSync } from "react-dom";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import {
   Search, Plus, MapPin, Clock, Phone, MessageCircle,
@@ -161,7 +160,7 @@ function generateAutoNoteLikeTripForm(
   return `${timePart} ${safeDeparture} - ${safeDestination} ${priceDisplay} ${safePhone}`.trim();
 }
 
-export default function ScheduleList() {
+export default function ScheduleList({ showToast }: { showToast: (message: string, type: "success" | "error") => void }) {
   const { statuses, map: statusMap, priority: statusPriority, nextMap } = useTripStatuses();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,9 +203,6 @@ export default function ScheduleList() {
   // Notification dropdown state (touch-friendly; no hover dependency)
   const [openNotifyMenu, setOpenNotifyMenu] = useState<number | null>(null);
   const notifyMenuRef = useRef<HTMLDivElement>(null);
-  
-  // Toast notification state
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   
   // Driver modal state
   const [showDriverModal, setShowDriverModal] = useState(false);
@@ -557,18 +553,6 @@ export default function ScheduleList() {
     }).format(Number.isFinite(n) ? n : 0);
   };
 
-  const showToast = useCallback((message: string, type: "success" | "error") => {
-    // flushSync ensures React updates DOM immediately — critical for iOS Safari
-    flushSync(() => {
-      setToast({ message, type });
-    });
-    setTimeout(() => {
-      flushSync(() => {
-        setToast(null);
-      });
-    }, 2000);
-  }, []);
-
   const copyToClipboard = async (text: string, label: string) => {
     let success = false;
     try {
@@ -641,11 +625,10 @@ export default function ScheduleList() {
         }),
       });
       const result = await res.json();
-      setToast({
-        message: result?.success ? `Đã gửi email tới ${toEmail}` : (result?.error || "Gửi email thất bại"),
-        type: result?.success ? "success" : "error",
-      });
-      setTimeout(() => setToast(null), 3000);
+      showToast(
+        result?.success ? `Đã gửi email tới ${toEmail}` : (result?.error || "Gửi email thất bại"),
+        result?.success ? "success" : "error"
+      );
     } else if (type === "system") {
       alert(`Thông báo: ${message}`);
     }
@@ -924,16 +907,6 @@ export default function ScheduleList() {
 
   return (
     <div>
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed left-1/2 -translate-x-1/2 z-[99] max-w-xs w-auto px-3 py-1.5 rounded-lg shadow-xl text-xs font-medium animate-fade-in ${
-          toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-        }`}
-        style={{ top: "calc(60px + env(safe-area-inset-top, 0px))" }}>
-          {toast.message}
-        </div>
-      )}
-
       {/* Search & Filter Bar */}
       <div className="mb-3">
         {/* Search Row */}
