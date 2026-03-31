@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { flushSync } from "react-dom";
 import Link from "next/link";
 import {
   Search, Plus, MapPin, Clock, Phone, MessageCircle,
@@ -556,15 +557,25 @@ export default function ScheduleList() {
     }).format(Number.isFinite(n) ? n : 0);
   };
 
+  const showToast = useCallback((message: string, type: "success" | "error") => {
+    // flushSync ensures React updates DOM immediately — critical for iOS Safari
+    flushSync(() => {
+      setToast({ message, type });
+    });
+    setTimeout(() => {
+      flushSync(() => {
+        setToast(null);
+      });
+    }, 2000);
+  }, []);
+
   const copyToClipboard = async (text: string, label: string) => {
-    // Always use async/await so toast fires regardless of which path succeeds
     let success = false;
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
         success = true;
       } else {
-        // Fallback for non-secure context (e.g. HTTP on some mobile browsers)
         const textArea = document.createElement("textarea");
         textArea.value = text;
         textArea.style.cssText = "position:fixed;left:-9999px;top:-9999px";
@@ -574,15 +585,10 @@ export default function ScheduleList() {
         success = document.execCommand("copy");
         document.body.removeChild(textArea);
       }
-    } catch (err) {
-      // Silent fail on iOS Safari — fallback already tried above
+    } catch {
       success = false;
     }
-    setToast({
-      message: success ? `${label} đã sao chép!` : "Sao chép thất bại",
-      type: success ? "success" : "error",
-    });
-    setTimeout(() => setToast(null), 2000);
+    showToast(success ? `${label} đã sao chép!` : "Sao chép thất bại", success ? "success" : "error");
   };
 
   const sendNotification = async (trip: Trip, type: "email" | "system") => {
