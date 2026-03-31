@@ -926,9 +926,10 @@ export default function ScheduleList() {
     <div>
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[99] max-w-xs w-auto px-3 py-1.5 rounded-lg shadow-xl text-xs font-medium animate-fade-in ${
           toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-        }`}>
+        }`}
+        style={{ marginTop: "env(safe-area-inset-top, 0px)" }}>
           {toast.message}
         </div>
       )}
