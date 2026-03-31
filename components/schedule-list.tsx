@@ -915,6 +915,17 @@ export default function ScheduleList() {
   // Profit will be auto-calculated on server when selecting Zom / saving edit (recalculate: true).
   // Manual "recalculate profit" action removed by request.
 
+  // Hide bottom nav when edit sheet is open on mobile
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (showEditSheet) {
+        document.body.classList.add("hide-bottom-nav");
+      } else {
+        document.body.classList.remove("hide-bottom-nav");
+      }
+    }
+  }, [showEditSheet]);
+
   return (
     <div>
       {/* Toast Notification */}
@@ -1034,17 +1045,19 @@ export default function ScheduleList() {
               {/* Divider */}
               <div className="w-px h-5 bg-slate-200 mx-1" />
 
-              {/* Status filter */}
+              {/* Status filter - dynamic from database */}
               <select
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                 className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
               >
                 <option value="all">Tất cả</option>
-                <option value="pending">Chờ gán</option>
-                <option value="assigned">Đã gán</option>
-                <option value="in_progress">Hoàn thành</option>
-                <option value="cancelled">Đã hủy</option>
+                {statuses
+                  .filter(s => s.isActive)
+                  .map(s => (
+                    <option key={s.key} value={s.key}>{s.label}</option>
+                  ))
+                }
               </select>
 
               {/* Sort */}
@@ -1154,7 +1167,7 @@ export default function ScheduleList() {
                       value={trip.status}
                       onChange={(e) => { e.stopPropagation(); updateStatus(trip.id, e.target.value); }}
                       onClick={(e) => e.stopPropagation()}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer border ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").border}`}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text}`}
                     >
                       {statuses.map((s) => (
                         <option key={s.key} value={s.key}>
@@ -1643,9 +1656,9 @@ export default function ScheduleList() {
       {showEditSheet && editingTrip && (
         <div className="fixed inset-0 z-[60] lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowEditSheet(false)} />
-          <div 
+          <div
             ref={sheetRef}
-            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl max-h-[85vh] overflow-hidden animate-slide-up flex flex-col"
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl max-h-[85vh] animate-slide-up flex flex-col"
           >
             {/* Drag Handle */}
             <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
@@ -1698,8 +1711,9 @@ export default function ScheduleList() {
               </div>
             </div>
 
-            {/* Edit Form */}
-            <div className="p-4 space-y-3 overflow-y-auto flex-1" style={{ maxHeight: 'calc(85vh - 180px)' }}>
+            {/* Edit Form - scrollable content area */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4 space-y-3">
               {/* Customer Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-sm font-medium text-blue-800 mb-3">Thông tin khách hàng</p>
@@ -1987,6 +2001,7 @@ export default function ScheduleList() {
                   rows={3}
                 />
               </div>
+            </div>
             </div>
 
             {/* Action Buttons */}

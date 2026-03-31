@@ -228,3 +228,16 @@ body {
 .touch-manipulation {
   touch-action: manipulation;
 }
+
+/* Hide bottom nav when edit sheet is open */
+body.hide-bottom-nav nav.lg\:hidden {
+  display: none !important;
+}
+
+/* Add padding-bottom to main content when bottom nav is visible (mobile) */
+@media (max-width: 1023px) {
+  body:not(.hide-bottom-nav) .page-scroll,
+  body:not(.hide-bottom-nav) .scroll-wrapper {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
