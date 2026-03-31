@@ -557,42 +557,32 @@ export default function ScheduleList() {
   };
 
   const copyToClipboard = async (text: string, label: string) => {
-    // Try Clipboard API first
-    if (navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(text);
-        setToast({ message: `${label} đã sao chép!`, type: "success" });
-        setTimeout(() => setToast(null), 2000);
-        return;
-      } catch (err) {
-        console.warn("Clipboard API failed, trying fallback:", err);
-      }
-    }
-    
-    // Fallback for HTTP/non-secure contexts
+    // Always use async/await so toast fires regardless of which path succeeds
+    let success = false;
     try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-9999px";
-      textArea.style.top = "-9999px";
-      document.body.appendChild(textArea);
-      textArea.select();
-      const success = document.execCommand("copy");
-      document.body.removeChild(textArea);
-      
-      if (success) {
-        setToast({ message: `${label} đã sao chép!`, type: "success" });
-        setTimeout(() => setToast(null), 2000);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        success = true;
       } else {
-        setToast({ message: "Sao chép thất bại", type: "error" });
-        setTimeout(() => setToast(null), 2000);
+        // Fallback for non-secure context (e.g. HTTP on some mobile browsers)
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.cssText = "position:fixed;left:-9999px;top:-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        success = document.execCommand("copy");
+        document.body.removeChild(textArea);
       }
     } catch (err) {
-      console.error("Copy failed:", err);
-      setToast({ message: "Sao chép thất bại", type: "error" });
-      setTimeout(() => setToast(null), 2000);
+      // Silent fail on iOS Safari — fallback already tried above
+      success = false;
     }
+    setToast({
+      message: success ? `${label} đã sao chép!` : "Sao chép thất bại",
+      type: success ? "success" : "error",
+    });
+    setTimeout(() => setToast(null), 2000);
   };
 
   const sendNotification = async (trip: Trip, type: "email" | "system") => {
