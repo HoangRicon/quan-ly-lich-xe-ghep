@@ -120,18 +120,12 @@ export async function PUT(
     const {
       status, driverId, departure, destination, price, profit,
       title, departureTime, totalSeats, notes,
-      // customer fields are handled in other endpoints; keep payload compatibility
       customerPhone,
       customerName,
       customerEmail,
       customerNotes,
       tripDirection, tripType, recalculate,
     } = await request.json();
-
-    void customerPhone;
-    void customerName;
-    void customerEmail;
-    void customerNotes;
 
     const DECIMAL_10_2_MAX = 99999999.99;
     const DECIMAL_15_2_MAX = 9999999999999.99;
@@ -320,6 +314,91 @@ export async function PUT(
 
     if (notes !== undefined) {
       updateData.notes = notes || null;
+    }
+
+    // ============================================================
+    // Xử lý cập nhật thông tin khách hàng
+    // ============================================================
+    // Lấy TripCustomer hiện tại của chuyến
+    const existingTripCustomers = await prisma.tripCustomer.findMany({
+      where: { tripId },
+      include: { customer: true },
+    });
+    const existingTripCustomer = existingTripCustomers[0];
+    const existingCustomer = existingTripCustomer?.customer;
+
+    if (customerPhone !== undefined) {
+      if (customerPhone === null || customerPhone === "") {
+        // Xóa hết khách hàng khỏi chuyến
+        if (existingTripCustomers.length > 0) {
+          await prisma.tripCustomer.deleteMany({ where: { tripId } });
+        }
+      } else {
+        // Tìm hoặc tạo customer theo số điện thoại
+        let targetCustomer = await prisma.customer.findUnique({
+          where: { phone: customerPhone },
+        });
+
+        if (!targetCustomer) {
+          targetCustomer = await prisma.customer.create({
+            data: {
+              phone: customerPhone,
+              name: customerName || "Khách vãng lai",
+              email: customerEmail,
+              notes: customerNotes,
+            },
+          });
+        }
+
+        const newCustomerId = targetCustomer.id;
+        const isSameCustomer =
+          existingCustomer && existingCustomer.id === newCustomerId;
+
+        if (isSameCustomer) {
+          // Cùng khách — chỉ cập nhật name/email/notes của Customer
+          await prisma.customer.update({
+            where: { id: newCustomerId },
+            data: {
+              ...(customerName !== undefined ? { name: customerName || "Khách vãng lai" } : {}),
+              ...(customerEmail !== undefined ? { email: customerEmail || null } : {}),
+              ...(customerNotes !== undefined ? { notes: customerNotes || null } : {}),
+            },
+          });
+        } else {
+          // Khách khác — xóa TripCustomer cũ, cập nhật Customer, tạo TripCustomer mới
+          if (existingTripCustomers.length > 0) {
+            await prisma.tripCustomer.deleteMany({ where: { tripId } });
+          }
+          // Cập nhật thông tin Customer (nếu có name mới)
+          await prisma.customer.update({
+            where: { id: newCustomerId },
+            data: {
+              name: customerName || targetCustomer.name,
+              email: customerEmail !== undefined ? (customerEmail || null) : targetCustomer.email,
+              notes: customerNotes !== undefined ? (customerNotes || null) : targetCustomer.notes,
+            },
+          });
+          // Tạo TripCustomer mới
+          await prisma.tripCustomer.create({
+            data: {
+              tripId,
+              customerId: newCustomerId,
+              seats: 1,
+              status: "confirmed",
+            },
+          });
+        }
+      }
+    } else if (customerName !== undefined && existingCustomer) {
+      // Không đổi sđt nhưng đổi tên
+      await prisma.customer.update({
+        where: { id: existingCustomer.id },
+        data: {
+          name: customerName || "Khách vãng lai",
+          email: customerEmail !== undefined ? (customerEmail || null) : existingCustomer.email,
+          notes: customerNotes !== undefined ? (customerNotes || null) : existingCustomer.notes,
+        },
+      });
     }
 
     const trip = await prisma.trip.update({
