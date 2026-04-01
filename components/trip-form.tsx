@@ -274,6 +274,41 @@ export default function TripForm() {
     return () => clearTimeout(debounce);
   }, [formData.customerPhone]);
 
+  // ============================================================
+  // Keyboard / virtual keyboard handling on mobile
+  // On touch devices, when an input/textarea/select inside the form
+  // gets focus the virtual keyboard slides up and shrinks the viewport.
+  // We:
+  //   1. Add class to body so CSS can increase padding-bottom of .page-scroll
+  //   2. Scroll the focused element into view (centered) after a short delay
+  //      so the input sits above the keyboard.
+  // ============================================================
+  useEffect(() => {
+    const form = document.querySelector("form");
+    if (!form) return;
+
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") {
+        document.body.classList.add("form-keyboard-open");
+        setTimeout(() => {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 120);
+      }
+    };
+
+    const handleBlur = () => {
+      document.body.classList.remove("form-keyboard-open");
+    };
+
+    form.addEventListener("focusin", handleFocus);
+    form.addEventListener("focusout", handleBlur);
+    return () => {
+      form.removeEventListener("focusin", handleFocus);
+      form.removeEventListener("focusout", handleBlur);
+    };
+  }, []);
+
   const handlePhoneChange = (value: string) => {
     const cleaned = value.replace(/\D/g, "");
     setFormData({ ...formData, customerPhone: cleaned });
@@ -488,61 +523,72 @@ export default function TripForm() {
       {/* Customer Info */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
         <h3 className="font-semibold text-slate-800">Thông tin khách hàng</h3>
-        
-        {/* Số điện thoại + Tên khách hàng gộp 1 cột */}
-        <div className="space-y-3">
-          <div className="relative" ref={customerDropdownRef}>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Số điện thoại <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="tel"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={formData.customerPhone}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              ref={phoneInputRef}
-              placeholder="Nhập số điện thoại"
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-              required
-            />
 
-            {showCustomerDropdown && customerSuggestions.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {customerSuggestions.map((customer) => (
-                  <button
-                    key={customer.id}
-                    type="button"
-                    onClick={() => selectCustomer(customer)}
-                    className="w-full px-4 py-3 text-left hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0"
-                  >
-                    <div>
-                      <div className="font-medium text-slate-800">{customer.name}</div>
-                      <div className="text-sm text-slate-500">{customer.phone}</div>
-                    </div>
-                    <div className="text-sm text-blue-600">
-                      {customer.totalTrips} chuyến
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+        {(isEditMode && (tripData?.status === "completed" || tripData?.status === "cancelled")) ? (
+          <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div className="text-sm text-amber-800 leading-relaxed">
+              Cuốc xe đã <strong>{tripData?.status === "completed" ? "hoàn thành" : "bị hủy"}</strong>. Không thể sửa thông tin khách hàng.<br />
+              Để chỉnh sửa, hãy đổi trạng thái về <strong>Chờ gán</strong> hoặc <strong>Đã gán</strong> từ danh sách chuyến xe.
+            </div>
           </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="relative" ref={customerDropdownRef}>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Số điện thoại <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={formData.customerPhone}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                ref={phoneInputRef}
+                placeholder="Nhập số điện thoại"
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
+                required
+              />
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Tên khách hàng
-            </label>
-            <input
-              type="text"
-              value={formData.customerName}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder={formData.customerPhone.length >= 2 ? "Nhập tên khách" : "Nhập SĐT trước"}
-              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
-              disabled={formData.customerPhone.length < 3 && !isEditMode}
-            />
+              {showCustomerDropdown && customerSuggestions.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {customerSuggestions.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onClick={() => selectCustomer(customer)}
+                      className="w-full px-4 py-3 text-left hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0"
+                    >
+                      <div>
+                        <div className="font-medium text-slate-800">{customer.name}</div>
+                        <div className="text-sm text-slate-500">{customer.phone}</div>
+                      </div>
+                      <div className="text-sm text-blue-600">
+                        {customer.totalTrips} chuyến
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Tên khách hàng
+              </label>
+              <input
+                type="text"
+                value={formData.customerName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder={formData.customerPhone.length >= 2 ? "Nhập tên khách" : "Nhập SĐT trước"}
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
+                disabled={formData.customerPhone.length < 3 && !isEditMode}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {showDuplicateWarning && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">

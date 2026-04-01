@@ -187,11 +187,19 @@ body {
 }
 
 .page-scroll {
-  height: 100%;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+/* Dynamic viewport height (100dvh) accounts for browser chrome / virtual keyboard
+   on iOS/Android. Fallback to 100% for older browsers. */
+@supports (height: 100dvh) {
+  .page-scroll {
+    height: 100dvh;
+  }
 }
 
 /* Safe area cho iPhone notch / home indicator */
@@ -239,5 +247,14 @@ body.hide-bottom-nav nav.lg\:hidden {
   body:not(.hide-bottom-nav) .page-scroll,
   body:not(.hide-bottom-nav) .scroll-wrapper {
     padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Extra bottom padding on forms — lets content scroll above virtual keyboard.
+   Controlled by JS: form-keyboard-open class is added to body when an input/textarea
+   inside a .page-scroll form gets focus, and removed on blur. */
+@media (hover: none) and (pointer: coarse) {
+  body.form-keyboard-open .page-scroll {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }

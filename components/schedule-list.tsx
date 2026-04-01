@@ -1687,28 +1687,40 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               {/* Customer Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-sm font-medium text-blue-800 mb-3">Thông tin khách hàng</p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Tên khách hàng</label>
-                    <input
-                      type="text"
-                      value={editForm.customerName}
-                      onChange={(e) => setEditForm({ ...editForm, customerName: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                      placeholder="Tên khách"
-                    />
+                {(editForm.status === "completed" || editForm.status === "cancelled") ? (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div className="text-xs text-amber-800 leading-relaxed">
+                      Cuốc xe đã <strong>{editForm.status === "completed" ? "hoàn thành" : "bị hủy"}</strong>. Không thể sửa thông tin khách hàng.<br />
+                      Để chỉnh sửa, hãy đổi trạng thái về <strong>Chờ gán</strong> hoặc <strong>Đã gán</strong>.
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Số điện thoại</label>
-                    <input
-                      type="tel"
-                      value={editForm.customerPhone}
-                      onChange={(e) => setEditForm({ ...editForm, customerPhone: e.target.value.replace(/\D/g, "") })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                      placeholder="SĐT"
-                    />
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Tên khách hàng</label>
+                      <input
+                        type="text"
+                        value={editForm.customerName}
+                        onChange={(e) => setEditForm({ ...editForm, customerName: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                        placeholder="Tên khách"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Số điện thoại</label>
+                      <input
+                        type="tel"
+                        value={editForm.customerPhone}
+                        onChange={(e) => setEditForm({ ...editForm, customerPhone: e.target.value.replace(/\D/g, "") })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                        placeholder="SĐT"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Trip Info */}
