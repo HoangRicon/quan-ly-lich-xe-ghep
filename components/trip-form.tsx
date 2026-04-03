@@ -406,6 +406,45 @@ export default function TripForm() {
     return `${departureDate}T${departureTime}:00`;
   };
 
+  const buildGeneratedNote = () => {
+    // Xác định giờ đi thực tế cho auto note
+    const now = new Date();
+    const [hours, minutes] = formData.departureTime.split(":").map(Number);
+    const [year, month, day] = formData.departureDate.split("-").map(Number);
+    const tripDate = new Date(year, month - 1, day, hours, minutes);
+    const nowWithBuffer = new Date(now.getTime() + 60 * 1000);
+
+    const actualTime = tripDate < nowWithBuffer
+      ? now.toTimeString().slice(0, 5)
+      : formData.departureTime;
+    const direction = getDirection(formData.tripType);
+    const rawType = formData.tripType.replace("_roundtrip", "") as "ghep" | "bao";
+
+    return generateAutoNote(
+      actualTime,
+      formData.departure,
+      formData.destination,
+      formData.price,
+      formData.customerPhone,
+      parseInt(formData.totalSeats) || 1,
+      rawType,
+      direction
+    );
+  };
+
+  const appendGeneratedNote = () => {
+    const generatedNote = buildGeneratedNote();
+    setFormData((prev) => {
+      const existing = prev.notes.trim();
+      const combined = existing ? `${existing} ${generatedNote}` : generatedNote;
+      return { ...prev, notes: combined };
+    });
+  };
+
+  const clearAllNotes = () => {
+    setFormData((prev) => ({ ...prev, notes: "" }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -831,38 +870,22 @@ export default function TripForm() {
             <label className="block text-sm font-medium text-slate-700">
               Ghi chú
             </label>
-            <button
-              type="button"
-              onClick={() => {
-                // Xác định giờ đi thực tế cho autoNote
-                const now = new Date();
-                const [hours, minutes] = formData.departureTime.split(":").map(Number);
-                const [year, month, day] = formData.departureDate.split("-").map(Number);
-                const tripDate = new Date(year, month - 1, day, hours, minutes);
-                const nowWithBuffer = new Date(now.getTime() + 60 * 1000);
-
-                const actualTime = tripDate < nowWithBuffer
-                  ? now.toTimeString().slice(0, 5)
-                  : formData.departureTime;
-                const direction = getDirection(formData.tripType);
-                const rawType = formData.tripType.replace("_roundtrip", "") as "ghep" | "bao";
-
-                const note = generateAutoNote(
-                  actualTime,
-                  formData.departure,
-                  formData.destination,
-                  formData.price,
-                  formData.customerPhone,
-                  parseInt(formData.totalSeats) || 1,
-                  rawType,
-                  direction
-                );
-                setFormData({ ...formData, notes: note });
-              }}
-              className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-md font-medium transition-colors"
-            >
-              ✨ Tạo ghi chú tự động
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={appendGeneratedNote}
+                className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-md font-medium transition-colors"
+              >
+                ✨ Tạo thêm ghi chú
+              </button>
+              <button
+                type="button"
+                onClick={clearAllNotes}
+                className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md font-medium transition-colors"
+              >
+                Xoá tất cả ghi chú
+              </button>
+            </div>
           </div>
           <textarea
             value={formData.notes}
@@ -875,31 +898,7 @@ export default function TripForm() {
             <div className="mt-2 p-3 bg-slate-50 rounded-lg">
               <div className="text-xs text-slate-500 mb-1">Xem trước:</div>
               <div className="text-sm font-mono text-slate-700">
-                {(() => {
-                  // Tính giờ đi thực tế cho preview
-                  const now = new Date();
-                  const [hours, minutes] = formData.departureTime.split(":").map(Number);
-                  const [year, month, day] = formData.departureDate.split("-").map(Number);
-                  const tripDate = new Date(year, month - 1, day, hours, minutes);
-                  const nowWithBuffer = new Date(now.getTime() + 60 * 1000);
-
-                  const actualTime = tripDate < nowWithBuffer
-                    ? now.toTimeString().slice(0, 5)
-                    : formData.departureTime;
-                  const direction = getDirection(formData.tripType);
-                  const rawType = formData.tripType.replace("_roundtrip", "") as "ghep" | "bao";
-
-                  return generateAutoNote(
-                    actualTime,
-                    formData.departure,
-                    formData.destination,
-                    formData.price,
-                    formData.customerPhone,
-                    parseInt(formData.totalSeats) || 1,
-                    rawType,
-                    direction
-                  );
-                })()}
+                {buildGeneratedNote()}
               </div>
             </div>
           )}

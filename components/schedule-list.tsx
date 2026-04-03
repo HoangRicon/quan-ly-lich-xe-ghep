@@ -1957,30 +1957,42 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               <div className="bg-slate-50 rounded-xl p-3">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <p className="text-sm font-medium text-slate-700">Ghi chú</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const seats = Math.max(1, editingTrip?.passengerCount ?? 1);
-                      const isBao = !!editingTrip?.totalSeats && seats >= editingTrip.totalSeats;
-                      const quick = generateAutoNoteLikeTripForm(
-                        editForm.departureTime,
-                        editForm.departure,
-                        editForm.destination,
-                        editForm.price,
-                        editForm.customerPhone,
-                        seats,
-                        isBao ? "bao" : "ghep"
-                      );
-                      if (!quick) return;
-                      // Ghi đè ghi chú cũ (không nối thêm)
-                      setEditForm({ ...editForm, notes: quick });
-                    }}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
-                    title="Tạo ghi chú nhanh"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Tạo ghi chú nhanh
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const seats = Math.max(1, parseInt(editForm.totalSeats, 10) || 1);
+                        const isBao = editForm.tripType === "bao" || editForm.tripType === "bao_roundtrip";
+                        const quick = generateAutoNoteLikeTripForm(
+                          editForm.departureTime,
+                          editForm.departure,
+                          editForm.destination,
+                          editForm.price,
+                          editForm.customerPhone,
+                          seats,
+                          isBao ? "bao" : "ghep"
+                        );
+                        if (!quick) return;
+                        const existing = (editForm.notes || "").trim();
+                        setEditForm({
+                          ...editForm,
+                          notes: existing ? `${existing} ${quick}` : quick,
+                        });
+                      }}
+                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-md font-medium transition-colors"
+                      title="Tạo thêm ghi chú"
+                    >
+                      ✨ Tạo thêm ghi chú
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, notes: "" })}
+                      className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md font-medium transition-colors"
+                      title="Xóa tất cả ghi chú"
+                    >
+                      Xóa tất cả ghi chú
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   value={editForm.notes}
