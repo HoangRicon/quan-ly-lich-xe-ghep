@@ -86,6 +86,11 @@ interface Driver {
 }
 
 // statusConfig/statusLabels moved to Settings-managed statuses (see /api/trip-statuses)
+type SortField = "departureTime" | "price" | "status";
+type SortDirection = "asc" | "desc";
+
+const SCHEDULE_SORT_FIELD_KEY = "schedule-sort-field";
+const SCHEDULE_SORT_DIR_KEY = "schedule-sort-dir";
 
 function formatPriceK(price: string): string {
   const n = parseInt((price || "").toString().replace(/[^\d]/g, ""), 10) || 0;
@@ -175,15 +180,17 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortField, setSortField] = useState<"departureTime" | "price" | "status">(() => {
+  const [sortField, setSortField] = useState<SortField>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("schedule-sort-field") as "departureTime" | "price" | "status") || "departureTime";
+      const stored = localStorage.getItem(SCHEDULE_SORT_FIELD_KEY);
+      if (stored === "departureTime" || stored === "price" || stored === "status") return stored;
     }
     return "departureTime";
   });
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(() => {
+  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("schedule-sort-dir") as "asc" | "desc") || "desc";
+      const stored = localStorage.getItem(SCHEDULE_SORT_DIR_KEY);
+      if (stored === "asc" || stored === "desc") return stored;
     }
     return "desc";
   });
@@ -195,6 +202,13 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     }
     return 10;
   });
+
+  // Persist sort state for all sort entry points (dropdown, table header, quick actions).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(SCHEDULE_SORT_FIELD_KEY, sortField);
+    localStorage.setItem(SCHEDULE_SORT_DIR_KEY, sortDirection);
+  }, [sortField, sortDirection]);
 
   // Status dropdown state
   const [openStatusMenu, setOpenStatusMenu] = useState<number | null>(null);
@@ -750,20 +764,13 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     currentPage * itemsPerPage
   );
 
-  const handleSort = (field: typeof sortField) => {
+  const handleSort = (field: SortField) => {
     if (sortField === field) {
       const next = sortDirection === "asc" ? "desc" : "asc";
       setSortDirection(next);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("schedule-sort-dir", next);
-      }
     } else {
       setSortField(field);
       setSortDirection("asc");
-      if (typeof window !== "undefined") {
-        localStorage.setItem("schedule-sort-field", field);
-        localStorage.setItem("schedule-sort-dir", "asc");
-      }
     }
     setCurrentPage(1);
   };
