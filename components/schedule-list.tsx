@@ -392,6 +392,9 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      // Always request a large limit from server to avoid server-side pagination
+      // clipping results when switching between filters. Client handles pagination.
+      params.set("limit", "5000");
       if (statusFilter !== "all") params.set("status", statusFilter);
       
       // Handle date filter: single date or date range (startDate,endDate)
