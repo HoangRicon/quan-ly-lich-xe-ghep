@@ -171,7 +171,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(true);
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -354,7 +355,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
   useEffect(() => {
     fetchTrips();
-  }, [statusFilter, dateFilter]);
+  }, [statusFilter, startDate, endDate]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -396,16 +397,14 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       // clipping results when switching between filters. Client handles pagination.
       params.set("limit", "5000");
       if (statusFilter !== "all") params.set("status", statusFilter);
-      
+
       // Handle date filter: single date or date range (startDate,endDate)
-      if (dateFilter) {
-        if (dateFilter.includes(",")) {
-          const [startDate, endDate] = dateFilter.split(",");
-          params.set("startDate", startDate);
-          params.set("endDate", endDate);
-        } else {
-          params.set("date", dateFilter);
-        }
+      // If only startDate: filter from startDate to infinity
+      // If only endDate: filter from beginning to endDate
+      // If both: filter range
+      if (startDate || endDate) {
+        if (startDate) params.set("startDate", startDate);
+        if (endDate) params.set("endDate", endDate);
       }
 
       const res = await fetch(`/api/trips?${params}`, { cache: "no-store" });
@@ -661,7 +660,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const handleTodayFilter = () => {
     const today = new Date();
     const dateStr = today.toISOString().split("T")[0];
-    setDateFilter(dateStr);
+    setStartDate(dateStr);
+    setEndDate(dateStr);
     setCurrentPage(1);
   };
 
@@ -677,7 +677,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
     const startStr = monday.toISOString().split("T")[0];
     const endStr = sunday.toISOString().split("T")[0];
-    setDateFilter(`${startStr},${endStr}`);
+    setStartDate(startStr);
+    setEndDate(endStr);
     setCurrentPage(1);
   };
 
@@ -689,14 +690,15 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
     const startStr = firstDay.toISOString().split("T")[0];
     const endStr = lastDay.toISOString().split("T")[0];
-    setDateFilter(`${startStr},${endStr}`);
+    setStartDate(startStr);
+    setEndDate(endStr);
     setCurrentPage(1);
   };
 
   // Check if date filter is "today", "this_week", or "this_month"
-  const isTodayActive = dateFilter === todayStr;
+  const isTodayActive = startDate === todayStr && endDate === todayStr;
   const isThisWeekActive = (() => {
-    if (!dateFilter || !dateFilter.includes(",")) return false;
+    if (!startDate || !endDate) return false;
     const today = new Date();
     const dayOfWeek = today.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -706,16 +708,16 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     sunday.setDate(monday.getDate() + 6);
     const startStr = monday.toISOString().split("T")[0];
     const endStr = sunday.toISOString().split("T")[0];
-    return dateFilter === `${startStr},${endStr}`;
+    return startDate === startStr && endDate === endStr;
   })();
   const isThisMonthActive = (() => {
-    if (!dateFilter || !dateFilter.includes(",")) return false;
+    if (!startDate || !endDate) return false;
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     const startStr = firstDay.toISOString().split("T")[0];
     const endStr = lastDay.toISOString().split("T")[0];
-    return dateFilter === `${startStr},${endStr}`;
+    return startDate === startStr && endDate === endStr;
   })();
 
   // Sort and paginate
@@ -945,7 +947,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               Bộ lọc
-              {(statusFilter !== "all" || dateFilter) && (
+              {(statusFilter !== "all" || startDate || endDate) && (
                 <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
               )}
             </span>
@@ -960,7 +962,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               {/* Date quick filters */}
               <button
                 type="button"
-                onClick={() => { setDateFilter(todayStr); setCurrentPage(1); }}
+                onClick={() => { setStartDate(todayStr); setEndDate(todayStr); setCurrentPage(1); }}
                 className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                   isTodayActive
                     ? "bg-blue-600 text-white"
@@ -991,10 +993,10 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               >
                 Tháng
               </button>
-              {(dateFilter || isThisWeekActive || isThisMonthActive) && (
+              {(startDate || endDate) && (
                 <button
                   type="button"
-                  onClick={() => { setDateFilter(""); setCurrentPage(1); }}
+                  onClick={() => { setStartDate(""); setEndDate(""); setCurrentPage(1); }}
                   className="px-1 py-1 rounded text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                 >
                   ✕
@@ -1005,19 +1007,15 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               <div className="flex items-center gap-0.5">
                 <input
                   type="date"
-                  value={dateFilter && !dateFilter.includes(",") ? dateFilter : ""}
-                  onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
                   className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
                 />
                 <span className="text-xs text-slate-400">-</span>
                 <input
                   type="date"
-                  value={dateFilter && dateFilter.includes(",") ? dateFilter.split(",")[1] : ""}
-                  onChange={(e) => {
-                    const start = dateFilter && !dateFilter.includes(",") ? dateFilter : todayStr;
-                    setDateFilter(`${start},${e.target.value}`);
-                    setCurrentPage(1);
-                  }}
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
                   className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
                 />
               </div>
