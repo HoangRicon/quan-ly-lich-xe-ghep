@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
     let customerId = null;
     if (customerPhone) {
       const customer = await db.customer.upsert({
-        where: { phone: customerPhone },
+        where: { idx_customers_account_phone: { phone: customerPhone, accountId: user.accountId } },
         create: {
           phone: customerPhone,
           name: customerName || "Khách vãng lai",

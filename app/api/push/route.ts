@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Lưu hoặc cập nhật subscription
     const subscription = await db.pushSubscription.upsert({
-      where: { endpoint },
+      where: { idx_push_subscriptions_account_endpoint: { endpoint, accountId: user.accountId } },
       update: {
         userId: user.id,
         p256dh: keys.p256dh,
@@ -112,7 +112,7 @@ export async function DELETE(request: NextRequest) {
     const db = createTenantPrisma(prisma, user.accountId);
 
     await db.pushSubscription.delete({
-      where: { endpoint },
+      where: { idx_push_subscriptions_account_endpoint: { endpoint, accountId: user.accountId } },
     });
 
     return NextResponse.json({
