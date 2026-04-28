@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         console.error("Push notification error:", error);
         if (error.statusCode === 410 || error.statusCode === 400) {
           await prisma.pushSubscription.delete({
-            where: { endpoint: sub.endpoint },
+            where: { id: sub.id },
           });
         }
         failedCount++;
@@ -144,7 +144,7 @@ export async function GET() {
           console.error("Push notification error:", error);
           if (error.statusCode === 410 || error.statusCode === 400) {
             await prisma.pushSubscription.delete({
-              where: { endpoint: sub.endpoint },
+              where: { id: sub.id },
             });
           }
         }

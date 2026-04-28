@@ -96,6 +96,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch upcoming trips up to reminder offset + 1 hour tolerance
     // (we'll filter in-memory to only send trips within the reminder window)
+    // Cron job is system-wide: fetches trips from ALL accounts.
+    // Notifications are created with each trip's accountId for proper isolation.
     const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000 + 2 * 60 * 1000);
     const trips = await prisma.trip.findMany({
       where: {
@@ -108,11 +110,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Preload settings for involved users
+    // Preload settings for involved users (per-account lookup)
     const createdByIds = Array.from(new Set(trips.map((t: any) => (t as any).createdById || 1)));
+    const tripAccountIds = Array.from(new Set(trips.map((t: any) => (t as any).accountId || 0)));
     const settingsRows = await prisma.userSettings.findMany({
       where: { userId: { in: createdByIds } },
     });
+    // Also load account-level settings for reminder_to_email
+    const accountSettingsRows = await prisma.systemSettings.findMany({
+      where: {
+        accountId: { in: tripAccountIds },
+        category: "email",
+        key: { in: ["reminder_to_email", "from_email"] },
+      },
+    });
+    const accountEmailMap = new Map<number, string>();
+    for (const r of accountSettingsRows) {
+      if (typeof r.value === "string" && (r.key === "reminder_to_email" || r.key === "from_email")) {
+        const existing = accountEmailMap.get(r.accountId || 0) || "";
+        accountEmailMap.set(r.accountId || 0, existing || r.value);
+      }
+    }
     const settingsMap = new Map<number, typeof settingsRows[number]>();
     for (const s of settingsRows) settingsMap.set(s.userId, s);
 
@@ -134,6 +152,7 @@ export async function GET(request: NextRequest) {
 
     for (const trip of trips) {
       scannedTrips++;
+      const tripAccountId = (trip as any).accountId || 0;
       const createdById = (trip as any).createdById || 1;
       const settings =
         settingsMap.get(createdById) ||
@@ -159,13 +178,18 @@ export async function GET(request: NextRequest) {
       const bufferMs = 5 * 60 * 1000;
       if (deltaMs > offsetMs || deltaMs < -bufferMs) continue;
 
+      // Per-account reminder email: look up from account-specific settings first
+      const accountEmail = accountEmailMap.get(tripAccountId) || "";
+      const perAccountReminderEmail = accountEmail || reminderToEmail;
+      const recipientEmail = perAccountReminderEmail.trim();
+
       // Recipient: send to admin/operator email configured in Settings (NOT customer emails)
-      if (!reminderToEmail || !isValidEmail(reminderToEmail)) {
+      if (!recipientEmail || !isValidEmail(recipientEmail)) {
         emailsSkippedNoRecipient++;
         if (candidates.length < 50) {
           candidates.push({
             tripId: trip.id,
-            to: reminderToEmail || "",
+            to: recipientEmail || "",
             offset: reminderOffset,
             departureTime: new Date(trip.departureTime).toISOString(),
             deltaMinutes: Math.round(deltaMs / 60000),
@@ -178,11 +202,12 @@ export async function GET(request: NextRequest) {
 
       const already = await prisma.notification.findFirst({
         where: {
+          accountId: tripAccountId,
           type: "email_reminder",
           AND: [
             { data: { path: ["tripId"], equals: trip.id } },
             { data: { path: ["offset"], equals: reminderOffset } },
-            { data: { path: ["to"], equals: reminderToEmail } },
+            { data: { path: ["to"], equals: recipientEmail } },
           ],
         },
       });
@@ -191,7 +216,7 @@ export async function GET(request: NextRequest) {
         if (candidates.length < 50) {
           candidates.push({
             tripId: trip.id,
-            to: reminderToEmail,
+            to: recipientEmail,
             offset: reminderOffset,
             departureTime: new Date(trip.departureTime).toISOString(),
             deltaMinutes: Math.round(deltaMs / 60000),
@@ -205,7 +230,7 @@ export async function GET(request: NextRequest) {
       if (candidates.length < 50) {
         candidates.push({
           tripId: trip.id,
-          to: reminderToEmail,
+          to: recipientEmail,
           offset: reminderOffset,
           departureTime: new Date(trip.departureTime).toISOString(),
           deltaMinutes: Math.round(deltaMs / 60000),
@@ -232,25 +257,26 @@ export async function GET(request: NextRequest) {
       const body = renderTemplate(tpl.body, data);
 
       const smtp = await sendEmailViaSmtp({
-        to: reminderToEmail,
+        to: recipientEmail,
         subject,
         text: body,
       });
 
       await prisma.notification.create({
         data: {
-          userId: createdById, // owner/operator for tracking
+          userId: createdById,
           type: "email_reminder",
           title: subject,
           content: body,
+          accountId: tripAccountId,
           data: {
             tripId: trip.id,
             offset: reminderOffset,
-            to: reminderToEmail,
+            to: recipientEmail,
             sentAt: new Date().toISOString(),
             smtp,
           },
-        },
+        } as any,
       });
 
       emailsSent++;
@@ -269,7 +295,7 @@ export async function GET(request: NextRequest) {
       candidates,
     });
   } catch (error: any) {
-    console.error("GET /api/cron/reminders error:", error);
+    // Error logging disabled
     return NextResponse.json({ success: false, error: error?.message || "Failed" }, { status: 500 });
   }
 }

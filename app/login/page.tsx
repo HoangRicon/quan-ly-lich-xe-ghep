@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoDrawer } from "@/components/info-drawer";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,6 +53,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4 py-12">
       {/* Background pattern */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMtOS45NDEgMC0xOCA4LjA1OS0xOCAxOHM4LjA1OSAxOCAxOCAxOCAxOC04LjA1OSAxOC0xOC04LjA1OS0xOC0xOC0xOHptMCAzMmMtNy43MzIgMC0xNC02LjI2OC0xNC0xNHM2LjI2OC0xNCAxNC0xNCAxNCA2LjI2OCAxNCAxNC02LjI2OCAxNC0xNCAxNHoiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjAyIi8+PC9nPjwvc3ZnPg==')] opacity-40"></div>
+
+      <InfoDrawer />
 
       <div className="relative w-full max-w-md">
         {/* Logo and title */}
@@ -170,16 +173,23 @@ export default function LoginPage() {
                   href="/register"
                   className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors"
                 >
-                  Đăng ký ngay
+                  Liên hệ để tạo tài khoản
                 </Link>
               </p>
             </CardFooter>
           </form>
         </Card>
 
-        <p className="text-center text-slate-500 text-sm mt-6">
-          © 2024 Xe Ghép. Tất cả các quyền được bảo lưu.
-        </p>
+       
+
+        {/* Footer product info */}
+        <div className="mt-6 p-4 bg-white/5 backdrop-blur border border-white/10 rounded-xl">
+          <p className="text-center text-slate-400 text-xs leading-relaxed">
+            Sản phẩm kết hợp <span className="text-slate-300 font-medium">kỹ thuật của HTool</span> và{" "}
+            <span className="text-slate-300 font-medium">ý tưởng từ Lê Cường</span> — giúp quản lý lịch xe ghép,
+            phân công tài xế, tính lợi nhuận và theo dõi doanh thu một cách hiệu quả.
+          </p>
+        </div>
       </div>
     </div>
   );

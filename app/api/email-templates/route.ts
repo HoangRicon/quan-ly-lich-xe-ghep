@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import { ensureDefaultEmailTemplates } from "@/lib/email-templates";
 
 export const runtime = "nodejs";
@@ -21,6 +23,13 @@ export async function GET() {
 // POST /api/email-templates - create
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const body = await request.json();
     const { key, name, subject, body: tplBody, params, isActive } = body || {};
 
@@ -28,7 +37,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Thiếu key/name/subject/body" }, { status: 400 });
     }
 
-    const created = await prisma.emailTemplate.create({
+    const created = await db.emailTemplate.create({
       data: {
         key: String(key).trim(),
         name: String(name).trim(),
@@ -36,7 +45,7 @@ export async function POST(request: NextRequest) {
         body: String(tplBody),
         params: params ?? null,
         isActive: isActive === false ? false : true,
-      },
+      } as any,
     });
     return NextResponse.json({ success: true, template: created });
   } catch (error: any) {
@@ -52,11 +61,18 @@ export async function POST(request: NextRequest) {
 // PUT /api/email-templates - update (by id)
 export async function PUT(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const body = await request.json();
     const { id, key, name, subject, body: tplBody, params, isActive } = body || {};
     if (!id) return NextResponse.json({ success: false, error: "Thiếu id" }, { status: 400 });
 
-    const updated = await prisma.emailTemplate.update({
+    const updated = await db.emailTemplate.update({
       where: { id: Number(id) },
       data: {
         ...(key !== undefined ? { key: String(key).trim() } : {}),
@@ -65,7 +81,7 @@ export async function PUT(request: NextRequest) {
         ...(tplBody !== undefined ? { body: String(tplBody) } : {}),
         ...(params !== undefined ? { params: params ?? null } : {}),
         ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
-      },
+      } as any,
     });
     return NextResponse.json({ success: true, template: updated });
   } catch (error) {
@@ -77,11 +93,18 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/email-templates?id=123
 export async function DELETE(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ success: false, error: "Thiếu id" }, { status: 400 });
 
-    await prisma.emailTemplate.delete({ where: { id: Number(id) } });
+    await db.emailTemplate.delete({ where: { id: Number(id) } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/email-templates error:", error);

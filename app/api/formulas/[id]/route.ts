@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(
@@ -7,8 +9,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
-    const formula = await prisma.pricingFormula.findUnique({
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const formula = await db.pricingFormula.findFirst({
       where: { id: parseInt(id) },
     });
 
@@ -44,7 +53,23 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    // Verify formula belongs to this account
+    const existing = await db.pricingFormula.findFirst({
+      where: { id: parseInt(id) },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Không tìm thấy công thức" }, { status: 404 });
+    }
+
     const body = await request.json();
     const {
       name,
@@ -107,7 +132,7 @@ export async function PUT(
       }
     }
 
-    const formula = await prisma.pricingFormula.update({
+    const formula = await db.pricingFormula.update({
       where: { id: parseInt(id) },
       data: updateData,
     });
@@ -140,10 +165,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    // Verify formula belongs to this account
+    const existing = await db.pricingFormula.findFirst({
+      where: { id: parseInt(id) },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Không tìm thấy công thức" }, { status: 404 });
+    }
 
     // Kiểm tra công thức có đang được sử dụng bởi trip nào không
-    const usedCount = await prisma.trip.count({
+    const usedCount = await db.trip.count({
       where: { matchedFormulaId: parseInt(id) },
     });
 
@@ -156,7 +196,7 @@ export async function DELETE(
       );
     }
 
-    await prisma.pricingFormula.delete({
+    await db.pricingFormula.delete({
       where: { id: parseInt(id) },
     });
 

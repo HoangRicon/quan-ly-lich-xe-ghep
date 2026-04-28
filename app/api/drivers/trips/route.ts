@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const { searchParams } = new URL(request.url);
     const driverId = searchParams.get("driverId");
     const status = searchParams.get("status");
@@ -17,8 +26,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "driverId is required" }, { status: 400 });
     }
 
+    // Verify driver belongs to this account
+    const driver = await db.user.findFirst({
+      where: { id: parseInt(driverId), role: "driver", accountId: user.accountId },
+      select: { id: true },
+    });
+    if (!driver) {
+      return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+    }
+
     const where: Record<string, unknown> = {
       driverId: parseInt(driverId),
+      accountId: user.accountId,
     };
 
     if (status && status !== "all") {
@@ -58,7 +77,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const [trips, total] = await Promise.all([
-      prisma.trip.findMany({
+      db.trip.findMany({
         where,
         skip,
         take: limit,
@@ -74,10 +93,10 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { departureTime: "desc" },
       }),
-      prisma.trip.count({ where }),
+      db.trip.count({ where }),
     ]);
 
-    const formattedTrips = trips.map((trip) => ({
+    const formattedTrips = trips.map((trip: { id: number; title: string; departure: string; destination: string; departureTime: Date; arrivalTime: Date | null; price: unknown; profit: unknown | null; tripDirection: string | null; tripType?: string; pointsEarned: unknown | null; profitRate: unknown | null; matchedFormulaId: number | null; status: string; totalSeats: number; notes: string | null; createdAt: Date; driver?: { id: number; fullName: string; phone: string | null; profitRate: unknown }; customers: Array<{ id: number; seats: number; status: string; customer: { id: number; name: string; phone: string | null } }> }) => ({
       id: trip.id,
       title: trip.title,
       departure: trip.departure,
@@ -114,7 +133,7 @@ export async function GET(request: NextRequest) {
         seats: c.seats,
         status: c.status,
       })),
-      passengerCount: trip.customers.reduce((sum, c) => sum + c.seats, 0),
+      passengerCount: trip.customers.reduce((sum: number, c: { seats: number }) => sum + c.seats, 0),
     }));
 
     const res = NextResponse.json({

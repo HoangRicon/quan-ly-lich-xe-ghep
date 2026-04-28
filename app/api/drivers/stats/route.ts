@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
     const startDate = searchParams.get("startDate");
@@ -24,9 +33,9 @@ export async function GET(request: NextRequest) {
       dateFilter.departureTime = { gte: start, lte: end };
     }
 
-    // Get all drivers
-    const drivers = await prisma.user.findMany({
-      where: { role: "driver" },
+    // Get all drivers in this account
+    const drivers = await db.user.findMany({
+      where: { role: "driver", accountId: user.accountId },
       select: {
         id: true,
         fullName: true,
@@ -36,21 +45,22 @@ export async function GET(request: NextRequest) {
       orderBy: { fullName: "asc" },
     });
 
-    const driverIds = drivers.map((d) => d.id);
+    const driverIds = drivers.map((d: { id: number }) => d.id);
 
     // Fetch all formulas once
-    const allFormulas = await prisma.pricingFormula.findMany({
+    const allFormulas = await db.pricingFormula.findMany({
       where: { isActive: true },
       select: { id: true, name: true, tripType: true, seats: true, minPrice: true, maxPrice: true, points: true },
     });
-    const formulaMap = new Map(allFormulas.map((f) => [f.id, f]));
+    const formulaMap = new Map(allFormulas.map((f: { id: number; name: string; tripType: string; seats: number; minPrice: unknown; maxPrice: unknown; points: unknown }) => [f.id, f]));
 
-    // Fetch all trips within the date range
+    // Fetch all trips within the date range (account-scoped)
     const tripWhere = {
       ...(Object.keys(dateFilter).length > 0 ? dateFilter : {}),
+      accountId: user.accountId,
     };
 
-    const trips = await prisma.trip.findMany({
+    const trips = await db.trip.findMany({
       where: {
         ...tripWhere,
         driverId: { in: driverIds },
@@ -68,29 +78,29 @@ export async function GET(request: NextRequest) {
     });
 
     // Compute stats per driver
-    const driverStats = drivers.map((driver) => {
-      const driverTrips = trips.filter((t) => t.driverId === driver.id);
-      const completedTrips = driverTrips.filter((t) => t.status === "completed");
+    const driverStats = drivers.map((driver: { id: number; fullName: string; profitRate: unknown; formulaIds: number[] }) => {
+      const driverTrips = trips.filter((t: { driverId: number; status: string }) => t.driverId === driver.id);
+      const completedTrips = driverTrips.filter((t: { status: string }) => t.status === "completed");
       const assignedTrips = driverTrips.filter(
-        (t) => t.status !== "completed" && t.status !== "cancelled"
+        (t: { status: string }) => t.status !== "completed" && t.status !== "cancelled"
       );
 
-      const actualRevenue = completedTrips.reduce((sum, t) => {
+      const actualRevenue = completedTrips.reduce((sum: number, t: { price: unknown }) => {
         const p = Number(t.price) || 0;
         return sum + (p > 0 && p < 100000000 ? p : 0);
       }, 0);
 
-      const expectedRevenue = assignedTrips.reduce((sum, t) => {
+      const expectedRevenue = assignedTrips.reduce((sum: number, t: { price: unknown }) => {
         const p = Number(t.price) || 0;
         return sum + (p > 0 && p < 100000000 ? p : 0);
       }, 0);
 
-      const actualProfit = completedTrips.reduce((sum, t) => {
+      const actualProfit = completedTrips.reduce((sum: number, t: { profit: unknown | null }) => {
         const p = Number(t.profit ?? 0);
         return sum + (p > 0 && p < 100000000 ? p : 0);
       }, 0);
 
-      const expectedProfit = assignedTrips.reduce((sum, t) => {
+      const expectedProfit = assignedTrips.reduce((sum: number, t: { profit: unknown | null }) => {
         const p = Number(t.profit ?? 0);
         return sum + (p > 0 && p < 100000000 ? p : 0);
       }, 0);

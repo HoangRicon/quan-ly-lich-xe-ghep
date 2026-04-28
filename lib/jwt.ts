@@ -11,6 +11,7 @@ export interface UserPayload {
   fullName: string;
   role: string;
   passwordVersion: number;
+  accountId: number;
 }
 
 export async function encrypt(payload: UserPayload): Promise<string> {
@@ -26,7 +27,14 @@ export async function decrypt(token: string): Promise<UserPayload | null> {
     const { payload } = await jwtVerify(token, key, {
       algorithms: ["HS256"],
     });
-    return payload as unknown as UserPayload;
+    return {
+      id: payload.id as number,
+      email: payload.email as string,
+      fullName: (payload.fullName as string) || "",
+      role: payload.role as string,
+      passwordVersion: payload.passwordVersion as number,
+      accountId: (payload.accountId as number) || 0,
+    };
   } catch {
     return null;
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 import {
   findMatchingFormula,
@@ -10,6 +11,13 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const date = searchParams.get("date");
@@ -20,7 +28,9 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "500");
 
-    const where: Prisma.TripWhereInput = {};
+    const where: Prisma.TripWhereInput = {
+      accountId: user.accountId,
+    };
 
     if (status && status !== "all") {
       where.status = status;
@@ -75,7 +85,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const [trips, total] = await Promise.all([
-      prisma.trip.findMany({
+      db.trip.findMany({
         where,
         skip,
         take: limit,
@@ -97,7 +107,7 @@ export async function GET(request: NextRequest) {
         },
         orderBy: customerPhone ? { departureTime: "desc" } : { departureTime: "asc" },
       }),
-      prisma.trip.count({ where }),
+      db.trip.count({ where }),
     ]);
 
     // `User` does not have a `formulas` relation. It stores allowed formula ids in `formulaIds`.
@@ -125,7 +135,7 @@ export async function GET(request: NextRequest) {
 
     const formulasById = new Map<number, FormulaLite>();
     if (allFormulaIds.length > 0) {
-      const formulas: FormulaLite[] = await prisma.pricingFormula.findMany({
+      const formulas: FormulaLite[] = await db.pricingFormula.findMany({
         where: {
           id: { in: allFormulaIds },
           isActive: true,
@@ -231,6 +241,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       title, description, departure, destination, departureTime, arrivalTime,
@@ -278,30 +292,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle customer - create or get existing
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    // Handle customer - create or get existing (tenant-scoped)
     let customerId = null;
     if (customerPhone) {
-      let customer = await prisma.customer.findUnique({
+      const customer = await db.customer.upsert({
         where: { phone: customerPhone },
+        create: {
+          phone: customerPhone,
+          name: customerName || "Khách vãng lai",
+          email: customerEmail,
+          notes: customerNotes,
+        },
+        update: {
+          totalTrips: { increment: 1 },
+        },
       });
-
-      if (!customer) {
-        customer = await prisma.customer.create({
-          data: {
-            phone: customerPhone,
-            name: customerName || "Khách vãng lai",
-            email: customerEmail,
-            notes: customerNotes,
-          },
-        });
-      }
-
       customerId = customer.id;
-
-      await prisma.customer.update({
-        where: { id: customerId },
-        data: { totalTrips: { increment: 1 } },
-      });
     }
 
     // Determine driverId
@@ -319,25 +327,28 @@ export async function POST(request: NextRequest) {
     };
 
     if (finalDriverId) {
-      // Lấy profitRate của driver
+      // Lấy profitRate của driver (driver phải cùng account)
       let driverProfitRate = 1000;
-      const driver = await prisma.user.findUnique({
+      const driver = await db.user.findUnique({
         where: { id: finalDriverId },
-        select: { profitRate: true, formulaIds: true },
+        select: { profitRate: true, formulaIds: true, accountId: true },
       });
-      if (driver) {
+      if (driver && driver.accountId === user.accountId) {
         driverProfitRate = Number(driver.profitRate);
+      } else {
+        // Driver not found or not in this account
+        return NextResponse.json({ error: "Driver not found in your account" }, { status: 400 });
       }
 
       // Match theo công thức được gán cho Zom (formulaIds). Nếu không có thì fallback: tất cả công thức active
       const driverFormulaIds = Array.isArray(driver?.formulaIds) ? driver!.formulaIds : [];
       const allFormulas =
         driverFormulaIds.length > 0
-          ? await prisma.pricingFormula.findMany({
+          ? await db.pricingFormula.findMany({
               where: { id: { in: driverFormulaIds }, isActive: true },
               orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
             })
-          : await prisma.pricingFormula.findMany({
+          : await db.pricingFormula.findMany({
               where: { isActive: true },
               orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
             });
@@ -369,7 +380,7 @@ export async function POST(request: NextRequest) {
     // profitRate có thể lớn hơn decimal(10,2), nhưng vẫn cần guard cơ bản
     const safeProfitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
 
-    const trip = await prisma.trip.create({
+    const trip = await db.trip.create({
       data: {
         title,
         description,
@@ -385,7 +396,6 @@ export async function POST(request: NextRequest) {
         totalSeats: parsedTotalSeats,
         status: "scheduled",
         ...(notes ? { notes } : {}),
-        // Formula fields
         pointsEarned: safePointsEarned,
         profitRate: safeProfitRate,
         profit: safeProfit,
@@ -397,10 +407,11 @@ export async function POST(request: NextRequest) {
               seats: seats || 1,
               status: "confirmed",
               notes: customerNotes,
+              accountId: user.accountId,
             },
           },
         } : {}),
-      },
+      } as any,
       include: {
         driver: true,
         customers: {

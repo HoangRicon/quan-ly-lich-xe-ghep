@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
-// GET /api/notifications/test - Test endpoint without auth
+// GET /api/notifications/test - Test endpoint (requires auth for tenant isolation)
 export async function GET() {
   try {
-    const notifications = await prisma.notification.findMany({
-      where: {
-        userId: 1,
-      },
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const notifications = await db.notification.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 10,
     });
@@ -22,21 +29,27 @@ export async function GET() {
   }
 }
 
-// POST /api/notifications/test - Create test notification
+// POST /api/notifications/test - Create test notification (requires auth)
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const body = await request.json();
     const { type = "reminder", title, content } = body;
 
-    const notification = await prisma.notification.create({
+    const notification = await db.notification.create({
       data: {
-        userId: 1,
+        userId: user.id,
         type,
         title: title || "Test thông báo",
         content: content || "Nội dung test",
         isRead: false,
         data: { test: true },
-      },
+      } as any,
     });
 
     return NextResponse.json({

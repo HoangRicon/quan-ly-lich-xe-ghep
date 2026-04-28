@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import webpush from "web-push";
 
 // Cấu hình VAPID keys
@@ -10,8 +12,9 @@ webpush.setVapidDetails(
 );
 
 // Hàm gửi push notification
-async function sendPushNotification(userId: number, title: string, message: string, tag?: string) {
-  const subscriptions = await prisma.pushSubscription.findMany({
+async function sendPushNotification(userId: number, accountId: number, title: string, message: string, tag?: string) {
+  const db = createTenantPrisma(prisma, accountId);
+  const subscriptions = await db.pushSubscription.findMany({
     where: { userId },
   });
 
@@ -48,9 +51,8 @@ async function sendPushNotification(userId: number, title: string, message: stri
       sentCount++;
     } catch (error: any) {
       console.error("Push notification error:", error);
-      // Xóa subscription hết hạn
       if (error.statusCode === 410 || error.statusCode === 400) {
-        await prisma.pushSubscription.delete({
+        await db.pushSubscription.delete({
           where: { endpoint: sub.endpoint },
         });
       }
@@ -62,13 +64,21 @@ async function sendPushNotification(userId: number, title: string, message: stri
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const body = await request.json();
     const { reminderOffset = 15, sendPush = true } = body;
 
     const now = new Date();
     const targetTime = new Date(now.getTime() + reminderOffset * 60 * 1000);
 
-    const upcomingTrips = await prisma.trip.findMany({
+    // Scope trips query to this account
+    const upcomingTrips = await db.trip.findMany({
       where: {
         status: "scheduled",
         departureTime: {
@@ -91,9 +101,9 @@ export async function POST(request: NextRequest) {
 
     for (const trip of upcomingTrips) {
       const mainCustomer = trip.customers[0]?.customer;
-      const createdById = (trip as any).createdById || 1;
-      
-      const alreadyNotified = await prisma.notification.findFirst({
+      const createdById = (trip as any).createdById || user.id;
+
+      const alreadyNotified = await db.notification.findFirst({
         where: {
           userId: createdById,
           type: "reminder",
@@ -116,8 +126,8 @@ export async function POST(request: NextRequest) {
         const title = `Sắp khởi hành - ${trip.departure} → ${trip.destination}`;
         const content = `Chuyến xe sẽ khởi hành trong ${timeText}. Khách hàng: ${mainCustomer?.name || "N/A"} - ${mainCustomer?.phone || "N/A"}`;
 
-        // Tạo notification trong DB
-        await prisma.notification.create({
+        // Tạo notification trong DB (tenant-scoped via db)
+        await db.notification.create({
           data: {
             userId: createdById,
             type: "reminder",
@@ -127,7 +137,7 @@ export async function POST(request: NextRequest) {
               tripId: trip.id,
               departureTime: trip.departureTime,
             },
-          },
+          } as any,
         });
 
         notificationsCreated++;
@@ -155,9 +165,8 @@ export async function POST(request: NextRequest) {
       }
 
       for (const [userId, notifications] of userMap) {
-        // Gửi notification mới nhất cho mỗi user
         const latestNotif = notifications[notifications.length - 1];
-        const sent = await sendPushNotification(userId, latestNotif.title, latestNotif.message, latestNotif.tag);
+        const sent = await sendPushNotification(userId, user.accountId, latestNotif.title, latestNotif.message, latestNotif.tag);
         pushNotificationsSent += sent;
       }
     }

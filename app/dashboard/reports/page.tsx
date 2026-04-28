@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
+import { type DateFilter, toLocalDateString, getWeekStart, getMonthStart, parseLocalDate, addDays } from "@/lib/date-utils";
 
 interface Trip {
   id: number;
@@ -52,8 +53,6 @@ interface Driver {
   id: number;
   fullName: string;
 }
-
-type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
 interface Stats {
   totalRevenue: number;
@@ -186,7 +185,7 @@ export default function ReportsPage() {
   // Quick filter buttons
   const handleQuickFilter = (filter: DateFilter) => {
     const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    const todayStr = toLocalDateString(today);
 
     let nextStart = "";
     let nextEnd = "";
@@ -195,28 +194,20 @@ export default function ReportsPage() {
       nextStart = todayStr;
       nextEnd = todayStr;
     } else if (filter === "week") {
-      const weekStart = new Date(today);
-      // Sunday -> Monday logic: trừ đi số ngày để về đầu tuần
-      weekStart.setDate(today.getDate() - today.getDay());
-      nextStart = weekStart.toISOString().split("T")[0];
+      nextStart = toLocalDateString(getWeekStart(today));
       nextEnd = todayStr;
     } else if (filter === "month") {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      nextStart = monthStart.toISOString().split("T")[0];
+      nextStart = toLocalDateString(getMonthStart(today));
       nextEnd = todayStr;
     } else if (filter === "all") {
       nextStart = "";
       nextEnd = "";
     }
 
-    // Quick filter = áp dụng ngay
+    // Quick filter = áp dụng ngay, chỉ cập nhật applied state, không cập nhật draft
     setDateFilter(filter);
     setStartDate(nextStart);
     setEndDate(nextEnd);
-
-    setDraftDateFilter(filter);
-    setDraftStartDate(nextStart);
-    setDraftEndDate(nextEnd);
   };
 
   const fetchData = async () => {
@@ -332,23 +323,23 @@ export default function ReportsPage() {
     let prevPeriodTrips = 0;
 
     if (startDate && endDate) {
-      const daysDiff = Math.ceil(
-        (new Date(endDate).getTime() - new Date(startDate).getTime()) /
-          (1000 * 60 * 60 * 24)
-      );
-      const prevStart = new Date(startDate);
-      prevStart.setDate(prevStart.getDate() - daysDiff - 1);
-      const prevEnd = new Date(startDate);
-      prevEnd.setDate(prevEnd.getDate() - 1);
+      const start = parseLocalDate(startDate);
+      const end = parseLocalDate(endDate);
+      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const prevStart = addDays(start, -daysDiff - 1);
+      const prevEnd = addDays(start, -1);
 
       const prevTrips = allTrips.filter((t) => {
         const tripDate = new Date(t.departureTime);
-        return tripDate >= prevStart && tripDate <= prevEnd;
+        if (tripDate < prevStart || tripDate > prevEnd) return false;
+        if (selectedDriver && selectedDriver !== "all" && t.driver?.id !== Number(selectedDriver)) return false;
+        if (statusFilter && statusFilter !== "all" && t.status !== statusFilter) return false;
+        return true;
       });
 
       prevPeriodRevenue = prevTrips
         .filter((t) => t.status === "completed")
-        .reduce((sum, t) => sum + (t.price || 0), 0);
+        .reduce((sum, t) => sum + safeMoney(t.price), 0);
       prevPeriodTrips = prevTrips.length;
     }
 
@@ -399,6 +390,8 @@ export default function ReportsPage() {
     const profitOk = (t: Trip) => safeMoney(t.profit);
 
     const tripDates = trips.map((t) => new Date(t.departureTime).getTime()).filter(Boolean);
+    if (tripDates.length === 0) return [];
+
     const minTs = Math.min(...tripDates);
     const maxTs = Math.max(...tripDates);
 
@@ -451,9 +444,9 @@ export default function ReportsPage() {
         unit === "day" ? toDayTs(d) : unit === "week" ? startOfWeekMon(d).getTime() : toMonthTs(d);
       const key =
         unit === "day"
-          ? new Date(bucketDate).toISOString().slice(0, 10)
+          ? toLocalDateString(new Date(bucketDate))
           : unit === "week"
-            ? new Date(bucketDate).toISOString().slice(0, 10)
+            ? toLocalDateString(new Date(bucketDate))
             : `${new Date(bucketDate).getFullYear()}-${String(new Date(bucketDate).getMonth() + 1).padStart(2, "0")}`;
 
       const existing = map.get(key) ?? {
@@ -947,16 +940,7 @@ export default function ReportsPage() {
             >
               Tổng quan
             </button>
-            <button
-              onClick={() => setActiveTab("details")}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                activeTab === "details"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Chi tiết
-            </button>
+            
           </div>
 
           {/* Quick Date Filter Buttons */}

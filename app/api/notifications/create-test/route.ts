@@ -1,27 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
-// POST /api/notifications/create-test - Tạo notification test cho user 1
+// POST /api/notifications/create-test - Tạo notification test
+// NOTE: This is a test-only endpoint without auth. We need to resolve accountId from the user.
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { 
-      userId = 1, 
-      type = "reminder", 
-      title = "Test thông báo", 
+    const {
+      userId = 1,
+      type = "reminder",
+      title = "Test thông báo",
       content = "Đây là notification test từ hệ thống Xe Ghép!",
-      data = {} 
+      data = {},
     } = body;
 
-    const notification = await prisma.notification.create({
+    // Resolve accountId from the target user
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId as number },
+      select: { accountId: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    const db = createTenantPrisma(prisma, targetUser.accountId);
+
+    const notification = await db.notification.create({
       data: {
-        userId,
-        type,
-        title,
-        content,
+        userId: userId as number,
+        type: type as string,
+        title: title as string,
+        content: content as string,
         isRead: false,
-        data,
-      },
+        data: data as Record<string, unknown>,
+      } as any,
     });
 
     return NextResponse.json({
@@ -36,9 +53,19 @@ export async function POST(request: NextRequest) {
 
 // GET /api/notifications/create-test - Tạo notification test mẫu
 export async function GET() {
-  // Tạo 3 notification test
+  const targetUser = await prisma.user.findUnique({
+    where: { id: 1 },
+    select: { accountId: true },
+  });
+
+  if (!targetUser) {
+    return NextResponse.json({ success: false, error: "User 1 not found" }, { status: 404 });
+  }
+
+  const db = createTenantPrisma(prisma, targetUser.accountId);
+
   const notifications = await Promise.all([
-    prisma.notification.create({
+    db.notification.create({
       data: {
         userId: 1,
         type: "reminder",
@@ -46,9 +73,9 @@ export async function GET() {
         content: "Bạn có lịch hẹn khởi hành trong 30 phút nữa",
         isRead: false,
         data: { tripId: 1, departureTime: new Date().toISOString() },
-      },
+      } as any,
     }),
-    prisma.notification.create({
+    db.notification.create({
       data: {
         userId: 1,
         type: "system",
@@ -56,9 +83,9 @@ export async function GET() {
         content: "Chào mừng bạn đến với hệ thống Xe Ghép!",
         isRead: false,
         data: { welcome: true },
-      },
+      } as any,
     }),
-    prisma.notification.create({
+    db.notification.create({
       data: {
         userId: 1,
         type: "booking",
@@ -66,7 +93,7 @@ export async function GET() {
         content: "Bạn đã đặt xe thành công tuyến Hà Nội - Hải Phòng",
         isRead: false,
         data: { bookingId: 1, route: "Hà Nội - Hải Phòng" },
-      },
+      } as any,
     }),
   ]);
 

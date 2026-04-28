@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import { sendEmailViaSmtp } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -70,9 +71,10 @@ export async function POST(request: NextRequest) {
     // We now try to attach to userId=1 if it exists; otherwise skip DB write.
     let notification: any = null;
     try {
-      const u1 = await prisma.user.findUnique({ where: { id: 1 }, select: { id: true } });
+      const u1 = await prisma.user.findUnique({ where: { id: 1 }, select: { id: true, accountId: true } });
       if (u1?.id) {
-        notification = await prisma.notification.create({
+        const db = createTenantPrisma(prisma, u1.accountId);
+        notification = await db.notification.create({
           data: {
             userId: u1.id,
             type: "email",
@@ -86,11 +88,10 @@ export async function POST(request: NextRequest) {
               status: "sent",
               smtp: smtpResult,
             },
-          },
+          } as any,
         });
       }
     } catch (e) {
-      // best-effort only; do not fail email test if notification logging fails
       console.warn("Email test: failed to save notification log:", e);
     }
 

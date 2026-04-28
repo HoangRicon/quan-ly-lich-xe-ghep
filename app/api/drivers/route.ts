@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") || "").trim();
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
 
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const where: Prisma.UserWhereInput = {
       role: "driver",
+      accountId: user.accountId,
       ...(q
         ? {
             fullName: {
@@ -23,7 +33,7 @@ export async function GET(request: NextRequest) {
     };
 
     const [drivers, total] = await Promise.all([
-      prisma.user.findMany({
+      db.user.findMany({
         where,
         skip,
         take: limit,
@@ -49,11 +59,11 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      prisma.user.count({ where }),
+      db.user.count({ where }),
     ]);
 
     // Fetch all active formulas in one query, then filter per driver
-    const allFormulas = await prisma.pricingFormula.findMany({
+    const allFormulas = await db.pricingFormula.findMany({
       where: { isActive: true },
       select: {
         id: true,
@@ -79,11 +89,11 @@ export async function GET(request: NextRequest) {
       isActive: f.isActive,
     });
 
-    const formulaMap = new Map(allFormulas.map(f => [f.id, formatFormula(f)]));
+    const formulaMap = new Map(allFormulas.map((f: (typeof allFormulas)[number]) => [f.id, formatFormula(f)]));
 
     return NextResponse.json({
       success: true,
-      data: drivers.map((d) => {
+      data: drivers.map((d: { id: number; fullName: string; totalRevenue: unknown; profitRate: unknown; formulaId: number | null; formulaIds: number[]; formula?: { id: number; name: string; tripType: string; seats: number; minPrice: unknown; maxPrice: unknown; points: unknown; isActive: boolean } | null }) => {
         const formulas = (d.formulaIds || [])
           .map((id: number) => formulaMap.get(id))
           .filter(Boolean);
@@ -113,6 +123,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { fullName, profitRate, formulaId, formulaIds } = await request.json();
 
     const email = `zom-${Date.now()}@zom.local`;
@@ -125,7 +140,9 @@ export async function POST(request: NextRequest) {
     const { hashPassword } = await import("@/lib/password");
     const passwordHash = await hashPassword(password);
 
-    const driver = await prisma.user.create({
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const driver = await db.user.create({
       data: {
         email,
         passwordHash,
@@ -138,7 +155,7 @@ export async function POST(request: NextRequest) {
         profitRate: profitRate !== undefined ? parseFloat(profitRate) : 1000,
         formulaId: formulaId ? parseInt(formulaId) : null,
         formulaIds: Array.isArray(formulaIds) ? formulaIds.map(Number).filter(Boolean) : [],
-      },
+      } as any,
     });
 
     return NextResponse.json({ success: true, data: driver }, { status: 201 });

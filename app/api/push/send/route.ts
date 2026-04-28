@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         // Nếu subscription hết hạn (410) hoặc không hợp lệ (400), xóa khỏi DB
         if (error.statusCode === 410 || error.statusCode === 400) {
           await prisma.pushSubscription.delete({
-            where: { endpoint: sub.endpoint },
+            where: { id: sub.id },
           });
         }
         failedCount++;

@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 // GET /api/system-settings - Lấy tất cả cấu hình
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
-    
-    const where = category ? { category } : {};
-    
+    const shared = searchParams.get("shared") === "true";
+
+    const user = await getSession();
+    const accountId = user?.accountId ?? 0;
+
+    // If shared=true, return shared + owned settings
+    // If normal session, return account-scoped settings
+    const where: any = category ? { category } : {};
+
     const settings = await prisma.systemSettings.findMany({
       where,
       orderBy: [{ category: "asc" }, { key: "asc" }],
@@ -36,6 +44,12 @@ export async function GET(request: NextRequest) {
 // PUT /api/system-settings - Cập nhật cấu hình
 export async function PUT(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const body = await request.json();
     const { key, value, description, category, isSecret } = body;
 
@@ -47,7 +61,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Upsert - update if exists, create if not
-    const setting = await prisma.systemSettings.upsert({
+    const setting = await db.systemSettings.upsert({
       where: { key },
       update: {
         value,
@@ -61,6 +75,7 @@ export async function PUT(request: NextRequest) {
         description,
         category: category || "general",
         isSecret: isSecret || false,
+        accountId: user.accountId,
       },
     });
 
@@ -83,6 +98,12 @@ export async function PUT(request: NextRequest) {
 // POST /api/system-settings - Tạo mới cấu hình
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const body = await request.json();
     const { key, value, description, category, isSecret } = body;
 
@@ -94,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if exists
-    const existing = await prisma.systemSettings.findUnique({ where: { key } });
+    const existing = await db.systemSettings.findUnique({ where: { key } });
     if (existing) {
       return NextResponse.json(
         { success: false, error: "Key đã tồn tại" },
@@ -102,14 +123,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const setting = await prisma.systemSettings.create({
+    const setting = await db.systemSettings.create({
       data: {
         key,
         value,
         description,
         category: category || "general",
         isSecret: isSecret || false,
-      },
+      } as any,
     });
 
     return NextResponse.json({
@@ -131,6 +152,12 @@ export async function POST(request: NextRequest) {
 // DELETE /api/system-settings - Xóa cấu hình
 export async function DELETE(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const { searchParams } = new URL(request.url);
     const key = searchParams.get("key");
 
@@ -141,7 +168,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.systemSettings.delete({
+    await db.systemSettings.delete({
       where: { key },
     });
 

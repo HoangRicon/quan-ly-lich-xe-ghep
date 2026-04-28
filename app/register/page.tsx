@@ -1,231 +1,126 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Car, Loader2, User, Mail, Lock } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Car, CheckCircle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoDrawer } from "@/components/info-drawer";
 
-export default function RegisterPage() {
-  const router = useRouter();
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    confirmPassword: "",
-    fullName: "",
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+export default function ContactPage() {
+  const [formData, setFormData] = useState({ name: "", phone: "", message: "" });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Mật khẩu phải có ít nhất 6 ký tự");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          fullName: formData.fullName,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Registration failed");
-      }
-
-      // Redirect to dashboard
-      router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setIsLoading(false);
-    }
+    setSending(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    setSent(true);
+    setSending(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4 py-12">
-      {/* Background pattern */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMtOS45NDEgMC0xOCA4LjA1OS0xOCAxOHM4LjA1OSAxOCAxOCAxOCAxOC04LjA1OSAxOC0xOC04LjA1OS0xOC0xOC0xOHptMCAzMmMtNy43MzIgMC0xNC02LjI2OC0xNC0xNHM2LjI2OC0xNCAxNC0xNCAxNCA2LjI2OCAxNCAxNC02LjI2OCAxNC0xNCAxNHoiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjAyIi8+PC9nPjwvc3ZnPg==')] opacity-40"></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4 py-12">
+      <InfoDrawer />
 
-      <div className="relative w-full max-w-md">
-        {/* Logo and title */}
-        <div className="text-center mb-8">
+      <div className="relative max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 mb-4 shadow-lg shadow-blue-500/25">
             <Car className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Xe Ghép</h1>
-          <p className="text-slate-400 mt-2">Đăng ký tài khoản mới</p>
+          <h1 className="text-3xl font-bold text-white">Quản Lý Lịch Xe Ghép</h1>
+          <p className="text-slate-400 mt-2 text-lg">Giải pháp quản lý chuyến xe thông minh cho doanh nghiệp vận tải</p>
         </div>
 
-        <Card className="border-0 shadow-2xl shadow-black/20 bg-white/95 backdrop-blur">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl font-bold text-center text-slate-800">
-              Tạo tài khoản
-            </CardTitle>
-            <CardDescription className="text-center text-slate-500">
-              Điền thông tin bên dưới để tạo tài khoản mới
+        {/* Contact CTA */}
+        <Card className="border-0 shadow-2xl shadow-black/20 bg-white/95 backdrop-blur mb-6">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-slate-800">Liên hệ để dùng phần mềm</CardTitle>
+            <CardDescription className="text-slate-600">
+              Để thêm tài khoản hoặc được tư vấn chi tiết, hãy liên hệ trực tiếp với <strong>HTool</strong> qua Zalo.
             </CardDescription>
           </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Primary CTA */}
+            <a
+              href="https://zalo.me/0878836354"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-3 w-full py-4 px-6 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/40 text-lg"
+            >
+              <svg className="w-6 h-6" viewBox="0 0 60 60" fill="none">
+                <circle cx="30" cy="30" r="30" fill="#0068FF" />
+                <path d="M30 14c-8.8 0-16 5.8-16 12.9 0 3.4 1.5 6.5 4.2 8.9L16 46l10.6-3.7c1.3.4 2.7.6 4.1.6 8.8 0 16-5.8 16-12.9S38.8 14 30 14z" fill="#fff" />
+                <path d="M25.5 25.5c.3-2.2 1.7-3.2 3-4.1.4-.3.6-.2.9 0 .4.3 1.7 1.2 1.9 1.5.3.3.4.5.1.9-.3.4-1.1 1.8-2.1 2.9-1.6 1.8-2.2 2-2.7 2-.5 0-.6-.4-1.2-.7-.6-.4-1.7-1.3-2.6-2.4-.7-.8-1.2-1.8-1.3-2-.3-.5 0-.8.2-1 .2-.2.4-.5.6-.7.2-.2.4-.4.2-.7-.2-.3-1.6-2.2-2.2-3-.5-.7-1-.6-1.3-.4z" fill="#0068FF" />
+              </svg>
+              Liên hệ HTool qua Zalo: 0878836354
+            </a>
 
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              {error && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
-                  {error}
-                </div>
-              )}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200"></div>
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-sm text-slate-400">hoặc</span>
+              </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-slate-700">
-                  Họ và tên
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="fullName"
-                    name="fullName"
+            {/* Contact form */}
+            {sent ? (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                <p className="text-lg font-semibold text-slate-800">Đã gửi thông tin!</p>
+                <p className="text-slate-500 mt-1">HTool sẽ liên hệ bạn trong thời gian sớm nhất.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div>
+                  <input
                     type="text"
-                    placeholder="Nguyễn Văn A"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    className="h-11 pl-10 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-700">
-                  Email
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="name@example.com"
-                    value={formData.email}
-                    onChange={handleChange}
+                    placeholder="Tên của bạn"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-slate-50"
                     required
-                    className="h-11 pl-10 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-                    disabled={isLoading}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-slate-700">
-                  Mật khẩu
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Tối thiểu 6 ký tự"
-                    value={formData.password}
-                    onChange={handleChange}
+                <div>
+                  <input
+                    type="tel"
+                    placeholder="Số điện thoại"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-slate-50"
                     required
-                    className="h-11 pl-10 pr-10 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    disabled={isLoading}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-slate-700">
-                  Xác nhận mật khẩu
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Nhập lại mật khẩu"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required
-                    className="h-11 pl-10 bg-slate-50 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-                    disabled={isLoading}
                   />
                 </div>
-              </div>
-            </CardContent>
-
-            <CardFooter className="flex flex-col gap-4">
-              <Button
-                type="submit"
-                className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Đang đăng ký...
-                  </>
-                ) : (
-                  "Đăng ký"
-                )}
-              </Button>
-
-              <p className="text-center text-sm text-slate-500">
-                Đã có tài khoản?{" "}
-                <Link
-                  href="/login"
-                  className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors"
+                <div>
+                  <textarea
+                    placeholder="Nội dung (số lượng tài khoản cần, yêu cầu đặc biệt...)"
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-slate-50 resize-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={sending}
+                  className="w-full py-3 px-6 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
-                  Đăng nhập ngay
-                </Link>
-              </p>
-            </CardFooter>
-          </form>
+                  {sending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {sending ? "Đang gửi..." : "Gửi thông tin liên hệ"}
+                </button>
+              </form>
+            )}
+          </CardContent>
+          <CardFooter className="flex flex-col gap-2 text-sm text-slate-500 text-center">
+            <p>Bạn đã có tài khoản? <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium hover:underline">Đăng nhập ngay</Link></p>
+          </CardFooter>
         </Card>
 
-        <p className="text-center text-slate-500 text-sm mt-6">
-          © 2024 Xe Ghép. Tất cả các quyền được bảo lưu.
-        </p>
+        <p className="text-center text-slate-500 text-sm">© 2024 Xe Ghép. Tất cả các quyền được bảo lưu.</p>
       </div>
     </div>
   );
