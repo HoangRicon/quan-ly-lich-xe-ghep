@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const tripType = searchParams.get("tripType");
     const isActive = searchParams.get("isActive");
@@ -42,6 +48,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       name,
@@ -98,7 +109,8 @@ export async function POST(request: NextRequest) {
         description: description || null,
         isActive: isActive !== undefined ? Boolean(isActive) : true,
         sortOrder: parseInt(sortOrder) || 0,
-      },
+        accountId: user.accountId,
+      } as any,
     });
 
     return NextResponse.json({ success: true, data: formula }, { status: 201 });

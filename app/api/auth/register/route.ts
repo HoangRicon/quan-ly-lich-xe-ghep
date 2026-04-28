@@ -26,7 +26,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password and create user
+    // Create a new account for the user
+    const slug = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "-") + "-" + Date.now();
+    const account = await prisma.account.create({
+      data: {
+        name: fullName || email.split("@")[0],
+        slug,
+      },
+    });
+
+    // Hash password and create user with the new account
     const passwordHash = await hashPassword(password);
     const user = await prisma.user.create({
       data: {
@@ -34,6 +43,7 @@ export async function POST(request: NextRequest) {
         passwordHash,
         fullName: fullName || email.split("@")[0],
         role: "user",
+        accountId: account.id,
       },
     });
 
@@ -43,6 +53,7 @@ export async function POST(request: NextRequest) {
       fullName: user.fullName || "",
       role: user.role,
       passwordVersion: user.passwordVersion,
+      accountId: user.accountId,
     };
 
     await setSession(userPayload);
@@ -50,6 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       user: userPayload,
+      accountId: user.accountId,
     });
   } catch (error) {
     console.error("Register error:", error);

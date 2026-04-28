@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 // PUT /api/notifications/test-mark-read - Test đánh dấu đã đọc (không cần auth)
 export async function PUT(request: NextRequest) {
@@ -7,19 +8,28 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { notificationIds, markAllRead, userId = 1 } = body;
 
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId as number },
+      select: { id: true, accountId: true },
+    });
+    if (!targetUser) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+    }
+    const db = createTenantPrisma(prisma, targetUser.accountId);
+
     if (markAllRead) {
-      await prisma.notification.updateMany({
-        where: { userId, isRead: false },
+      await db.notification.updateMany({
+        where: { userId: targetUser.id, isRead: false },
         data: { isRead: true },
       });
       return NextResponse.json({ success: true, message: "Đánh dấu tất cả đã đọc" });
     }
 
     if (notificationIds && Array.isArray(notificationIds)) {
-      await prisma.notification.updateMany({
+      await db.notification.updateMany({
         where: {
-          id: { in: notificationIds },
-          userId,
+          id: { in: notificationIds as number[] },
+          userId: targetUser.id,
         },
         data: { isRead: true },
       });
@@ -40,14 +50,23 @@ export async function DELETE(request: NextRequest) {
     const notificationId = searchParams.get("id");
     const userId = parseInt(searchParams.get("userId") || "1");
 
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, accountId: true },
+    });
+    if (!targetUser) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+    }
+    const db = createTenantPrisma(prisma, targetUser.accountId);
+
     if (!notificationId) {
       return NextResponse.json({ success: false, error: "Thiếu notification ID" }, { status: 400 });
     }
 
-    await prisma.notification.delete({
+    await db.notification.delete({
       where: {
         id: parseInt(notificationId),
-        userId,
+        userId: targetUser.id,
       },
     });
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 export const runtime = "nodejs";
 
@@ -43,6 +45,11 @@ export async function GET() {
 // POST /api/trip-statuses - create a new status
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { key, label, color, sortOrder, isActive } = body || {};
 
@@ -50,14 +57,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Thiếu key/label" }, { status: 400 });
     }
 
-    const created = await prisma.tripStatus.create({
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const created = await db.tripStatus.create({
       data: {
         key: String(key).trim(),
         label: String(label).trim(),
         color: String(color || "slate").trim(),
         sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
         isActive: isActive === false ? false : true,
-      },
+      } as any,
     });
     return NextResponse.json({ success: true, status: created });
   } catch (error: any) {
@@ -73,6 +82,12 @@ export async function POST(request: NextRequest) {
 // PUT /api/trip-statuses - update (single or batch)
 export async function PUT(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const body = await request.json();
 
     // Batch: { statuses: [{ id, key?, label?, color?, sortOrder?, isActive? }, ...] }
@@ -80,7 +95,7 @@ export async function PUT(request: NextRequest) {
       const updates = body.statuses as Array<any>;
       const results = await prisma.$transaction(
         updates.map((s) =>
-          prisma.tripStatus.update({
+          db.tripStatus.update({
             where: { id: Number(s.id) },
             data: {
               ...(s.key !== undefined ? { key: String(s.key).trim() } : {}),
@@ -89,7 +104,7 @@ export async function PUT(request: NextRequest) {
               ...(s.sortOrder !== undefined ? { sortOrder: Number(s.sortOrder) } : {}),
               ...(s.isActive !== undefined ? { isActive: Boolean(s.isActive) } : {}),
             },
-          })
+          } as any)
         )
       );
       return NextResponse.json({ success: true, statuses: results });
@@ -99,7 +114,7 @@ export async function PUT(request: NextRequest) {
     const { id, key, label, color, sortOrder, isActive } = body || {};
     if (!id) return NextResponse.json({ success: false, error: "Thiếu id" }, { status: 400 });
 
-    const updated = await prisma.tripStatus.update({
+    const updated = await db.tripStatus.update({
       where: { id: Number(id) },
       data: {
         ...(key !== undefined ? { key: String(key).trim() } : {}),
@@ -108,7 +123,7 @@ export async function PUT(request: NextRequest) {
         ...(sortOrder !== undefined ? { sortOrder: Number(sortOrder) } : {}),
         ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
       },
-    });
+    } as any);
     return NextResponse.json({ success: true, status: updated });
   } catch (error) {
     console.error("PUT /api/trip-statuses error:", error);
@@ -119,18 +134,25 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/trip-statuses?id=123
 export async function DELETE(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ success: false, error: "Thiếu id" }, { status: 400 });
 
-    const status = await prisma.tripStatus.findUnique({
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const status = await db.tripStatus.findUnique({
       where: { id: Number(id) },
       select: { id: true, key: true },
     });
     if (!status) return NextResponse.json({ success: false, error: "Không tìm thấy trạng thái" }, { status: 404 });
 
-    // Safety: prevent deleting a status that is currently used by trips (status is a plain string in Trip)
-    const used = await prisma.trip.count({ where: { status: status.key } });
+    // Safety: prevent deleting a status that is currently used by trips
+    const used = await db.trip.count({ where: { status: status.key } });
     if (used > 0) {
       return NextResponse.json(
         { success: false, error: `Không thể xóa: đang có ${used} cuốc xe dùng trạng thái '${status.key}'. Hãy tắt (Off) thay vì xóa.` },
@@ -138,7 +160,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.tripStatus.delete({ where: { id: status.id } });
+    await db.tripStatus.delete({ where: { id: status.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/trip-statuses error:", error);

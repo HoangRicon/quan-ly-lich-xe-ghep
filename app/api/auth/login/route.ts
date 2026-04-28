@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       fullName: user.fullName || "",
       role: user.role,
       passwordVersion: user.passwordVersion,
+      accountId: user.accountId,
     };
 
     await setSession(userPayload);

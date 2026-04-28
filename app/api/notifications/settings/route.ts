@@ -1,75 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 // GET /api/notifications/settings - Lấy cài đặt thông báo
 export async function GET() {
   try {
     const user = await getSession();
-    console.log("GET - Session user:", user);
-    
+
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // Kiểm tra user có tồn tại trong database không
-    let dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-    });
-    console.log("GET - DB user:", dbUser);
+    const db = createTenantPrisma(prisma, user.accountId);
 
-    // Nếu user không tồn tại trong DB, thử user ID = 1
-    let actualUserId = user.id;
-    if (!dbUser) {
-      console.log("GET - User not in DB, trying user ID 1 for testing");
-      dbUser = await prisma.user.findUnique({
-        where: { id: 1 },
-      });
-      if (dbUser) {
-        actualUserId = 1;
-        console.log("GET - Using user ID 1 for testing");
-      }
-    }
-
-    // Nếu vẫn không có user, trả về mặc định
-    if (!dbUser) {
-      console.log("GET - No user found, returning default settings");
-      return NextResponse.json({
-        success: true,
-        settings: {
-          pushEnabled: true,
-          reminderOffset: 60,
-          emailEnabled: true,
-          notificationHour: 8,
-          quietHoursStart: null,
-          quietHoursEnd: null,
-        },
-        message: "Using default settings - no user in database",
-      });
-    }
-
-    // Lấy hoặc tạo settings mặc định
-    let settings = await prisma.userSettings.findUnique({
-      where: { userId: actualUserId },
+    let settings = await db.userSettings.findUnique({
+      where: { userId: user.id },
     });
 
-    // Nếu chưa có settings, tạo mặc định
     if (!settings) {
-      console.log("GET - Creating default settings for user:", actualUserId);
-      settings = await prisma.userSettings.create({
+      settings = await db.userSettings.create({
         data: {
-          userId: actualUserId,
+          userId: user.id,
           pushEnabled: true,
           reminderOffset: 60,
           emailEnabled: true,
           notificationHour: 8,
           quietHoursStart: null,
           quietHoursEnd: null,
-        },
+        } as any,
       });
     }
-
-    console.log("GET - Settings:", settings);
 
     return NextResponse.json({
       success: true,
@@ -92,53 +53,26 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   try {
     const user = await getSession();
-    console.log("PUT - Session user:", user);
-    
+
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // Kiểm tra user có tồn tại trong database không
-    let dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-    });
-    console.log("PUT - DB user:", dbUser);
+    const db = createTenantPrisma(prisma, user.accountId);
 
-    // Nếu user không tồn tại trong DB, thử user ID = 1
-    let actualUserId = user.id;
-    if (!dbUser) {
-      console.log("PUT - User not in DB, trying user ID 1 for testing");
-      dbUser = await prisma.user.findUnique({
-        where: { id: 1 },
-      });
-      if (dbUser) {
-        actualUserId = 1;
-        console.log("PUT - Using user ID 1 for testing");
+    const body = await request.json();
+    const { pushEnabled, reminderOffset, emailEnabled, notificationHour, quietHoursStart, quietHoursEnd } = body;
+
+    if (reminderOffset !== undefined) {
+      const validOffsets = [15, 30, 60, 120, 300, 1440];
+      if (!validOffsets.includes(reminderOffset)) {
+        return NextResponse.json(
+          { success: false, error: "Reminder offset không hợp lệ" },
+          { status: 400 }
+        );
       }
     }
 
-    // Nếu vẫn không có user, trả về lỗi
-    if (!dbUser) {
-      return NextResponse.json(
-        { success: false, error: "User not found in database" },
-        { status: 404 }
-      );
-    }
-
-    const body = await request.json();
-    console.log("PUT - Body:", body);
-    const { pushEnabled, reminderOffset, emailEnabled, notificationHour, quietHoursStart, quietHoursEnd } = body;
-
-    // Validate reminderOffset
-    const validOffsets = [15, 30, 60, 120, 300, 1440];
-    if (reminderOffset !== undefined && !validOffsets.includes(reminderOffset)) {
-      return NextResponse.json(
-        { success: false, error: "Reminder offset không hợp lệ" },
-        { status: 400 }
-      );
-    }
-
-    // Validate notificationHour
     if (notificationHour !== undefined && (notificationHour < 0 || notificationHour > 23)) {
       return NextResponse.json(
         { success: false, error: "Giờ gửi thông báo không hợp lệ" },
@@ -146,7 +80,6 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Validate quietHours
     if (quietHoursStart !== null && (quietHoursStart < 0 || quietHoursStart > 23)) {
       return NextResponse.json(
         { success: false, error: "Giờ bắt đầu yên lặng không hợp lệ" },
@@ -160,9 +93,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Cập nhật hoặc tạo settings
-    const settings = await prisma.userSettings.upsert({
-      where: { userId: actualUserId },
+    const settings = await db.userSettings.upsert({
+      where: { userId: user.id },
       update: {
         ...(pushEnabled !== undefined && { pushEnabled }),
         ...(reminderOffset !== undefined && { reminderOffset }),
@@ -172,17 +104,15 @@ export async function PUT(request: NextRequest) {
         ...(quietHoursEnd !== undefined && { quietHoursEnd }),
       },
       create: {
-        userId: actualUserId,
+        userId: user.id,
         pushEnabled: pushEnabled ?? true,
         reminderOffset: reminderOffset ?? 60,
         emailEnabled: emailEnabled ?? true,
         notificationHour: notificationHour ?? 8,
         quietHoursStart: quietHoursStart ?? null,
         quietHoursEnd: quietHoursEnd ?? null,
-      },
+      } as any,
     });
-
-    console.log("PUT - Saved settings:", settings);
 
     return NextResponse.json({
       success: true,

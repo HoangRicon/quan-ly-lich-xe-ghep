@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 
 type FormulaLite = Prisma.PricingFormulaGetPayload<{
@@ -15,11 +17,11 @@ type FormulaLite = Prisma.PricingFormulaGetPayload<{
   };
 }>;
 
-async function getActiveFormulasByIds(formulaIds: number[]) {
+async function getActiveFormulasByIds(formulaIds: number[], db: any) {
   const uniqueIds = Array.from(new Set(formulaIds)).filter(Boolean);
   if (uniqueIds.length === 0) return new Map<number, FormulaLite>();
 
-  const formulas = await prisma.pricingFormula.findMany({
+  const formulas = await db.pricingFormula.findMany({
     where: { id: { in: uniqueIds }, isActive: true },
     select: {
       id: true,
@@ -33,7 +35,7 @@ async function getActiveFormulasByIds(formulaIds: number[]) {
     },
   });
 
-  return new Map<number, FormulaLite>(formulas.map((f) => [f.id, f]));
+  return new Map<number, FormulaLite>(formulas.map((f: any) => [f.id, f]));
 }
 
 export async function GET(
@@ -41,11 +43,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const driverId = parseInt(id);
 
-    const driver = await prisma.user.findUnique({
-      where: { id: driverId },
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const driver = await db.user.findFirst({
+      where: { id: driverId, role: "driver", accountId: user.accountId },
       select: {
         id: true,
         fullName: true,
@@ -74,11 +83,12 @@ export async function GET(
     }
 
     const formulasById = await getActiveFormulasByIds(
-      Array.isArray(driver.formulaIds) ? driver.formulaIds.map(Number) : []
+      Array.isArray(driver.formulaIds) ? driver.formulaIds.map(Number) : [],
+      db
     );
     const formulas = (driver.formulaIds ?? [])
-      .map((id) => formulasById.get(Number(id)))
-      .filter((f): f is FormulaLite => Boolean(f));
+      .map((id: number) => formulasById.get(Number(id)))
+      .filter((f: FormulaLite | undefined): f is FormulaLite => Boolean(f));
 
     return NextResponse.json({
       success: true,
@@ -101,7 +111,7 @@ export async function GET(
               isActive: driver.formula.isActive,
             }
           : null,
-        formulas: formulas.map((f) => ({
+        formulas: formulas.map((f: any) => ({
           id: f.id,
           name: f.name,
           tripType: f.tripType,
@@ -124,14 +134,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const driverId = parseInt(id);
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    // Verify driver belongs to this account
+    const existingDriver = await db.user.findFirst({
+      where: { id: driverId, role: "driver", accountId: user.accountId },
+      select: { id: true },
+    });
+    if (!existingDriver) {
+      return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+    }
 
     const { fullName, profitRate, formulaId, formulaIds } = await request.json();
 
     // Validate formulaId if provided
     if (formulaId !== undefined && formulaId !== null) {
-      const formula = await prisma.pricingFormula.findUnique({ where: { id: parseInt(formulaId) } });
+      const formula = await db.pricingFormula.findFirst({ where: { id: parseInt(formulaId), isActive: true } });
       if (!formula) {
         return NextResponse.json({ error: "Công thức không tồn tại" }, { status: 400 });
       }
@@ -144,7 +170,7 @@ export async function PUT(
     if (formulaId !== undefined) updateData.formulaId = formulaId !== null ? parseInt(formulaId) : null;
     if (formulaIds !== undefined) updateData.formulaIds = Array.isArray(formulaIds) ? formulaIds.map(Number).filter(Boolean) : [];
 
-    const driver = await prisma.user.update({
+    const driver = await db.user.update({
       where: { id: driverId },
       data: updateData,
       select: {
@@ -170,11 +196,12 @@ export async function PUT(
     });
 
     const formulasById = await getActiveFormulasByIds(
-      Array.isArray(driver.formulaIds) ? driver.formulaIds.map(Number) : []
+      Array.isArray(driver.formulaIds) ? driver.formulaIds.map(Number) : [],
+      db
     );
     const formulas = (driver.formulaIds ?? [])
-      .map((id) => formulasById.get(Number(id)))
-      .filter((f): f is FormulaLite => Boolean(f));
+      .map((id: number) => formulasById.get(Number(id)))
+      .filter((f: FormulaLite | undefined): f is FormulaLite => Boolean(f));
 
     return NextResponse.json({
       success: true,
@@ -197,7 +224,7 @@ export async function PUT(
               isActive: driver.formula.isActive,
             }
           : null,
-        formulas: formulas.map((f) => ({
+        formulas: formulas.map((f: any) => ({
           id: f.id,
           name: f.name,
           tripType: f.tripType,
@@ -220,11 +247,27 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const driverId = parseInt(id);
 
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    // Verify driver belongs to this account
+    const existingDriver = await db.user.findFirst({
+      where: { id: driverId, role: "driver", accountId: user.accountId },
+      select: { id: true },
+    });
+    if (!existingDriver) {
+      return NextResponse.json({ error: "Driver not found" }, { status: 404 });
+    }
+
     // Check if driver has active trips
-    const activeTrips = await prisma.trip.count({
+    const activeTrips = await db.trip.count({
       where: {
         driverId,
         status: { in: ["scheduled", "running"] },
@@ -239,7 +282,7 @@ export async function DELETE(
     }
 
     // Delete the driver
-    await prisma.user.delete({
+    await db.user.delete({
       where: { id: driverId },
     });
 

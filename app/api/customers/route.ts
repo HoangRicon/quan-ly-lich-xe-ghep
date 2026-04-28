@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search") || "";
     const sortBy = searchParams.get("sortBy") || "totalTrips";
@@ -10,7 +19,9 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    const where: any = {};
+    const where: any = {
+      accountId: user.accountId,
+    };
 
     if (search) {
       where.OR = [
@@ -25,18 +36,18 @@ export async function GET(request: NextRequest) {
     orderBy[sortBy] = sortOrder;
 
     const [customers, total] = await Promise.all([
-      prisma.customer.findMany({
+      db.customer.findMany({
         where,
         skip,
         take: limit,
         orderBy,
       }),
-      prisma.customer.count({ where }),
+      db.customer.count({ where }),
     ]);
 
-    // Get trip stats for each customer
-    const customerIds = customers.map((c) => c.id);
-    const tripCustomers = await prisma.tripCustomer.findMany({
+    // Get trip stats for each customer (account-scoped)
+    const customerIds = customers.map((c: { id: number }) => c.id);
+    const tripCustomers = await db.tripCustomer.findMany({
       where: { customerId: { in: customerIds } },
       include: {
         trip: {
@@ -49,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate total spending and trip count for each customer
     const tripStatsMap = new Map();
-    tripCustomers.forEach((tc) => {
+    tripCustomers.forEach((tc: { customerId: number; trip?: { price: unknown }; seats: number | null }) => {
       const current = tripStatsMap.get(tc.customerId) || { tripCount: 0, totalSpending: 0 };
       const tripPrice = Number(tc.trip?.price || 0);
       const seats = tc.seats || 1;
@@ -59,8 +70,8 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Get favorite route for each customer
-    const tripCustomerRoutes = await prisma.tripCustomer.findMany({
+    // Get favorite route for each customer (account-scoped)
+    const tripCustomerRoutes = await db.tripCustomer.findMany({
       where: { customerId: { in: customerIds } },
       include: {
         trip: {
@@ -73,14 +84,14 @@ export async function GET(request: NextRequest) {
     });
 
     const routeMap = new Map<number, Record<string, number>>();
-    tripCustomerRoutes.forEach((tc) => {
+    tripCustomerRoutes.forEach((tc: { customerId: number; trip: { departure: string; destination: string } }) => {
       const route = `${tc.trip.departure} - ${tc.trip.destination}`;
       const current = routeMap.get(tc.customerId) || {};
       current[route] = (current[route] || 0) + 1;
       routeMap.set(tc.customerId, current);
     });
 
-    const customersWithStats = customers.map((customer) => {
+    const customersWithStats = customers.map((customer: { id: number; name: string; phone: string | null; email: string | null; notes: string | null; totalTrips: number; createdAt: Date }) => {
       const stats = tripStatsMap.get(customer.id) || { tripCount: 0, totalSpending: 0 };
       const routes = routeMap.get(customer.id) || {};
       const entries = Object.entries(routes) as [string, number][];

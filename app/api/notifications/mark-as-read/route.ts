@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 // PUT /api/notifications/mark-as-read - Đánh dấu đã đọc
 export async function PUT(request: NextRequest) {
@@ -13,9 +14,10 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { notificationIds, markAllRead } = body;
 
+    const db = createTenantPrisma(prisma, user.accountId);
+
     if (markAllRead) {
-      // Đánh dấu tất cả là đã đọc
-      await prisma.notification.updateMany({
+      await db.notification.updateMany({
         where: { userId: user.id, isRead: false },
         data: { isRead: true },
       });
@@ -23,8 +25,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (notificationIds && Array.isArray(notificationIds)) {
-      // Đánh dấu các thông báo cụ thể
-      await prisma.notification.updateMany({
+      await db.notification.updateMany({
         where: {
           id: { in: notificationIds },
           userId: user.id,
@@ -49,6 +50,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
+    const db = createTenantPrisma(prisma, user.accountId);
     const { searchParams } = new URL(request.url);
     const notificationId = searchParams.get("id");
 
@@ -56,7 +58,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Thiếu notification ID" }, { status: 400 });
     }
 
-    await prisma.notification.delete({
+    await db.notification.delete({
       where: {
         id: parseInt(notificationId),
         userId: user.id,

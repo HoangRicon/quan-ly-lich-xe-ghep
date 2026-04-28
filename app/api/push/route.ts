@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSession, type UserPayload } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 export async function POST(request: NextRequest) {
   try {
-    // Lấy user hiện tại
     const user = await getSession();
     if (!user) {
       return NextResponse.json(
@@ -23,8 +23,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const db = createTenantPrisma(prisma, user.accountId);
+
     // Lưu hoặc cập nhật subscription
-    const subscription = await prisma.pushSubscription.upsert({
+    const subscription = await db.pushSubscription.upsert({
       where: { endpoint },
       update: {
         userId: user.id,
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
         p256dh: keys.p256dh,
         auth: keys.auth,
         userAgent: request.headers.get("user-agent") || null,
-      },
+      } as any,
     });
 
     return NextResponse.json({
@@ -66,7 +68,9 @@ export async function GET() {
       );
     }
 
-    const subscriptions = await prisma.pushSubscription.findMany({
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    const subscriptions = await db.pushSubscription.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
@@ -105,7 +109,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.pushSubscription.delete({
+    const db = createTenantPrisma(prisma, user.accountId);
+
+    await db.pushSubscription.delete({
       where: { endpoint },
     });
 

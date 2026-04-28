@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
-// GET /api/notifications/test - Test notifications không cần auth
+// GET /api/notifications/test-notifications - Test notifications (requires auth for tenant isolation)
 export async function GET(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId") || "1";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const unreadOnly = searchParams.get("unread") === "true";
 
     const where = {
-      userId: parseInt(userId),
+      userId: user.id,
       ...(unreadOnly ? { isRead: false } : {}),
     };
 
     const [notifications, total, unreadCount] = await Promise.all([
-      prisma.notification.findMany({
+      db.notification.findMany({
         where,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.notification.count({ where }),
-      prisma.notification.count({ where: { userId: parseInt(userId), isRead: false } }),
+      db.notification.count({ where }),
+      db.notification.count({ where: { userId: user.id, isRead: false } }),
     ]);
 
     return NextResponse.json({
@@ -40,11 +47,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/notifications/test - Tạo notification test
+// POST /api/notifications/test-notifications - Tạo notification test
 export async function POST(request: NextRequest) {
   try {
+    const user = await getSession();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = createTenantPrisma(prisma, user.accountId);
     const body = await request.json();
-    const { userId = 1, type = "reminder", title, content, data } = body;
+    const { type = "reminder", title, content, data } = body;
 
     if (!title || !content) {
       return NextResponse.json(
@@ -53,15 +66,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const notification = await prisma.notification.create({
+    const notification = await db.notification.create({
       data: {
-        userId,
-        type,
-        title,
-        content,
+        userId: user.id,
+        type: type as string,
+        title: title as string,
+        content: content as string,
         isRead: false,
-        data: data || {},
-      },
+        data: (data as Record<string, unknown>) || {},
+      } as any,
     });
 
     return NextResponse.json({

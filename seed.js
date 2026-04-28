@@ -18,8 +18,20 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  // Create default account
+  const defaultAccount = await prisma.account.upsert({
+    where: { slug: "default" },
+    update: {},
+    create: {
+      name: "Default Organization",
+      slug: "default",
+    },
+  });
+
+  console.log(`Default account created: ${defaultAccount.name} (ID: ${defaultAccount.id})`);
+
   const passwordHash = await bcrypt.hash("admin123", 10);
-  
+
   await prisma.user.upsert({
     where: { email: "admin@xeghep.com" },
     update: {},
@@ -28,9 +40,10 @@ async function main() {
       passwordHash,
       fullName: "Admin",
       role: "admin",
+      accountId: defaultAccount.id,
     },
   });
-  
+
   console.log("Admin user created successfully!");
 }
 

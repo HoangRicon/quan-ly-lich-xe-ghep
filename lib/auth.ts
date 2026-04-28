@@ -52,6 +52,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<UserPayl
   const userRole = request.headers.get("x-user-role");
   const userName = request.headers.get("x-user-name");
   const userPasswordVersion = request.headers.get("x-user-password-version");
+  const accountId = request.headers.get("x-account-id");
 
   if (!userId || !userEmail || !userRole) {
     return null;
@@ -63,6 +64,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<UserPayl
     role: userRole,
     fullName: userName || "",
     passwordVersion: userPasswordVersion ? parseInt(userPasswordVersion, 10) : 1,
+    accountId: accountId ? parseInt(accountId, 10) : 0,
   };
 }
 

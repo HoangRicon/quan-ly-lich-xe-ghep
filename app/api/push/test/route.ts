@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 
 // Cấu hình VAPID keys
 webpush.setVapidDetails(
@@ -27,20 +28,28 @@ export async function POST(request: NextRequest) {
 
     // Nếu không có subscription, tạo notification trong DB để test
     if (subscriptions.length === 0) {
-      // Tạo notification test trong database
-      const notification = await prisma.notification.create({
+      const targetUser = await prisma.user.findUnique({
+        where: { id: userId ? parseInt(userId) : 1 },
+        select: { id: true, accountId: true },
+      });
+      if (!targetUser) {
+        return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+      }
+      const db = createTenantPrisma(prisma, targetUser.accountId);
+
+      const notification = await db.notification.create({
         data: {
-          userId: 1, // Test user
+          userId: targetUser.id,
           type: "push",
           title: pushTitle,
           content: pushMessage,
           isRead: false,
-          data: { 
+          data: {
             test: true,
             sentAt: new Date().toISOString(),
             status: "simulated"
           },
-        },
+        } as any,
       });
 
       return NextResponse.json({
@@ -98,19 +107,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Lưu notification vào database
-    const notification = await prisma.notification.create({
+    const targetUserForNotif = await prisma.user.findUnique({
+      where: { id: userId ? parseInt(userId) : 1 },
+      select: { id: true, accountId: true },
+    });
+    if (!targetUserForNotif) {
+      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+    }
+    const dbForNotif = createTenantPrisma(prisma, targetUserForNotif.accountId);
+
+    const notification = await dbForNotif.notification.create({
       data: {
-        userId: userId ? parseInt(userId) : 1,
+        userId: targetUserForNotif.id,
         type: "push",
         title: pushTitle,
         content: pushMessage,
         isRead: false,
-        data: { 
+        data: {
           sentCount,
           failedCount,
           sentAt: new Date().toISOString()
         },
-      },
+      } as any,
     });
 
     return NextResponse.json({

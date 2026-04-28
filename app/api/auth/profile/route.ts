@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         status: true,
         rating: true,
         createdAt: true,
+        accountId: true,
       },
     });
 
