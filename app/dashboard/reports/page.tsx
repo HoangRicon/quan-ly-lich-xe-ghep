@@ -339,7 +339,10 @@ export default function ReportsPage() {
 
       prevPeriodRevenue = prevTrips
         .filter((t) => t.status === "completed")
-        .reduce((sum, t) => sum + safeMoney(t.price), 0);
+        .reduce((sum, t) => {
+          const price = Number(t.price) || 0;
+          return sum + (price > 0 && price < 100000000 ? price : 0);
+        }, 0);
       prevPeriodTrips = prevTrips.length;
     }
 
