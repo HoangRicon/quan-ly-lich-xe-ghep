@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 import {
   findMatchingFormula,
@@ -18,10 +19,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const { id } = await params;
     const tripId = parseInt(id);
 
-    const trip = await prisma.trip.findFirst({
+    const trip = await db.trip.findFirst({
       where: { id: tripId, accountId: user.accountId },
       include: {
         driver: {
@@ -57,7 +60,7 @@ export async function GET(
       isActive: boolean;
     }> = [];
     if (trip.driver && trip.driver.formulaIds && trip.driver.formulaIds.length > 0) {
-      const formulas = await prisma.pricingFormula.findMany({
+      const formulas = await db.pricingFormula.findMany({
         where: { id: { in: trip.driver.formulaIds } },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       });
@@ -124,6 +127,8 @@ export async function PUT(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const db = createTenantPrisma(prisma, user.accountId);
 
     const { id } = await params;
     const tripId = parseInt(id);
@@ -201,7 +206,7 @@ export async function PUT(
     // Nếu có recalculate=true thì bỏ qua profit thủ công, dùng formula engine
     if (recalculate === true) {
       // Lấy thông tin trip hiện tại để tính toán
-      const currentTrip = await prisma.trip.findFirst({
+      const currentTrip = await db.trip.findFirst({
         where: { id: tripId, accountId: user.accountId },
         include: { customers: true },
       });
@@ -250,7 +255,7 @@ export async function PUT(
         updateData.matchedFormulaId = null;
       } else {
         // Lấy profitRate + công thức được phép của driver (cùng account)
-        const driver = await prisma.user.findFirst({
+        const driver = await db.user.findFirst({
           where: { id: finalDriverId, accountId: user.accountId },
           select: { profitRate: true, formulaIds: true },
         });
@@ -261,11 +266,11 @@ export async function PUT(
 
         const allFormulas =
           driverFormulaIds.length > 0
-            ? await prisma.pricingFormula.findMany({
+            ? await db.pricingFormula.findMany({
                 where: { id: { in: driverFormulaIds }, isActive: true },
                 orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
               })
-            : await prisma.pricingFormula.findMany({
+            : await db.pricingFormula.findMany({
                 where: { isActive: true },
                 orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
               });
@@ -331,7 +336,7 @@ export async function PUT(
     // Xử lý cập nhật thông tin khách hàng
     // ============================================================
     // Lấy TripCustomer hiện tại của chuyến (cùng account)
-    const existingTripCustomers = await prisma.tripCustomer.findMany({
+    const existingTripCustomers = await db.tripCustomer.findMany({
       where: { trip: { id: tripId, accountId: user.accountId } },
       include: { customer: true },
     });
@@ -342,25 +347,24 @@ export async function PUT(
       if (customerPhone === null || customerPhone === "") {
         // Xóa hết khách hàng khỏi chuyến
         if (existingTripCustomers.length > 0) {
-          await prisma.tripCustomer.deleteMany({
+          await db.tripCustomer.deleteMany({
             where: { trip: { id: tripId, accountId: user.accountId } },
           });
         }
       } else {
         // Tìm hoặc tạo customer theo số điện thoại (cùng account)
-        let targetCustomer = await prisma.customer.findFirst({
+        let targetCustomer = await db.customer.findFirst({
           where: { phone: customerPhone, accountId: user.accountId },
         });
 
         if (!targetCustomer) {
-          targetCustomer = await prisma.customer.create({
+          targetCustomer = await db.customer.create({
             data: {
               phone: customerPhone,
               name: customerName || "Khách vãng lai",
               email: customerEmail,
               notes: customerNotes,
-              accountId: user.accountId,
-            } as any,
+            },
           });
         }
 
@@ -370,7 +374,7 @@ export async function PUT(
 
         if (isSameCustomer) {
           // Cùng khách — chỉ cập nhật name/email/notes của Customer
-          await prisma.customer.update({
+          await db.customer.update({
             where: { id: newCustomerId, accountId: user.accountId },
             data: {
               ...(customerName !== undefined ? { name: customerName || "Khách vãng lai" } : {}),
@@ -381,12 +385,12 @@ export async function PUT(
         } else {
           // Khách khác — xóa TripCustomer cũ, cập nhật Customer, tạo TripCustomer mới
           if (existingTripCustomers.length > 0) {
-            await prisma.tripCustomer.deleteMany({
+            await db.tripCustomer.deleteMany({
               where: { trip: { id: tripId, accountId: user.accountId } },
             });
           }
           // Cập nhật thông tin Customer (nếu có name mới)
-          await prisma.customer.update({
+          await db.customer.update({
             where: { id: newCustomerId, accountId: user.accountId },
             data: {
               name: customerName || targetCustomer.name,
@@ -395,20 +399,19 @@ export async function PUT(
             },
           });
           // Tạo TripCustomer mới
-          await prisma.tripCustomer.create({
+          await db.tripCustomer.create({
             data: {
               tripId,
               customerId: newCustomerId,
               seats: 1,
               status: "confirmed",
-              accountId: user.accountId,
-            } as any,
+            },
           });
         }
       }
     } else if (customerName !== undefined && existingCustomer) {
       // Không đổi sđt nhưng đổi tên
-      await prisma.customer.update({
+      await db.customer.update({
         where: { id: existingCustomer.id, accountId: user.accountId },
         data: {
           name: customerName || "Khách vãng lai",
@@ -418,7 +421,7 @@ export async function PUT(
       });
     }
 
-    const trip = await prisma.trip.update({
+    const trip = await db.trip.update({
       where: { id: tripId, accountId: user.accountId },
       data: updateData,
       include: {
@@ -452,7 +455,7 @@ export async function PUT(
       isActive: boolean;
     }> = [];
     if (trip.driver && trip.driver.formulaIds && trip.driver.formulaIds.length > 0) {
-      const formulas = await prisma.pricingFormula.findMany({
+      const formulas = await db.pricingFormula.findMany({
         where: { id: { in: trip.driver.formulaIds } },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       });
@@ -523,11 +526,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const db = createTenantPrisma(prisma, user.accountId);
+
     const { id } = await params;
     const tripId = parseInt(id);
 
     // Verify trip belongs to this account first
-    const trip = await prisma.trip.findFirst({
+    const trip = await db.trip.findFirst({
       where: { id: tripId, accountId: user.accountId },
       select: { id: true },
     });
@@ -536,12 +541,12 @@ export async function DELETE(
     }
 
     // Delete trip customers first
-    await prisma.tripCustomer.deleteMany({
+    await db.tripCustomer.deleteMany({
       where: { trip: { id: tripId, accountId: user.accountId } },
     });
 
     // Delete trip
-    await prisma.trip.delete({
+    await db.trip.delete({
       where: { id: tripId, accountId: user.accountId },
     });
 
