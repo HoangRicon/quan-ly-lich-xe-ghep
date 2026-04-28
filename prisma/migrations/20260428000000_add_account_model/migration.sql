@@ -58,7 +58,7 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_account_id_fkey"
     FOREIGN KEY ("account_id") REFERENCES "accounts"("id");
 
 CREATE INDEX IF NOT EXISTS "idx_customers_account" ON "customers"("account_id");
-CREATE INDEX IF NOT EXISTS "idx_customers_account_phone" ON "customers"("account_id", "phone");
+ALTER TABLE "customers" ADD CONSTRAINT "idx_customers_account_phone" UNIQUE ("account_id", "phone");
 
 -- ============================================================
 -- STEP 6: Add accountId to trip_customers table
@@ -77,6 +77,7 @@ ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_account_id_f
     FOREIGN KEY ("account_id") REFERENCES "accounts"("id");
 
 CREATE INDEX IF NOT EXISTS "idx_push_subscriptions_account" ON "push_subscriptions"("account_id");
+ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_account_id_endpoint_key" UNIQUE ("account_id", "endpoint");
 
 -- ============================================================
 -- STEP 8: Add accountId to notifications table
@@ -96,6 +97,7 @@ ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_account_id_fkey"
     FOREIGN KEY ("account_id") REFERENCES "accounts"("id");
 
 CREATE INDEX IF NOT EXISTS "idx_user_settings_account" ON "user_settings"("account_id");
+ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_account_id_user_id_key" UNIQUE ("account_id", "user_id");
 
 -- ============================================================
 -- STEP 10: Update system_settings (accountId is nullable)

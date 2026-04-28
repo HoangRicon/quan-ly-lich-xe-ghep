@@ -75,7 +75,8 @@ export async function PUT(request: NextRequest) {
         description,
         category: category || "general",
         isSecret: isSecret || false,
-      } as any,
+        accountId: user.accountId,
+      },
     });
 
     return NextResponse.json({

@@ -297,27 +297,19 @@ export async function POST(request: NextRequest) {
     // Handle customer - create or get existing (tenant-scoped)
     let customerId = null;
     if (customerPhone) {
-      let customer = await db.customer.findUnique({
+      const customer = await db.customer.upsert({
         where: { phone: customerPhone },
+        create: {
+          phone: customerPhone,
+          name: customerName || "Khách vãng lai",
+          email: customerEmail,
+          notes: customerNotes,
+        },
+        update: {
+          totalTrips: { increment: 1 },
+        },
       });
-
-      if (!customer) {
-        customer = await db.customer.create({
-          data: {
-            phone: customerPhone,
-            name: customerName || "Khách vãng lai",
-            email: customerEmail,
-            notes: customerNotes,
-          } as any,
-        });
-      }
-
       customerId = customer.id;
-
-      await db.customer.update({
-        where: { id: customerId },
-        data: { totalTrips: { increment: 1 } },
-      });
     }
 
     // Determine driverId

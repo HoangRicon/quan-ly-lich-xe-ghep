@@ -7,249 +7,236 @@ datasource db {
 }
 
 model Account {
-  id        Int       @id @default(autoincrement())
-  name      String    @db.VarChar(255)
-  slug      String    @unique @db.VarChar(100)
-  logo      String?   @db.VarChar(500)
+  id        Int        @id @default(autoincrement())
+  name      String     @db.VarChar(255)
+  slug      String     @unique @db.VarChar(100)
+  logo      String?    @db.VarChar(500)
   settings  Json?
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-
-  users     User[]
-  trips     Trip[]
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   customers Customer[]
+  trips     Trip[]
+  users     User[]
 
   @@map("accounts")
 }
 
 model User {
-  id              Int       @id @default(autoincrement())
-  email           String    @unique @db.VarChar(255)
-  passwordHash    String    @map("password_hash") @db.VarChar(255)
-  passwordVersion Int       @default(1) @map("password_version")
-  fullName        String?   @map("full_name") @db.VarChar(255)
-  role            String    @default("user") @db.VarChar(50)
-  phone           String?   @db.VarChar(20)
-  avatar          String?   @db.VarChar(500)
-  status          String    @default("offline") @db.VarChar(50)
-  rating          Decimal   @default(5) @db.Decimal(2, 1)
-  totalRevenue    Decimal   @default(0) @map("total_revenue") @db.Decimal(15, 2)
-  profitRate      Decimal   @default(1000) @map("profit_rate") @db.Decimal(15, 2)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-
-  accountId       Int       @map("account_id")
-  account         Account   @relation(fields: [accountId], references: [id])
-
-  trips           Trip[]
-  createdTrips    Trip[]    @relation("CreatedTrips")
-  bookings        Booking[]
-  notifications   Notification[]
-  settings        UserSettings?
+  id                Int                @id @default(autoincrement())
+  email             String             @unique @db.VarChar(255)
+  passwordHash      String             @map("password_hash") @db.VarChar(255)
+  fullName          String?            @map("full_name") @db.VarChar(255)
+  role              String             @default("user") @db.VarChar(50)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  avatar            String?            @db.VarChar(500)
+  phone             String?            @db.VarChar(20)
+  rating            Decimal            @default(5) @db.Decimal(2, 1)
+  status            String             @default("offline") @db.VarChar(50)
+  totalRevenue      Decimal            @default(0) @map("total_revenue") @db.Decimal(15, 2)
+  passwordVersion   Int                @default(1) @map("password_version")
+  profitRate        Decimal            @default(1000) @map("profit_rate") @db.Decimal(15, 2)
+  formulaIds        Int[]              @map("formula_ids")
+  formulaId         Int?               @map("formula_id")
+  accountId         Int                @map("account_id")
+  bookings          Booking[]
+  notifications     Notification[]
   pushSubscriptions PushSubscription[]
-  formula         PricingFormula?  @relation(fields: [formulaId], references: [id])
-  formulaId       Int?       @map("formula_id")
-  formulaIds      Int[]      @map("formula_ids")
+  createdTrips      Trip[]             @relation("CreatedTrips")
+  trips             Trip[]
+  settings          UserSettings?
+  account           Account            @relation(fields: [accountId], references: [id])
+  formula           PricingFormula?    @relation(fields: [formulaId], references: [id])
 
-  @@index([email], name: "idx_users_email")
-  @@index([phone], name: "idx_users_phone")
-  @@index([status], name: "idx_users_status")
-  @@index([formulaId], name: "idx_users_formula")
-  @@index([accountId], name: "idx_users_account")
+  @@index([email], map: "idx_users_email")
+  @@index([phone], map: "idx_users_phone")
+  @@index([status], map: "idx_users_status")
+  @@index([formulaId], map: "idx_users_formula")
+  @@index([accountId], map: "idx_users_account")
   @@map("users")
 }
 
 model Trip {
-  id              Int       @id @default(autoincrement())
-  title           String    @db.VarChar(255)
-  description     String?   @db.Text
-  departure       String    @map("departure") @db.VarChar(255)
-  destination     String    @map("destination") @db.VarChar(255)
-  departureTime   DateTime  @map("departure_time") @db.Timestamptz
-  arrivalTime     DateTime? @map("arrival_time") @db.Timestamptz
-  price          Decimal   @db.Decimal(10, 2)
-  profit         Decimal?  @db.Decimal(10, 2)
-  tripDirection   String    @default("oneway") @map("trip_direction") @db.VarChar(20)
-  tripType       String    @default("ghep") @map("trip_type") @db.VarChar(20)
-  pointsEarned   Decimal?  @map("points_earned") @db.Decimal(10, 2)
-  profitRate     Decimal?  @map("profit_rate") @db.Decimal(15, 2)
-  matchedFormulaId Int?     @map("matched_formula_id")
-  totalSeats     Int       @default(1) @map("total_seats")
-  status         String    @default("scheduled") @db.VarChar(50)
-  notes          String?   @db.Text
-  driverId       Int?      @map("driver_id")
-  driver         User?     @relation(fields: [driverId], references: [id])
-  createdById    Int?      @map("created_by_id")
-  createdBy      User?     @relation("CreatedTrips", fields: [createdById], references: [id])
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id               Int            @id @default(autoincrement())
+  title            String         @db.VarChar(255)
+  description      String?
+  departure        String         @map("departure") @db.VarChar(255)
+  destination      String         @map("destination") @db.VarChar(255)
+  departureTime    DateTime       @map("departure_time") @db.Timestamptz(6)
+  arrivalTime      DateTime?      @map("arrival_time") @db.Timestamptz(6)
+  price            Decimal        @db.Decimal(10, 2)
+  totalSeats       Int            @default(1) @map("total_seats")
+  status           String         @default("scheduled") @db.VarChar(50)
+  driverId         Int?           @map("driver_id")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notes            String?
+  createdById      Int?           @map("created_by_id")
+  profit           Decimal?       @db.Decimal(10, 2)
+  matchedFormulaId Int?           @map("matched_formula_id")
+  pointsEarned     Decimal?       @map("points_earned") @db.Decimal(10, 2)
+  profitRate       Decimal?       @map("profit_rate") @db.Decimal(15, 2)
+  tripDirection    String         @default("oneway") @map("trip_direction") @db.VarChar(20)
+  tripType         String         @default("ghep") @map("trip_type") @db.VarChar(20)
+  accountId        Int            @map("account_id")
+  bookings         Booking[]
+  customers        TripCustomer[]
+  account          Account        @relation(fields: [accountId], references: [id])
+  createdBy        User?          @relation("CreatedTrips", fields: [createdById], references: [id])
+  driver           User?          @relation(fields: [driverId], references: [id])
 
-  accountId       Int       @map("account_id")
-  account         Account   @relation(fields: [accountId], references: [id])
-
-  bookings        Booking[]
-  customers       TripCustomer[]
-
-  @@index([driverId], name: "idx_trips_driver")
-  @@index([departureTime], name: "idx_trips_departure_time")
-  @@index([status], name: "idx_trips_status")
-  @@index([accountId], name: "idx_trips_account")
-  @@index([accountId, departureTime], name: "idx_trips_account_departure")
-  @@index([accountId, status], name: "idx_trips_account_status")
-  @@index([accountId, driverId], name: "idx_trips_account_driver")
+  @@index([driverId], map: "idx_trips_driver")
+  @@index([departureTime], map: "idx_trips_departure_time")
+  @@index([status], map: "idx_trips_status")
+  @@index([accountId], map: "idx_trips_account")
+  @@index([accountId, departureTime], map: "idx_trips_account_departure")
+  @@index([accountId, status], map: "idx_trips_account_status")
+  @@index([accountId, driverId], map: "idx_trips_account_driver")
   @@map("trips")
 }
 
 model Booking {
-  id          Int       @id @default(autoincrement())
-  tripId      Int       @map("trip_id")
-  trip        Trip      @relation(fields: [tripId], references: [id])
-  passengerId Int       @map("passenger_id")
-  passenger   User      @relation(fields: [passengerId], references: [id])
-  seats       Int       @default(1)
-  status      String    @default("pending") @db.VarChar(50)
-  totalPrice  Decimal   @map("total_price") @db.Decimal(10, 2)
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
-
-  accountId   Int       @map("account_id")
+  id          Int      @id @default(autoincrement())
+  tripId      Int      @map("trip_id")
+  passengerId Int      @map("passenger_id")
+  seats       Int      @default(1)
+  status      String   @default("pending") @db.VarChar(50)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountId   Int      @map("account_id")
+  passenger   User     @relation(fields: [passengerId], references: [id])
+  trip        Trip     @relation(fields: [tripId], references: [id])
 
   @@unique([tripId, passengerId], name: "idx_booking_trip_passenger")
-  @@index([passengerId], name: "idx_bookings_passenger")
-  @@index([tripId], name: "idx_bookings_trip")
-  @@index([accountId], name: "idx_bookings_account")
+  @@index([passengerId], map: "idx_bookings_passenger")
+  @@index([tripId], map: "idx_bookings_trip")
+  @@index([accountId], map: "idx_bookings_account")
   @@map("bookings")
 }
 
 model Customer {
-  id          Int       @id @default(autoincrement())
-  phone       String    @unique @db.VarChar(20)
-  name        String    @db.VarChar(255)
-  email       String?   @db.VarChar(255)
-  notes       String?   @db.Text
-  totalTrips  Int       @default(0) @map("total_trips")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id         Int            @id @default(autoincrement())
+  phone      String         @db.VarChar(20)
+  name       String         @db.VarChar(255)
+  email      String?        @db.VarChar(255)
+  notes      String?
+  totalTrips Int            @default(0) @map("total_trips")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountId  Int            @map("account_id")
+  account    Account        @relation(fields: [accountId], references: [id])
+  trips      TripCustomer[]
 
-  accountId   Int       @map("account_id")
-  account     Account   @relation(fields: [accountId], references: [id])
-
-  trips       TripCustomer[]
-
-  @@index([phone], name: "idx_customers_phone")
-  @@index([accountId], name: "idx_customers_account")
-  @@index([accountId, phone], name: "idx_customers_account_phone")
+  @@unique([accountId, phone], name: "idx_customers_account_phone")
+  @@index([phone], map: "idx_customers_phone")
+  @@index([accountId], map: "idx_customers_account")
   @@map("customers")
 }
 
 model TripCustomer {
-  id          Int       @id @default(autoincrement())
-  tripId      Int       @map("trip_id")
-  trip        Trip      @relation(fields: [tripId], references: [id])
-  customerId  Int       @map("customer_id")
-  customer    Customer  @relation(fields: [customerId], references: [id])
-  seats       Int       @default(1)
-  status      String    @default("pending") @db.VarChar(50)
-  notes       String?   @db.Text
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
-
-  accountId   Int       @map("account_id")
+  id         Int      @id @default(autoincrement())
+  tripId     Int      @map("trip_id")
+  customerId Int      @map("customer_id")
+  seats      Int      @default(1)
+  status     String   @default("pending") @db.VarChar(50)
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  accountId  Int      @map("account_id")
+  customer   Customer @relation(fields: [customerId], references: [id])
+  trip       Trip     @relation(fields: [tripId], references: [id])
 
   @@unique([tripId, customerId], name: "idx_trip_customer_trip_customer")
-  @@index([accountId], name: "idx_trip_customers_account")
+  @@index([accountId], map: "idx_trip_customers_account")
   @@map("trip_customers")
 }
 
 model PushSubscription {
-  id            Int       @id @default(autoincrement())
-  userId        Int       @map("user_id")
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  endpoint      String    @db.VarChar(500)
-  p256dh        String    @map("p256dh") @db.VarChar(200)
-  auth          String    @db.VarChar(100)
-  userAgent     String?   @map("user_agent") @db.VarChar(500)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  endpoint  String   @db.VarChar(500)
+  p256dh    String   @map("p256dh") @db.VarChar(200)
+  auth      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  accountId Int      @map("account_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  accountId     Int       @map("account_id")
-
-  @@index([userId], name: "idx_push_subscriptions_user")
-  @@unique([endpoint], name: "idx_push_subscriptions_endpoint")
-  @@index([accountId], name: "idx_push_subscriptions_account")
+  @@unique([accountId, endpoint], name: "idx_push_subscriptions_account_endpoint")
+  @@index([userId], map: "idx_push_subscriptions_user")
+  @@index([accountId], map: "idx_push_subscriptions_account")
   @@map("push_subscriptions")
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
-  userId      Int       @map("user_id")
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String    @default("reminder") @db.VarChar(50)
-  title       String    @db.VarChar(255)
-  content     String    @db.Text
-  data        Json?
-  isRead      Boolean   @default(false) @map("is_read")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  type      String   @default("reminder") @db.VarChar(50)
+  title     String   @db.VarChar(255)
+  content   String
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  accountId Int      @map("account_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  accountId   Int       @map("account_id")
-
-  @@index([userId, isRead], name: "idx_notifications_user_read")
-  @@index([userId, createdAt], name: "idx_notifications_user_date")
-  @@index([accountId], name: "idx_notifications_account")
-  @@index([accountId, userId, isRead], name: "idx_notifications_account_user_read")
+  @@index([userId, isRead], map: "idx_notifications_user_read")
+  @@index([userId, createdAt], map: "idx_notifications_user_date")
+  @@index([accountId], map: "idx_notifications_account")
+  @@index([accountId, userId, isRead], map: "idx_notifications_account_user_read")
   @@map("notifications")
 }
 
 model UserSettings {
-  id                    Int       @id @default(autoincrement())
-  userId                Int       @unique @map("user_id")
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pushEnabled           Boolean   @default(true) @map("push_enabled")
-  reminderOffset        Int       @default(60) @map("reminder_offset")
-  emailEnabled          Boolean   @default(true) @map("email_enabled")
-  notificationHour      Int       @default(8) @map("notification_hour")
-  quietHoursStart      Int?      @map("quiet_hours_start")
-  quietHoursEnd        Int?      @map("quiet_hours_end")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique @map("user_id")
+  pushEnabled      Boolean  @default(true) @map("push_enabled")
+  reminderOffset   Int      @default(60) @map("reminder_offset")
+  emailEnabled     Boolean  @default(true) @map("email_enabled")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notificationHour Int      @default(8) @map("notification_hour")
+  quietHoursEnd    Int?     @map("quiet_hours_end")
+  quietHoursStart  Int?     @map("quiet_hours_start")
+  accountId        Int      @map("account_id")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  accountId             Int       @map("account_id")
-
-  @@index([accountId], name: "idx_user_settings_account")
+  @@unique([accountId, userId], name: "idx_user_settings_account_user")
+  @@index([accountId], map: "idx_user_settings_account")
   @@map("user_settings")
 }
 
 model SystemSettings {
-  id                    Int       @id @default(autoincrement())
-  key                   String    @unique @db.VarChar(100)
-  value                 String?   @db.Text
-  description           String?   @map("description") @db.VarChar(500)
-  category              String    @default("general") @map("category") @db.VarChar(50)
-  isSecret              Boolean   @default(false) @map("is_secret")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String?
+  description String?  @map("description") @db.VarChar(500)
+  category    String   @default("general") @map("category") @db.VarChar(50)
+  isSecret    Boolean  @default(false) @map("is_secret")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountId   Int?     @map("account_id")
 
-  accountId             Int?      @map("account_id")
-
-  @@index([category], name: "idx_system_settings_category")
-  @@index([accountId], name: "idx_system_settings_account")
+  @@index([category], map: "idx_system_settings_category")
+  @@index([accountId], map: "idx_system_settings_account")
   @@map("system_settings")
 }
 
 model TripStatus {
-  id         Int      @id @default(autoincrement())
-  key        String   @unique @db.VarChar(50)
-  label      String   @db.VarChar(100)
-  color      String   @default("slate") @db.VarChar(30)
-  sortOrder  Int      @default(0) @map("sort_order")
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(50)
+  label     String   @db.VarChar(100)
+  color     String   @default("slate") @db.VarChar(30)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountId Int?     @map("account_id")
 
-  accountId  Int?     @map("account_id")
-
-  @@index([isActive, sortOrder], name: "idx_trip_status_active_order")
-  @@index([accountId], name: "idx_trip_statuses_account")
+  @@index([isActive, sortOrder], map: "idx_trip_status_active_order")
+  @@index([accountId], map: "idx_trip_statuses_account")
   @@map("trip_statuses")
 }
 
@@ -258,52 +245,49 @@ model EmailTemplate {
   key       String   @unique @db.VarChar(100)
   name      String   @db.VarChar(255)
   subject   String   @db.VarChar(255)
-  body      String   @db.Text
+  body      String
   params    Json?
   isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
-
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   accountId Int?     @map("account_id")
 
-  @@index([isActive], name: "idx_email_templates_active")
-  @@index([accountId], name: "idx_email_templates_account")
+  @@index([isActive], map: "idx_email_templates_active")
+  @@index([accountId], map: "idx_email_templates_account")
   @@map("email_templates")
 }
 
 model PricingFormula {
-  id            Int       @id @default(autoincrement())
-  name          String    @db.VarChar(255)
-  tripType      String    @map("trip_type") @db.VarChar(30)
-  seats         Int?
-  minPrice      Decimal?  @map("min_price") @db.Decimal(10, 2)
-  maxPrice      Decimal?  @map("max_price") @db.Decimal(10, 2)
-  points        Decimal   @default(1) @db.Decimal(10, 2)
-  description   String?   @db.Text
-  isActive      Boolean   @default(true) @map("is_active")
-  sortOrder     Int       @default(0) @map("sort_order")
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  tripType    String   @map("trip_type") @db.VarChar(30)
+  seats       Int?
+  minPrice    Decimal? @map("min_price") @db.Decimal(10, 2)
+  maxPrice    Decimal? @map("max_price") @db.Decimal(10, 2)
+  points      Decimal  @default(1) @db.Decimal(10, 2)
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountId   Int?     @map("account_id")
+  zoms        User[]
 
-  accountId     Int?      @map("account_id")
-
-  zoms          User[]
-
-  @@index([tripType], name: "idx_formulas_trip_type")
-  @@index([isActive, sortOrder], name: "idx_formulas_active_order")
-  @@index([accountId], name: "idx_pricing_formulas_account")
+  @@index([tripType], map: "idx_formulas_trip_type")
+  @@index([isActive, sortOrder], map: "idx_formulas_active_order")
+  @@index([accountId], map: "idx_pricing_formulas_account")
   @@map("pricing_formulas")
 }
 
 model PasswordReset {
-  id          Int       @id @default(autoincrement())
-  email       String    @db.VarChar(255)
-  token       String    @unique @db.VarChar(255)
-  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
-  usedAt      DateTime? @map("used_at") @db.Timestamptz
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id        Int       @id @default(autoincrement())
+  email     String    @db.VarChar(255)
+  token     String    @unique @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([email], name: "idx_password_reset_email")
-  @@index([token], name: "idx_password_reset_token")
+  @@index([email], map: "idx_password_reset_email")
+  @@index([token], map: "idx_password_reset_token")
   @@map("password_resets")
 }

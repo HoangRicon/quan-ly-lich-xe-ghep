@@ -295,7 +295,7 @@ export async function GET(request: NextRequest) {
       candidates,
     });
   } catch (error: any) {
-    console.error("GET /api/cron/reminders error:", error);
+    // Error logging disabled
     return NextResponse.json({ success: false, error: error?.message || "Failed" }, { status: 500 });
   }
 }

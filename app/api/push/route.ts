@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         p256dh: keys.p256dh,
         auth: keys.auth,
         userAgent: request.headers.get("user-agent") || null,
-      } as any,
+      },
     });
 
     return NextResponse.json({

@@ -111,7 +111,7 @@ export async function PUT(request: NextRequest) {
         notificationHour: notificationHour ?? 8,
         quietHoursStart: quietHoursStart ?? null,
         quietHoursEnd: quietHoursEnd ?? null,
-      } as any,
+      },
     });
 
     return NextResponse.json({
