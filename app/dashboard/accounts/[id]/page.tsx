@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { type DateFilter, toLocalDateString, getWeekStart, getMonthStart, parseLocalDate, addDays } from "@/lib/date-utils";
 
 interface Trip {
   id: number;
@@ -50,8 +51,6 @@ interface AccountInfo {
   userCount: number;
   createdAt: string;
 }
-
-type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
 function safeMoney(val: any): number {
   const n = Number(val) || 0;
@@ -103,7 +102,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
 
   const handleQuickFilter = (filter: DateFilter) => {
     const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    const todayStr = toLocalDateString(today);
     let nextStart = "";
     let nextEnd = "";
 
@@ -111,13 +110,10 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
       nextStart = todayStr;
       nextEnd = todayStr;
     } else if (filter === "week") {
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
-      nextStart = weekStart.toISOString().split("T")[0];
+      nextStart = toLocalDateString(getWeekStart(today));
       nextEnd = todayStr;
     } else if (filter === "month") {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      nextStart = monthStart.toISOString().split("T")[0];
+      nextStart = toLocalDateString(getMonthStart(today));
       nextEnd = todayStr;
     } else if (filter === "all") {
       nextStart = "";
@@ -200,16 +196,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
     const totalProfit = completedTrips.reduce((sum, t) => sum + safeMoney(t.profit), 0);
     const uniqueCustomers = new Set(trips.flatMap((t) => t.customers.map((c) => c.customer.id))).size;
 
-    const prevStart = startDate ? (() => {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() - 1);
-      return d.toISOString().split("T")[0];
-    })() : "";
-    const prevEnd = startDate ? (() => {
-      const d = new Date(endDate || startDate);
-      d.setDate(d.getDate() - 1);
-      return d.toISOString().split("T")[0];
-    })() : "";
+    const prevStart = startDate ? toLocalDateString(addDays(parseLocalDate(startDate), -1)) : "";
+    const prevEnd = startDate ? toLocalDateString(addDays(parseLocalDate(endDate || startDate), -1)) : "";
 
     const prevTrips = allTrips.filter((t) => {
       const d = t.departureTime?.split("T")[0] || "";

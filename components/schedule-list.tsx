@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Combobox } from "@/components/ui/combobox";
 import { statusColorClasses, useTripStatuses } from "@/lib/useTripStatuses";
+import { toLocalDateString, getWeekStart, getMonthStart } from "@/lib/date-utils";
 
 interface Trip {
   id: number;
@@ -174,7 +175,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showFilters, setShowFilters] = useState(true);
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = toLocalDateString(new Date());
 
   // View mode: "list" | "timeline"
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
@@ -659,7 +660,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
   const handleTodayFilter = () => {
     const today = new Date();
-    const dateStr = today.toISOString().split("T")[0];
+    const dateStr = toLocalDateString(today);
     setStartDate(dateStr);
     setEndDate(dateStr);
     setCurrentPage(1);
@@ -668,30 +669,21 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   // Handle "This Week" filter
   const handleThisWeekFilter = () => {
     const today = new Date();
-    const dayOfWeek = today.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
+    const monday = getWeekStart(today);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-
-    const startStr = monday.toISOString().split("T")[0];
-    const endStr = sunday.toISOString().split("T")[0];
-    setStartDate(startStr);
-    setEndDate(endStr);
+    setStartDate(toLocalDateString(monday));
+    setEndDate(toLocalDateString(sunday));
     setCurrentPage(1);
   };
 
   // Handle "This Month" filter
   const handleThisMonthFilter = () => {
     const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const firstDay = getMonthStart(today);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    const startStr = firstDay.toISOString().split("T")[0];
-    const endStr = lastDay.toISOString().split("T")[0];
-    setStartDate(startStr);
-    setEndDate(endStr);
+    setStartDate(toLocalDateString(firstDay));
+    setEndDate(toLocalDateString(lastDay));
     setCurrentPage(1);
   };
 
@@ -699,25 +691,17 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const isTodayActive = startDate === todayStr && endDate === todayStr;
   const isThisWeekActive = (() => {
     if (!startDate || !endDate) return false;
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
+    const monday = getWeekStart(new Date());
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const startStr = monday.toISOString().split("T")[0];
-    const endStr = sunday.toISOString().split("T")[0];
-    return startDate === startStr && endDate === endStr;
+    return startDate === toLocalDateString(monday) && endDate === toLocalDateString(sunday);
   })();
   const isThisMonthActive = (() => {
     if (!startDate || !endDate) return false;
     const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const firstDay = getMonthStart(today);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    const startStr = firstDay.toISOString().split("T")[0];
-    const endStr = lastDay.toISOString().split("T")[0];
-    return startDate === startStr && endDate === endStr;
+    return startDate === toLocalDateString(firstDay) && endDate === toLocalDateString(lastDay);
   })();
 
   // Sort and paginate
@@ -823,7 +807,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     setEditForm({
       departure: trip.departure,
       destination: trip.destination,
-      departureDate: deptDate.toISOString().split("T")[0],
+      departureDate: toLocalDateString(deptDate),
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: trip.price?.toString() || "",
       profit: trip.profit != null ? trip.profit.toString() : "",

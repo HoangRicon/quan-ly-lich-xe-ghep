@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Phone,
 } from "lucide-react";
+import { type DateFilter, getQuickDateRange, toLocalDateString, getWeekStart, getMonthStart } from "@/lib/date-utils";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useTripStatuses, statusColorClasses } from "@/lib/useTripStatuses";
-
-type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
 interface ZomStat {
   id: number;
@@ -122,30 +121,6 @@ const quickFilterLabel: Record<DateFilter, string> = {
   month: "Tháng này",
   custom: "Tùy chỉnh",
 };
-
-function getQuickDateRange(filter: DateFilter) {
-  const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
-
-  let start = "";
-  let end = "";
-
-  if (filter === "today") {
-    start = todayStr;
-    end = todayStr;
-  } else if (filter === "week") {
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay());
-    start = weekStart.toISOString().split("T")[0];
-    end = todayStr;
-  } else if (filter === "month") {
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    start = monthStart.toISOString().split("T")[0];
-    end = todayStr;
-  }
-
-  return { start, end };
-}
 
 export default function ZomStatistics() {
   const { statuses, map: statusMap } = useTripStatuses();
