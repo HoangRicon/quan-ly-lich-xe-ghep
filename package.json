@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate",
     "reset-password": "tsx scripts/reset-password.ts",
-    "gen:cron-secret": "tsx scripts/generate-cron-secret.ts"
+    "seed": "prisma db seed --skip-generate",
+    "seed:reset": "prisma db seed --skip-generate --force"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -52,5 +53,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "5.9.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

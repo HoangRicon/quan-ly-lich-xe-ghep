@@ -901,7 +901,7 @@ export default function ReportsPage() {
     <div className="page-wrapper">
       <Sidebar>
         <Header />
-        <div className="p-4 lg:p-6 pb-24 lg:pb-0 space-y-4">
+        <div className="p-4 lg:p-6 pb-[180px] lg:pb-0 space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-800">Báo cáo tổng hợp</h1>
@@ -943,7 +943,17 @@ export default function ReportsPage() {
             >
               Tổng quan
             </button>
-            
+            <button
+              onClick={() => setActiveTab("details")}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-1.5 ${
+                activeTab === "details"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Chi tiết</span>
+            </button>
           </div>
 
           {/* Quick Date Filter Buttons */}
@@ -1000,8 +1010,8 @@ export default function ReportsPage() {
             </button>
           </div>
 
-          {/* Filter Bar */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          {/* Filter Bar - Desktop only */}
+          <div className="hidden lg:block bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-500" />
@@ -1025,7 +1035,6 @@ export default function ReportsPage() {
             {filtersOpen ? (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-                  {/* Date Range */}
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Từ ngày</label>
                     <div className="relative">
@@ -1058,7 +1067,6 @@ export default function ReportsPage() {
                     </div>
                   </div>
 
-                  {/* Driver Filter */}
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Zom</label>
                     <div className="relative">
@@ -1078,7 +1086,6 @@ export default function ReportsPage() {
                     </div>
                   </div>
 
-                  {/* Status Filter */}
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Trạng thái cuốc</label>
                     <div className="relative">
@@ -1098,10 +1105,10 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2 pt-2">
                   <button
                     onClick={clearAllFilters}
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
+                    className="w-full sm:w-auto flex items-center justify-center sm:justify-start gap-1 px-3 py-2 sm:py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     Xóa lọc
@@ -1117,7 +1124,7 @@ export default function ReportsPage() {
                       type="button"
                       onClick={applyDraftFilters}
                       disabled={!isDraftDirty || draftDateRangeInvalid}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1 px-3 py-2 sm:py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Filter className="w-3.5 h-3.5" />
                       Áp dụng
@@ -1136,13 +1143,11 @@ export default function ReportsPage() {
                         : `Đến ${formatDate(endDate)}`}
                   </span>
                 )}
-
                 {selectedDriverName && (
                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                     Zom: {selectedDriverName}
                   </span>
                 )}
-
                 {statusFilter !== "all" && (
                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                     Trạng thái:{" "}
@@ -1157,7 +1162,6 @@ export default function ReportsPage() {
                             : statusFilter}
                   </span>
                 )}
-
                 {(!startDate && !endDate && !selectedDriverName && statusFilter === "all") ? (
                   <span className="text-xs text-slate-500">Chưa có bộ lọc</span>
                 ) : (
@@ -1320,8 +1324,8 @@ export default function ReportsPage() {
               </div>
 
               {/* Charts & Top insights */}
-              <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4">
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="md:col-span-2 lg:col-span-2 bg-white rounded-xl border border-slate-200 p-4">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">Xu hướng doanh thu</p>
@@ -1329,7 +1333,7 @@ export default function ReportsPage() {
                         Hoàn thành vs dự kiến (gán Zom, chưa hoàn thành)
                       </p>
                     </div>
-                    <div className="flex items-center gap-4 text-[11px] text-slate-500 whitespace-nowrap">
+                    <div className="flex items-center gap-4 text-xs text-slate-500 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-green-600" />
                         Hoàn thành
@@ -1386,7 +1390,7 @@ export default function ReportsPage() {
                                     style={{ height: forecastH }}
                                   />
                                 </div>
-                                <div className="text-[11px] text-slate-500 mt-2 truncate">
+                                <div className="text-xs text-slate-500 mt-2 truncate">
                                   {p.label}
                                 </div>
                               </div>
@@ -1406,7 +1410,7 @@ export default function ReportsPage() {
                         Chỉ tính cuốc đã hoàn thành
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-2 text-xs text-slate-500 whitespace-nowrap">
                       <span className="w-2 h-2 rounded-full bg-emerald-600" />
                       Lợi nhuận
                     </span>
@@ -1447,7 +1451,7 @@ export default function ReportsPage() {
                                     style={{ height: h }}
                                   />
                                 </div>
-                                <div className="text-[11px] text-slate-500 mt-2 truncate">
+                                <div className="text-xs text-slate-500 mt-2 truncate">
                                   {p.label}
                                 </div>
                               </div>
@@ -1460,7 +1464,7 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
                   <p className="text-sm font-semibold text-slate-800">Cơ cấu trạng thái</p>
 
@@ -1569,7 +1573,7 @@ export default function ReportsPage() {
                                             style={{ width: `${widthPct}%` }}
                                           />
                                         </div>
-                                        <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                        <span className="text-xs text-slate-500 whitespace-nowrap">
                                           {d.completedTrips}/{d.totalTrips}
                                         </span>
                                       </div>
@@ -1671,7 +1675,7 @@ export default function ReportsPage() {
                                           style={{ width: `${widthPct}%` }}
                                         />
                                       </div>
-                                      <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                      <span className="text-xs text-slate-500 whitespace-nowrap">
                                         {d.completedTrips}/{d.totalTrips}
                                       </span>
                                     </div>
@@ -1809,16 +1813,16 @@ export default function ReportsPage() {
                                 Giá: {formatCurrency(trip.price || 0)}
                               </span>
                               {trip.pointsEarned != null ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700 whitespace-nowrap">
                                   {trip.pointsEarned}đ
                                 </span>
                               ) : null}
                               {trip.profit != null ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 whitespace-nowrap">
                                   +{formatCurrency(trip.profit || 0)}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 whitespace-nowrap">
                                   LN —
                                 </span>
                               )}
@@ -2116,21 +2120,21 @@ export default function ReportsPage() {
                             <button
                               type="button"
                               onClick={() => openCustomerTripsModal(c)}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-blue-600 text-white whitespace-nowrap hover:bg-blue-700"
+                              className="inline-flex items-center px-3 py-2 rounded-full text-xs font-medium bg-blue-600 text-white whitespace-nowrap hover:bg-blue-700 min-h-[36px]"
                             >
                               Chi tiết cuốc
                             </button>
                           </div>
 
                           <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-medium">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
                               Cuốc: <span className="ml-1 font-bold text-slate-800">{c.totalTrips}</span>
                             </span>
-                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
                               DT: <span className="ml-1 font-bold text-emerald-800">{formatCurrency(c.totalRevenue)}</span>
                             </span>
                             <span
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium ${
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 c.totalProfit >= 0
                                   ? "bg-green-50 text-green-700"
                                   : "bg-red-50 text-red-700"
@@ -2140,7 +2144,7 @@ export default function ReportsPage() {
                             </span>
                           </div>
 
-                          <div className="mt-2 text-[11px] text-slate-500">
+                          <div className="mt-2 text-xs text-slate-500">
                             Gần nhất: {formatDateTimeShort(c.lastTripDate)}
                           </div>
                         </div>
@@ -2235,7 +2239,7 @@ export default function ReportsPage() {
                                 <button
                                   type="button"
                                   onClick={() => openCustomerTripsModal(c)}
-                                  className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700"
+                                  className="inline-flex items-center px-3 py-2 rounded-full text-xs font-medium bg-blue-600 text-white hover:bg-blue-700"
                                 >
                                   Chi tiết cuốc
                                 </button>
@@ -2305,8 +2309,184 @@ export default function ReportsPage() {
             </>
           )}
         </div>
+
       </Sidebar>
+
       <BottomNav />
+
+      {/* Filter Bar - Mobile only: sticky at bottom of scroll area */}
+      <div
+        className="
+          lg:hidden
+          sticky bottom-[60px]
+          bg-white rounded-t-2xl border-t border-slate-200 p-4 space-y-3
+          shadow-[0_-4px_20px_rgba(0,0,0,0.08)]
+          z-30
+        "
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <span className="text-sm font-medium text-slate-700">Bộ lọc chi tiết</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            className="flex items-center gap-1 px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 min-h-[36px]"
+          >
+            <ChevronDown
+              className={`w-4 h-4 text-slate-500 transition-transform ${
+                filtersOpen ? "rotate-180" : "rotate-0"
+              }`}
+            />
+            {filtersOpen ? "Thu gọn" : "Mở rộng"}
+          </button>
+        </div>
+
+        {filtersOpen ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-500 mb-1 block">Từ ngày</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="date"
+                    value={draftStartDate}
+                    onChange={(e) => {
+                      setDraftStartDate(e.target.value);
+                      setDraftDateFilter("custom");
+                    }}
+                    className="w-full pl-10 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-500 mb-1 block">Đến ngày</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="date"
+                    value={draftEndDate}
+                    onChange={(e) => {
+                      setDraftEndDate(e.target.value);
+                      setDraftDateFilter("custom");
+                    }}
+                    className="w-full pl-10 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-500 mb-1 block">Zom</label>
+                <div className="relative">
+                  <select
+                    value={draftSelectedDriver}
+                    onChange={(e) => setDraftSelectedDriver(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none appearance-none bg-white"
+                  >
+                    <option value="">Tất cả</option>
+                    {drivers.map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.fullName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-500 mb-1 block">Trạng thái cuốc</label>
+                <div className="relative">
+                  <select
+                    value={draftStatusFilter}
+                    onChange={(e) => setDraftStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none appearance-none bg-white"
+                  >
+                    <option value="all">Tất cả</option>
+                    <option value="scheduled">Chờ</option>
+                    <option value="in_progress">Đang chạy</option>
+                    <option value="completed">Hoàn thành</option>
+                    <option value="cancelled">Hủy</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={clearAllFilters}
+                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 min-h-[44px]"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Xóa lọc
+                </button>
+
+                <button
+                  type="button"
+                  onClick={applyDraftFilters}
+                  disabled={!isDraftDirty || draftDateRangeInvalid}
+                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  Áp dụng
+                </button>
+              </div>
+              {draftDateRangeInvalid && (
+                <span className="text-xs text-red-600 font-medium block text-center">
+                  Từ ngày không được lớn hơn đến ngày
+                </span>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {(startDate || endDate) && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                {startDate && endDate
+                  ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+                  : startDate
+                    ? `Từ ${formatDate(startDate)}`
+                    : `Đến ${formatDate(endDate)}`}
+              </span>
+            )}
+            {selectedDriverName && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                Zom: {selectedDriverName}
+              </span>
+            )}
+            {statusFilter !== "all" && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                Trạng thái:{" "}
+                {statusFilter === "scheduled"
+                  ? "Chờ"
+                  : statusFilter === "in_progress"
+                    ? "Đang chạy"
+                    : statusFilter === "completed"
+                      ? "Hoàn thành"
+                      : statusFilter === "cancelled"
+                        ? "Hủy"
+                        : statusFilter}
+              </span>
+            )}
+            {(!startDate && !endDate && !selectedDriverName && statusFilter === "all") ? (
+              <span className="text-xs text-slate-500">Chưa có bộ lọc</span>
+            ) : (
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Xóa
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Trip Detail Modal */}
       {selectedTrip && (
@@ -2351,16 +2531,16 @@ export default function ReportsPage() {
                 <p className="text-xl font-bold text-slate-800">{formatCurrency(selectedTrip.price || 0)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {selectedTrip.pointsEarned != null ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
                       {selectedTrip.pointsEarned}đ
                     </span>
                   ) : null}
                   {selectedTrip.profit != null ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
                       +{formatCurrency(selectedTrip.profit || 0)}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
                       LN —
                     </span>
                   )}
