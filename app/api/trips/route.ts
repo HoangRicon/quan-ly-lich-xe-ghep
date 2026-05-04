@@ -51,32 +51,32 @@ export async function GET(request: NextRequest) {
     }
 
     if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const [y, m, d] = date.split("-").map(Number);
+      const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
       where.departureTime = {
         gte: startOfDay,
         lte: endOfDay,
       };
     } else if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const [sY, sM, sD] = startDate.split("-").map(Number);
+      const [eY, eM, eD] = endDate.split("-").map(Number);
+      const start = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
+      const end = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
       where.departureTime = {
         gte: start,
         lte: end,
       };
     } else if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
+      // Parse YYYY-MM-DD as local date: split components and create Date in local timezone
+      const [sY, sM, sD] = startDate.split("-").map(Number);
+      const start = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
       where.departureTime = {
         gte: start,
       };
     } else if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+      const [eY, eM, eD] = endDate.split("-").map(Number);
+      const end = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
       where.departureTime = {
         lte: end,
       };

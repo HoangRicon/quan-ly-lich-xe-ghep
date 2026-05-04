@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Calendar,
   Download,
@@ -204,13 +204,16 @@ export default function ReportsPage() {
       nextEnd = "";
     }
 
-    // Quick filter = áp dụng ngay, chỉ cập nhật applied state, không cập nhật draft
+    // Quick filter: sync cả draft và applied state để tránh mismatch trên desktop
+    setDraftDateFilter(filter);
+    setDraftStartDate(nextStart);
+    setDraftEndDate(nextEnd);
     setDateFilter(filter);
     setStartDate(nextStart);
     setEndDate(nextEnd);
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const baseParams = new URLSearchParams();
@@ -226,7 +229,6 @@ export default function ReportsPage() {
 
       const [tripsRes, allTripsRes, driversRes] = await Promise.all([
         fetch(`/api/trips?${tripsQuery ? `${tripsQuery}&` : ""}limit=500`),
-        // All trips (không giới hạn theo start/end) để tính so sánh "kỳ trước" chính xác hơn theo driver/status
         fetch(`/api/trips?${allTripsQuery ? `${allTripsQuery}&` : ""}limit=5000`),
         fetch("/api/drivers"),
       ]);
@@ -245,12 +247,11 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDriver, statusFilter, startDate, endDate]);
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate, selectedDriver, statusFilter]);
+  }, [fetchData]);
 
   useEffect(() => {
     // Mặc định mở lọc trên màn hình lớn, đóng trên mobile để gọn hơn

@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+
+## Quy tắc canh gác Spec-First
+
+Bất kỳ tính năng mới, sửa bug, hay refactor, phải hoàn thành quy trình đặc tả SDD và được người dùng xác nhận rõ ràng trước, mới được viết code.
+
+**Logic phát hiện**:
+- Nhận diện task viết code → Kiểm tra đã có Spec được người dùng xác nhận chưa
+- Chưa có Spec → Hướng dẫn nhập `/super-spec` để bắt đầu quy trình đặc tả
+- Người dùng muốn bỏ qua → Từ chối lịch sự: "Theo quy tắc spec-first, cần hoàn thành quy trình đặc tả trước. Nhập /super-spec để bắt đầu."
+
+**Chọn chế độ**: Spec-Kit hoặc OpenSpec (mặc định OpenSpec), đọc file `.spec-mode` ở thư mục gốc để xác định.
+
+**Quy trình đầy đủ do Skill `spec-first-superpowers` điều khiển, quy tắc này chỉ đóng vai trò canh gác luôn áp dụng.**

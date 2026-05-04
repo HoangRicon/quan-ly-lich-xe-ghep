@@ -38,10 +38,12 @@ export async function GET(request: NextRequest) {
       where.status = status;
     }
     if (startDate) {
-      where.departureTime = { ...where.departureTime, gte: `${startDate}T00:00:00Z` };
+      const [y, m, d] = startDate.split("-").map(Number);
+      where.departureTime = { ...where.departureTime, gte: new Date(y, m - 1, d, 0, 0, 0, 0) };
     }
     if (endDate) {
-      where.departureTime = { ...where.departureTime, lte: `${endDate}T23:59:59Z` };
+      const [y, m, d] = endDate.split("-").map(Number);
+      where.departureTime = { ...where.departureTime, lte: new Date(y, m - 1, d, 23, 59, 59, 999) };
     }
 
     const trips = await db.trip.findMany({
