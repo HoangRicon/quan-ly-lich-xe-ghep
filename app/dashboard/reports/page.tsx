@@ -310,7 +310,7 @@ export default function ReportsPage() {
       return sum + (p > 0 && p < 100000000 ? p : 0);
     }, 0);
 
-    const totalTrips = trips.length;
+    const totalTrips = trips.filter((t) => t.status !== "cancelled").length;
     const uniqueCustomers = new Set(
       trips
         .flatMap((t) => (t.customers || []).map((c) => c.customer?.id))
@@ -344,7 +344,7 @@ export default function ReportsPage() {
           const price = Number(t.price) || 0;
           return sum + (price > 0 && price < 100000000 ? price : 0);
         }, 0);
-      prevPeriodTrips = prevTrips.length;
+      prevPeriodTrips = prevTrips.filter((t) => t.status !== "cancelled").length;
     }
 
     const revenueChange =
