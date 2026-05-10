@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Search, Plus, MapPin, Clock, Phone, MessageCircle,
@@ -181,7 +181,15 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
 
   // Pagination & Sorting
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("schedule-page");
+      const n = stored ? parseInt(stored, 10) : NaN;
+      return !isNaN(n) && n >= 1 ? n : 1;
+    }
+    return 1;
+  });
+  const [totalCount, setTotalCount] = useState(0);
   const [sortField, setSortField] = useState<SortField>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(SCHEDULE_SORT_FIELD_KEY);
@@ -204,6 +212,13 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     }
     return 10;
   });
+
+  // Persist pagination state
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("schedule-page", String(currentPage));
+    localStorage.setItem("schedule-limit", String(itemsPerPage));
+  }, [currentPage, itemsPerPage]);
 
   // Persist sort state for all sort entry points (dropdown, table header, quick actions).
   useEffect(() => {
@@ -354,9 +369,37 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
+  const fetchTrips = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", String(itemsPerPage));
+      params.set("page", String(currentPage));
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await fetch(`/api/trips?${params}`, { cache: "no-store" });
+      const data = await res.json();
+      if (data.success) {
+        setTrips(data.data || []);
+        setTotalCount(data.pagination?.total || 0);
+      }
+    } catch (error) {
+      console.error("Fetch trips error:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, startDate, endDate, currentPage, itemsPerPage]);
+
   useEffect(() => {
-    fetchTrips();
+    setCurrentPage(1);
   }, [statusFilter, startDate, endDate]);
+
+  useEffect(() => {
+    // currentPage is intentionally NOT in fetchTrips deps — we call it with current ref
+    fetchTrips();
+  }, [fetchTrips, currentPage]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -389,36 +432,6 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     document.addEventListener("mousedown", handleClickOutsideSheet);
     return () => document.removeEventListener("mousedown", handleClickOutsideSheet);
   }, [showEditSheet]);
-
-  const fetchTrips = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      // Always request a large limit from server to avoid server-side pagination
-      // clipping results when switching between filters. Client handles pagination.
-      params.set("limit", "5000");
-      if (statusFilter !== "all") params.set("status", statusFilter);
-
-      // Handle date filter: single date or date range (startDate,endDate)
-      // If only startDate: filter from startDate to infinity
-      // If only endDate: filter from beginning to endDate
-      // If both: filter range
-      if (startDate || endDate) {
-        if (startDate) params.set("startDate", startDate);
-        if (endDate) params.set("endDate", endDate);
-      }
-
-      const res = await fetch(`/api/trips?${params}`, { cache: "no-store" });
-      const data = await res.json();
-      if (data.success) {
-        setTrips(data.data);
-      }
-    } catch (error) {
-      console.error("Fetch trips error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
     const fetchDrivers = async () => {
     setLoadingDrivers(true);
@@ -747,11 +760,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     }
   });
 
-  const totalPages = Math.ceil(sortedTrips.length / itemsPerPage);
-  const paginatedTrips = sortedTrips.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+  const paginatedTrips = sortedTrips;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -941,7 +951,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
         {/* Expanded Filters */}
         {showFilters && (
           <>
-            {/* Filters Row 1: Date + Sort + Limit */}
+            {/* Filters Row 1: Date + Sort + Limit + Record count */}
             <div className="flex flex-wrap items-center gap-1 mt-2">
               {/* Date quick filters */}
               <button
@@ -1062,6 +1072,46 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 <option value="20">20</option>
                 <option value="50">50</option>
               </select>
+
+              {/* Pagination + Limit — iPhone-friendly row */}
+              <div className="flex items-center gap-2 ml-auto">
+                {totalCount > 0 && (
+                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                    {currentPage}/{totalPages}
+                  </span>
+                )}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-600" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-600" />
+                </button>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    setItemsPerPage(n);
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500 w-14"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+                <span className="text-xs text-slate-400 whitespace-nowrap">
+                  {totalCount > 0 ? `${totalCount} cuốc` : "cuốc"}
+                </span>
+              </div>
             </div>
           </>
         )}
@@ -1212,36 +1262,6 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           </div>
         )}
       </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 px-1">
-          <div className="text-xs text-slate-500">
-            {sortedTrips.length > 0
-              ? `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, sortedTrips.length)} / ${sortedTrips.length}`
-              : "0 kết quả"}
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage <= 1}
-              className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
-            >
-              <ChevronLeft className="w-4 h-4 text-slate-600" />
-            </button>
-            <span className="text-xs text-slate-600 min-w-[3rem] text-center">
-              {currentPage}/{totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage >= totalPages}
-              className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
-            >
-              <ChevronRight className="w-4 h-4 text-slate-600" />
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Desktop DataTable View */}

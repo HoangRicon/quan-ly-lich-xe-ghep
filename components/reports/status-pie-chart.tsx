@@ -21,11 +21,33 @@ const STATUS_CONFIG: Record<
   { label: string; color: string }
 > = {
   scheduled: { label: "Chưa gán", color: "#f97316" },
-  in_progress: { label: "Đang chạy", color: "#3b82f6" },
+  /** Gộp confirmed + running + in_progress */
+  assigned: { label: "Đã gán", color: "#6366f1" },
+  confirmed: { label: "Đã gán", color: "#6366f1" },
   completed: { label: "Hoàn thành", color: "#22c55e" },
   cancelled: { label: "Đã hủy", color: "#ef4444" },
   unknown: { label: "Không xác định", color: "#94a3b8" },
 };
+
+/** Gộp các trạng thái coi như đã gán (bỏ lát riêng “đang chạy” trên biểu đồ) */
+function mergeAssignedRevenue(input: Record<string, number>): Record<string, number> {
+  const toAssigned = new Set(["confirmed", "running", "in_progress"]);
+  const out: Record<string, number> = {};
+  let assignedSum = 0;
+  for (const [key, raw] of Object.entries(input)) {
+    const value = Number(raw) || 0;
+    if (value <= 0) continue;
+    if (toAssigned.has(key)) {
+      assignedSum += value;
+    } else {
+      out[key] = (out[key] ?? 0) + value;
+    }
+  }
+  if (assignedSum > 0) {
+    out.assigned = (out.assigned ?? 0) + assignedSum;
+  }
+  return out;
+}
 
 function CustomTooltip({
   active,
@@ -90,10 +112,6 @@ export function StatusPieChart({
   totalTrips,
   loading,
 }: StatusPieChartProps) {
-  const hasData =
-    revenueByStatus &&
-    Object.values(revenueByStatus).some((v) => v > 0);
-
   if (loading) {
     return (
       <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
@@ -107,6 +125,9 @@ export function StatusPieChart({
       </div>
     );
   }
+
+  const merged = mergeAssignedRevenue(revenueByStatus || {});
+  const hasData = Object.values(merged).some((v) => v > 0);
 
   if (!hasData) {
     return (
@@ -124,9 +145,9 @@ export function StatusPieChart({
     );
   }
 
-  const total = Object.values(revenueByStatus).reduce((sum, v) => sum + v, 0);
+  const total = Object.values(merged).reduce((sum, v) => sum + v, 0);
 
-  const chartData = Object.entries(revenueByStatus)
+  const chartData = Object.entries(merged)
     .filter(([, value]) => value > 0)
     .map(([name, value]) => ({
       name,

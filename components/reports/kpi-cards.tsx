@@ -12,7 +12,6 @@ interface KpiData {
   completedTrips: number;
   assignedTrips: number;
   unassignedTrips: number;
-  inProgressTrips: number;
   cancelledTrips: number;
   avgTripValue: number;
   avgProfitPerTrip: number;

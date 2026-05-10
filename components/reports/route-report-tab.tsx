@@ -11,7 +11,7 @@ interface RouteStats {
   destination: string;
   totalTrips: number;
   completedTrips: number;
-  inProgressTrips: number;
+  assignedTrips: number;
   unassignedTrips: number;
   cancelledTrips: number;
   totalRevenue: number;
@@ -109,7 +109,7 @@ export function RouteReportTab({ startDate, endDate }: RouteReportTabProps) {
         "Tuyến đường": r.route,
         "Tổng cuốc": r.totalTrips,
         "Hoàn thành": r.completedTrips,
-        "Đang chạy": r.inProgressTrips,
+        "Đã gán": r.assignedTrips,
         "Chưa gán": r.unassignedTrips,
         "Đã hủy": r.cancelledTrips,
         "Doanh thu (đ)": r.totalRevenue,
@@ -160,10 +160,10 @@ export function RouteReportTab({ startDate, endDate }: RouteReportTabProps) {
       className: "text-center",
     },
     {
-      key: "inProgressTrips",
-      label: "Đang chạy",
+      key: "assignedTrips",
+      label: "Đã gán",
       sortable: true,
-      render: (item: RouteStats) => <span className="text-blue-600">{item.inProgressTrips}</span>,
+      render: (item: RouteStats) => <span className="text-sky-600 font-medium">{item.assignedTrips}</span>,
       className: "text-center",
     },
     {
@@ -202,7 +202,7 @@ export function RouteReportTab({ startDate, endDate }: RouteReportTabProps) {
     [
       { label: "Tổng cuốc", value: String(item.totalTrips), color: "text-slate-800" },
       { label: "Hoàn thành", value: String(item.completedTrips), color: "text-green-600" },
-      { label: "Đang chạy", value: String(item.inProgressTrips), color: "text-blue-600" },
+      { label: "Đã gán", value: String(item.assignedTrips), color: "text-sky-600" },
     ],
     [
       { label: "Chưa gán", value: String(item.unassignedTrips), color: "text-orange-500" },

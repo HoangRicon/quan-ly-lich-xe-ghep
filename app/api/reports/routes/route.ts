@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
+import { tripStatusBucket } from "@/lib/trip-status-buckets";
 
 function parseDateParams(startDate?: string | null, endDate?: string | null) {
   const range: { gte?: Date; lte?: Date } = {};
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
         departure: true,
         destination: true,
         status: true,
+        driverId: true,
         price: true,
         profit: true,
         totalSeats: true,
@@ -64,7 +66,7 @@ export async function GET(request: NextRequest) {
         destination: string;
         totalTrips: number;
         completedTrips: number;
-        inProgressTrips: number;
+        assignedTrips: number;
         unassignedTrips: number;
         cancelledTrips: number;
         totalRevenue: number;
@@ -83,7 +85,7 @@ export async function GET(request: NextRequest) {
           destination: trip.destination,
           totalTrips: 0,
           completedTrips: 0,
-          inProgressTrips: 0,
+          assignedTrips: 0,
           unassignedTrips: 0,
           cancelledTrips: 0,
           totalRevenue: 0,
@@ -93,14 +95,17 @@ export async function GET(request: NextRequest) {
         routeStatsMap.set(routeKey, stats);
       }
       stats.totalTrips++;
-      stats.totalRevenue += Number(trip.price);
-      stats.totalProfit += Number(trip.profit ?? 0);
       stats.totalSeats += trip.totalSeats || 0;
+      if (trip.status === "completed") {
+        stats.totalRevenue += Number(trip.price);
+        stats.totalProfit += Number(trip.profit ?? 0);
+      }
 
-      if (trip.status === "completed") stats.completedTrips++;
-      else if (trip.status === "scheduled") stats.unassignedTrips++;
-      else if (trip.status === "in_progress") stats.inProgressTrips++;
-      else if (trip.status === "cancelled") stats.cancelledTrips++;
+      const b = tripStatusBucket(trip);
+      if (b === "completed") stats.completedTrips++;
+      else if (b === "unassigned") stats.unassignedTrips++;
+      else if (b === "cancelled") stats.cancelledTrips++;
+      else if (b === "assigned") stats.assignedTrips++;
     }
 
     let routeStats = Array.from(routeStatsMap.values()).map((s) => ({
@@ -109,13 +114,13 @@ export async function GET(request: NextRequest) {
       destination: s.destination,
       totalTrips: s.totalTrips,
       completedTrips: s.completedTrips,
-      inProgressTrips: s.inProgressTrips,
+      assignedTrips: s.assignedTrips,
       unassignedTrips: s.unassignedTrips,
       cancelledTrips: s.cancelledTrips,
       totalRevenue: s.totalRevenue,
       totalProfit: s.totalProfit,
-      avgTripValue: s.totalTrips > 0 ? s.totalRevenue / s.totalTrips : 0,
-      avgProfit: s.totalTrips > 0 ? s.totalProfit / s.totalTrips : 0,
+      avgTripValue: s.completedTrips > 0 ? s.totalRevenue / s.completedTrips : 0,
+      avgProfit: s.completedTrips > 0 ? s.totalProfit / s.completedTrips : 0,
       avgSeats: s.totalTrips > 0 ? Math.round((s.totalSeats / s.totalTrips) * 10) / 10 : 0,
     }));
 
@@ -135,6 +140,8 @@ export async function GET(request: NextRequest) {
       totalRevenue: "totalRevenue",
       totalTrips: "totalTrips",
       totalProfit: "totalProfit",
+      completedTrips: "completedTrips",
+      assignedTrips: "assignedTrips",
       route: "route",
     };
     const sortField = sortFieldMap[sortBy] || "totalTrips";

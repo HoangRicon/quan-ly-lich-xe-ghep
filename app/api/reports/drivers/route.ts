@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
+import { tripStatusBucket } from "@/lib/trip-status-buckets";
 
 function parseDateParams(startDate?: string | null, endDate?: string | null) {
   const range: { gte?: Date; lte?: Date } = {};
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
         totalTrips: number;
         completedTrips: number;
         unassignedTrips: number;
-        inProgressTrips: number;
+        assignedTrips: number;
         cancelledTrips: number;
         totalRevenue: number;
         totalProfit: number;
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
         totalTrips: 0,
         completedTrips: 0,
         unassignedTrips: 0,
-        inProgressTrips: 0,
+        assignedTrips: 0,
         cancelledTrips: 0,
         totalRevenue: 0,
         totalProfit: 0,
@@ -116,12 +117,15 @@ export async function GET(request: NextRequest) {
       const stats = driverStatsMap.get(trip.driverId);
       if (!stats) continue;
       stats.totalTrips++;
-      stats.totalRevenue += Number(trip.price);
-      stats.totalProfit += Number(trip.profit ?? 0);
-      if (trip.status === "completed") stats.completedTrips++;
-      else if (trip.status === "scheduled") stats.unassignedTrips++;
-      else if (trip.status === "in_progress") stats.inProgressTrips++;
-      else if (trip.status === "cancelled") stats.cancelledTrips++;
+      if (trip.status === "completed") {
+        stats.totalRevenue += Number(trip.price);
+        stats.totalProfit += Number(trip.profit ?? 0);
+      }
+      const b = tripStatusBucket(trip);
+      if (b === "completed") stats.completedTrips++;
+      else if (b === "unassigned") stats.unassignedTrips++;
+      else if (b === "cancelled") stats.cancelledTrips++;
+      else if (b === "assigned") stats.assignedTrips++;
     }
 
     // Build driver stats array
@@ -134,12 +138,14 @@ export async function GET(request: NextRequest) {
         totalTrips: stats.totalTrips,
         completedTrips: stats.completedTrips,
         unassignedTrips: stats.unassignedTrips,
-        inProgressTrips: stats.inProgressTrips,
+        assignedTrips: stats.assignedTrips,
         cancelledTrips: stats.cancelledTrips,
         totalRevenue: stats.totalRevenue,
         totalProfit: stats.totalProfit,
         avgTripValue:
-          stats.totalTrips > 0 ? stats.totalRevenue / stats.totalTrips : 0,
+          stats.completedTrips > 0
+            ? stats.totalRevenue / stats.completedTrips
+            : 0,
       };
     });
 
@@ -149,6 +155,7 @@ export async function GET(request: NextRequest) {
       totalTrips: "totalTrips",
       totalProfit: "totalProfit",
       completedTrips: "completedTrips",
+      assignedTrips: "assignedTrips",
       name: "fullName",
     };
     const sortField = sortFieldMap[sortBy] || "totalTrips";

@@ -132,7 +132,7 @@ export function ReportFilters({
   const statusOptions = [
     { value: "all", label: "Tất cả" },
     { value: "scheduled", label: "Chưa gán" },
-    { value: "in_progress", label: "Đang chạy" },
+    { value: "confirmed", label: "Đã gán" },
     { value: "completed", label: "Hoàn thành" },
     { value: "cancelled", label: "Đã hủy" },
   ];

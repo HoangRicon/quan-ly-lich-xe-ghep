@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
+import { tripStatusBucket } from "@/lib/trip-status-buckets";
 
 function parseDateParams(startDate?: string | null, endDate?: string | null) {
   const range: { gte?: Date; lte?: Date } = {};
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
     const prevTrips = await db.trip.findMany({
       where: prevWhere,
       select: {
+        status: true,
         price: true,
         profit: true,
       },
@@ -85,24 +87,29 @@ export async function GET(request: NextRequest) {
 
     // KPIs
     const totalTrips = trips.length;
-    const totalRevenue = trips.reduce((sum, t) => sum + Number(t.price), 0);
-    const totalProfit = trips.reduce((sum, t) => sum + Number(t.profit ?? 0), 0);
+    const completedOnly = trips.filter((t) => t.status === "completed");
+    const totalRevenue = completedOnly.reduce((sum, t) => sum + Number(t.price), 0);
+    const totalProfit = completedOnly.reduce((sum, t) => sum + Number(t.profit ?? 0), 0);
 
-    const assignedTrips = trips.filter(
-      (t) => t.status === "scheduled" && t.driverId
-    ).length;
-    const unassignedTrips = trips.filter(
-      (t) => t.status === "scheduled" && !t.driverId
-    ).length;
-    const completedTrips = trips.filter((t) => t.status === "completed").length;
-    const inProgressTrips = trips.filter((t) => t.status === "in_progress").length;
-    const cancelledTrips = trips.filter((t) => t.status === "cancelled").length;
+    let assignedTrips = 0;
+    let unassignedTrips = 0;
+    let cancelledTrips = 0;
+    for (const t of trips) {
+      const b = tripStatusBucket(t);
+      if (b === "assigned") assignedTrips++;
+      else if (b === "unassigned") unassignedTrips++;
+      else if (b === "cancelled") cancelledTrips++;
+    }
+    const completedTrips = completedOnly.length;
 
-    const avgTripValue = totalTrips > 0 ? totalRevenue / totalTrips : 0;
-    const avgProfitPerTrip = totalTrips > 0 ? totalProfit / totalTrips : 0;
+    const avgTripValue =
+      completedTrips > 0 ? totalRevenue / completedTrips : 0;
+    const avgProfitPerTrip =
+      completedTrips > 0 ? totalProfit / completedTrips : 0;
 
-    const prevRevenue = prevTrips.reduce((sum, t) => sum + Number(t.price), 0);
-    const prevProfit = prevTrips.reduce((sum, t) => sum + Number(t.profit ?? 0), 0);
+    const prevCompleted = prevTrips.filter((t) => t.status === "completed");
+    const prevRevenue = prevCompleted.reduce((sum, t) => sum + Number(t.price), 0);
+    const prevProfit = prevCompleted.reduce((sum, t) => sum + Number(t.profit ?? 0), 0);
     const prevTripsCount = prevTrips.length;
 
     const revenueChange =
@@ -130,6 +137,7 @@ export async function GET(request: NextRequest) {
       { revenue: number; profit: number; trips: number }
     >();
     for (const trip of trips) {
+      if (trip.status !== "completed") continue;
       const dateStr = new Date(trip.departureTime)
         .toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
       const existing = revenueByDayMap.get(dateStr) || {
@@ -153,6 +161,7 @@ export async function GET(request: NextRequest) {
       { revenue: number; profit: number; trips: number }
     >();
     for (const trip of trips) {
+      if (trip.status !== "completed") continue;
       const monthStr = new Date(trip.departureTime)
         .toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" })
         .slice(0, 7);
@@ -188,7 +197,6 @@ export async function GET(request: NextRequest) {
         completedTrips,
         assignedTrips,
         unassignedTrips,
-        inProgressTrips,
         cancelledTrips,
         avgTripValue,
         avgProfitPerTrip,

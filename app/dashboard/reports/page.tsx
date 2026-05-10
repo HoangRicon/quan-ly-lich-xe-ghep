@@ -18,7 +18,6 @@ interface KpiData {
   completedTrips: number;
   unassignedTrips: number;
   assignedTrips: number;
-  inProgressTrips: number;
   cancelledTrips: number;
   avgTripValue: number;
   avgProfitPerTrip: number;
@@ -93,7 +92,7 @@ export default function ReportsPage() {
 
       const res = await fetch(`/api/reports/stats?${params.toString()}`);
       const json = await res.json();
-      if (json.success) setKpiData({ ...json.data, assignedTrips: json.data.inProgressTrips ?? 0 });
+      if (json.success) setKpiData(json.data);
     } catch (err) {
       console.error("Failed to fetch stats:", err);
     } finally {

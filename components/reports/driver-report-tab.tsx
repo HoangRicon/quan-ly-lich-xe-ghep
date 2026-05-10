@@ -12,7 +12,7 @@ interface DriverStats {
   totalTrips: number;
   completedTrips: number;
   unassignedTrips: number;
-  inProgressTrips: number;
+  assignedTrips: number;
   cancelledTrips: number;
   totalRevenue: number;
   totalProfit: number;
@@ -129,7 +129,7 @@ export function DriverReportTab({
         "SĐT": d.phone,
         "Tổng cuốc": d.totalTrips,
         "Hoàn thành": d.completedTrips,
-        "Đang chạy": d.inProgressTrips,
+        "Đã gán": d.assignedTrips,
         "Chưa gán": d.unassignedTrips,
         "Đã hủy": d.cancelledTrips,
         "Doanh thu (đ)": d.totalRevenue,
@@ -179,10 +179,10 @@ export function DriverReportTab({
       className: "text-center",
     },
     {
-      key: "inProgressTrips",
-      label: "Đang chạy",
+      key: "assignedTrips",
+      label: "Đã gán",
       sortable: true,
-      render: (item: DriverStats) => <span className="text-blue-600">{item.inProgressTrips}</span>,
+      render: (item: DriverStats) => <span className="text-sky-600 font-medium">{item.assignedTrips}</span>,
       className: "text-center",
     },
     {
@@ -220,7 +220,7 @@ export function DriverReportTab({
     [
       { label: "Tổng cuốc", value: String(item.totalTrips), color: "text-slate-800" },
       { label: "Hoàn thành", value: String(item.completedTrips), color: "text-green-600" },
-      { label: "Đang chạy", value: String(item.inProgressTrips), color: "text-blue-600" },
+      { label: "Đã gán", value: String(item.assignedTrips), color: "text-sky-600" },
     ],
     [
       { label: "Chưa gán", value: String(item.unassignedTrips), color: "text-orange-500" },
