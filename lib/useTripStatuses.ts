@@ -68,8 +68,19 @@ export function useTripStatuses() {
   }, [statuses]);
 
   const priority = useMemo(() => {
+    // Fixed sort order: Chờ gán → Đã gán → Đang đi → Hoàn thành → Đã hủy
+    // This overrides DB sortOrder so display order is always correct regardless of DB data
+    const fixedOrder: Record<string, number> = {
+      scheduled: 1,
+      confirmed: 2,
+      running: 3,
+      completed: 4,
+      cancelled: 5,
+    };
     const p: Record<string, number> = {};
-    for (const s of statuses) p[s.key] = s.sortOrder ?? 99;
+    for (const s of statuses) {
+      p[s.key] = fixedOrder[s.key] ?? s.sortOrder ?? 99;
+    }
     return p;
   }, [statuses]);
 
