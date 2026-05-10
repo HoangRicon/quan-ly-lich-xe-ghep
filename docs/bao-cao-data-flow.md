@@ -3,14 +3,14 @@
 ## Tổng Quan Kiến Trúc
 
 ```
-Database (Prisma)
+Database (Prisma - bảng trip)
   → API Route: /api/reports/stats
     → Frontend: page.tsx → KpiCards / RevenueChart / StatusPieChart / MonthlyTable
 ```
 
 ---
 
-## Chi Tiết Từng Chỉ Số
+## Chi Tiết Từng Chỉ Số KPI
 
 ### 1. Doanh thu
 | Tầng | Chi tiết |
@@ -44,35 +44,43 @@ Database (Prisma)
 | **KpiCards** | `data.unassignedTrips` → toLocaleString() |
 | **Logic** | Trip có `status = "scheduled"` VÀ `driverId = null` |
 
-### 5. Hoàn thành (completedTrips)
+### 5. Đã gán (assignedTrips)
+| Tầng | Chi tiết |
+|-------|----------|
+| **DB** | `SELECT * FROM trip WHERE accountId = ?` |
+| **API** | `trips.filter(t => t.status === "scheduled" && t.driverId).length` |
+| **KpiCards** | `data.assignedTrips` → toLocaleString() |
+| **Logic** | Trip có `status = "scheduled"` VÀ `driverId != null` |
+
+### 6. Hoàn thành (completedTrips)
 | Tầng | Chi tiết |
 |-------|----------|
 | **DB** | `SELECT * FROM trip WHERE accountId = ?` |
 | **API** | `trips.filter(t => t.status === "completed").length` |
 | **KpiCards** | `data.completedTrips` → toLocaleString() |
 
-### 6. Đang chạy (inProgressTrips)
+### 7. Đang chạy (inProgressTrips)
 | Tầng | Chi tiết |
 |-------|----------|
 | **DB** | `SELECT * FROM trip WHERE accountId = ?` |
 | **API** | `trips.filter(t => t.status === "in_progress").length` |
 | **KpiCards** | `data.inProgressTrips` → toLocaleString() |
 
-### 7. Đã hủy (cancelledTrips)
+### 8. Đã hủy (cancelledTrips)
 | Tầng | Chi tiết |
 |-------|----------|
 | **DB** | `SELECT * FROM trip WHERE accountId = ?` |
 | **API** | `trips.filter(t => t.status === "cancelled").length` |
 | **KpiCards** | `data.cancelledTrips` → toLocaleString() |
 
-### 8. Trung bình cuốc (avgTripValue)
+### 9. Trung bình cuốc (avgTripValue)
 | Tầng | Chi tiết |
 |-------|----------|
 | **DB** | `SELECT price FROM trip` |
 | **API** | `totalTrips > 0 ? totalRevenue / totalTrips : 0` |
 | **KpiCards** | `data.avgTripValue` → formatVND() |
 
-### 9. Trung bình lợi nhuận (avgProfitPerTrip)
+### 10. Trung bình lợi nhuận (avgProfitPerTrip)
 | Tầng | Chi tiết |
 |-------|----------|
 | **DB** | `SELECT profit FROM trip` |
@@ -139,6 +147,14 @@ SELECT status, COUNT(*) as count, SUM(price) as revenue
 FROM trips
 GROUP BY status;
 
+-- Đã gán (scheduled + có driver)
+SELECT COUNT(*) as assignedTrips FROM trips
+WHERE status = 'scheduled' AND driverId IS NOT NULL;
+
+-- Chưa gán (scheduled + chưa có driver)
+SELECT COUNT(*) as unassignedTrips FROM trips
+WHERE status = 'scheduled' AND driverId IS NULL;
+
 -- Theo ngày
 SELECT DATE(departureTime) as date, SUM(price) as revenue, SUM(profit) as profit, COUNT(*) as trips
 FROM trips
@@ -165,6 +181,7 @@ Response trả về:
     "totalRevenue": N,
     "totalProfit": N,
     "completedTrips": N,
+    "assignedTrips": N,
     "unassignedTrips": N,
     "inProgressTrips": N,
     "cancelledTrips": N,
@@ -205,8 +222,9 @@ Response trả về:
 ## Lưu Ý Quan Trọng
 
 1. **Tất cả chỉ số KPI** lấy từ **bảng `trip`**, cột `price` và `profit`
-2. **`unassignedTrips`** = trips có `status = 'scheduled'` VÀ `driverId = null` (chưa có tài xế)
-3. **`departureTime`** là cột dùng để lọc theo ngày
-4. **So sánh kỳ trước**: API tự động tính khoảng thời gian tương đương trước đó (ví dụ: filter 1 tháng → so với 1 tháng trước đó)
-5. **Múi giờ**: Dùng `Asia/Ho_Chi_Minh` (UTC+7) để group đúng ngày
-6. **Trips được tính**: Tất cả trips trong khoảng `departureTime` đã chọn, không phân biệt status
+2. **`Chưa gán`** = trips có `status = 'scheduled'` VÀ `driverId = null`
+3. **`Đã gán`** = trips có `status = 'scheduled'` VÀ `driverId != null`
+4. **`departureTime`** là cột dùng để lọc theo ngày
+5. **So sánh kỳ trước**: API tự động tính khoảng thời gian tương đương trước đó (ví dụ: filter 1 tháng → so với 1 tháng trước đó)
+6. **Múi giờ**: Dùng `Asia/Ho_Chi_Minh` (UTC+7) để group đúng ngày
+7. **Trips được tính**: Tất cả trips trong khoảng `departureTime` đã chọn, không phân biệt status

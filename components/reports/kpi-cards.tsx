@@ -2,7 +2,7 @@
 
 import {
   TrendingUp, TrendingDown, Car, DollarSign, Clock,
-  CheckCircle, XCircle, Gauge, Wallet, BarChart3
+  CheckCircle, XCircle, UserCheck, Wallet, BarChart3
 } from "lucide-react";
 
 interface KpiData {
@@ -10,6 +10,7 @@ interface KpiData {
   totalProfit: number;
   totalTrips: number;
   completedTrips: number;
+  assignedTrips: number;
   unassignedTrips: number;
   inProgressTrips: number;
   cancelledTrips: number;
@@ -138,9 +139,9 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
       type: "count",
     },
     {
-      label: "Đang chạy",
-      value: data.inProgressTrips,
-      icon: Gauge,
+      label: "Đã gán",
+      value: data.assignedTrips,
+      icon: UserCheck,
       colorKey: "sky",
       type: "count",
     },

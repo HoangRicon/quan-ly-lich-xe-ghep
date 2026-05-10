@@ -88,10 +88,13 @@ export async function GET(request: NextRequest) {
     const totalRevenue = trips.reduce((sum, t) => sum + Number(t.price), 0);
     const totalProfit = trips.reduce((sum, t) => sum + Number(t.profit ?? 0), 0);
 
-    const completedTrips = trips.filter((t) => t.status === "completed").length;
+    const assignedTrips = trips.filter(
+      (t) => t.status === "scheduled" && t.driverId
+    ).length;
     const unassignedTrips = trips.filter(
       (t) => t.status === "scheduled" && !t.driverId
     ).length;
+    const completedTrips = trips.filter((t) => t.status === "completed").length;
     const inProgressTrips = trips.filter((t) => t.status === "in_progress").length;
     const cancelledTrips = trips.filter((t) => t.status === "cancelled").length;
 
@@ -183,6 +186,7 @@ export async function GET(request: NextRequest) {
         totalRevenue,
         totalProfit,
         completedTrips,
+        assignedTrips,
         unassignedTrips,
         inProgressTrips,
         cancelledTrips,
