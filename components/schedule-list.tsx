@@ -1058,20 +1058,6 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 <option value="price_desc">Giá ↓</option>
                 <option value="price_asc">Giá ↑</option>
               </select>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  setItemsPerPage(n);
-                  setCurrentPage(1);
-                }}
-                className="px-1.5 py-1 rounded-md border border-slate-200 focus:border-blue-500 outline-none text-xs bg-white text-slate-500"
-              >
-                <option value="5">5</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-              </select>
 
               {/* Pagination + Limit — iPhone-friendly row */}
               <div className="flex items-center gap-2 ml-auto">
