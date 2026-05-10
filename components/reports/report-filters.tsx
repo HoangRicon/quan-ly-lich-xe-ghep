@@ -7,6 +7,7 @@ import { type DateFilter, toLocalDateString, getWeekStart, getMonthStart } from 
 interface Driver {
   id: number;
   fullName: string;
+  phone?: string | null;
 }
 
 interface ReportFiltersProps {

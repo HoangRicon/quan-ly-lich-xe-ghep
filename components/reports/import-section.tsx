@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Upload, Download, FileText, AlertCircle, CheckCircle, X, Loader2 } from "lucide-react";
+import { Upload, Download, FileText, AlertCircle, CheckCircle, X, Loader2, DownloadCloud } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -25,13 +25,120 @@ interface ImportResult {
   errors: Array<{ row: number; message: string }>;
 }
 
-export function ImportSection() {
+interface ExportRow {
+  stt: number;
+  ma_chuyen: number;
+  tieu_de: string;
+  diem_di: string;
+  diem_den: string;
+  khoi_hanh: string;
+  gio_khoi_hanh: string;
+  den: string;
+  gio_den: string;
+  loai_tuyen: string;
+  loai_xe: string;
+  trang_thai: string;
+  gia_ve: number;
+  loi_nhuan: number | "";
+  ti_le_loi_nhuan: number | "";
+  diem_tichluy: number | "";
+  tong_ghe: number;
+  ghe_da_dat: number;
+  ma_tai_xe: number | "";
+  tai_xe: string;
+  sdt_tai_xe: string;
+  ma_khach: number | "";
+  ten_khach: string;
+  sdt_khach: string;
+  email_khach: string;
+  tong_chuyen_khach: number | "";
+  danh_sach_khach: string;
+  ghi_chu: string;
+  tao_luc: string;
+  cong_thuc_id: number | "";
+}
+
+interface ImportSectionProps {
+  startDate?: string;
+  endDate?: string;
+  selectedDriver?: string;
+}
+
+export function ImportSection({ startDate, endDate, selectedDriver }: ImportSectionProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const buildExportParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    if (selectedDriver) params.set("driverId", selectedDriver);
+    return params.toString();
+  }, [startDate, endDate, selectedDriver]);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const query = buildExportParams();
+      const res = await fetch(`/api/reports/export?${query}`);
+      const json = await res.json();
+      if (!json.success || !json.data?.length) {
+        alert("Không có dữ liệu để xuất.");
+        return;
+      }
+
+      const rows = json.data as ExportRow[];
+      const ws = XLSX.utils.json_to_sheet(rows);
+
+      // Column widths
+      ws["!cols"] = [
+        { wch: 4 },   // stt
+        { wch: 8 },   // ma_chuyen
+        { wch: 22 },  // tieu_de
+        { wch: 12 },  // diem_di
+        { wch: 12 },  // diem_den
+        { wch: 12 },  // khoi_hanh
+        { wch: 8 },   // gio_khoi_hanh
+        { wch: 12 },  // den
+        { wch: 8 },   // gio_den
+        { wch: 8 },   // loai_tuyen
+        { wch: 8 },   // loai_xe
+        { wch: 12 },  // trang_thai
+        { wch: 10 },  // gia_ve
+        { wch: 10 },  // loi_nhuan
+        { wch: 10 },  // ti_le_loi_nhuan
+        { wch: 8 },   // diem_tichluy
+        { wch: 6 },   // tong_ghe
+        { wch: 8 },   // ghe_da_dat
+        { wch: 6 },   // ma_tai_xe
+        { wch: 16 },  // tai_xe
+        { wch: 11 },  // sdt_tai_xe
+        { wch: 6 },   // ma_khach
+        { wch: 16 },  // ten_khach
+        { wch: 11 },  // sdt_khach
+        { wch: 20 },  // email_khach
+        { wch: 10 },  // tong_chuyen_khach
+        { wch: 30 },  // danh_sach_khach
+        { wch: 20 },  // ghi_chu
+        { wch: 16 },  // tao_luc
+        { wch: 8 },   // cong_thuc_id
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Danh sach chuyen xe");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `chuyen-xe-${dateStr}.xlsx`);
+    } catch {
+      alert("Lỗi khi xuất dữ liệu.");
+    } finally {
+      setExporting(false);
+    }
+  }, [buildExportParams]);
 
   const processFile = useCallback((f: File) => {
     setFile(f);
@@ -58,7 +165,7 @@ export function ImportSection() {
           const workbook = XLSX.read(data, { type: "binary" });
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
-          const json = XLSX.utils.sheet_to_json<ImportRow[]>(worksheet);
+          const json = XLSX.utils.sheet_to_json<ImportRow>(worksheet);
           setPreview(json);
         } catch {
           setPreview([]);
@@ -151,6 +258,34 @@ export function ImportSection() {
 
   return (
     <div className="space-y-3">
+      {/* Action bar */}
+      <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-2">
+          <DownloadCloud className="w-4 h-4 text-slate-500" />
+          <span className="text-xs font-semibold text-slate-700">Dữ liệu</span>
+        </div>
+        <div className="flex-1" />
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white text-xs font-medium rounded-lg transition-colors"
+        >
+          {exporting ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5" />
+          )}
+          {exporting ? "Đang xuất..." : "Xuất Excel"}
+        </button>
+        <button
+          onClick={downloadTemplate}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Tải mẫu
+        </button>
+      </div>
+
       {/* Drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -163,9 +298,9 @@ export function ImportSection() {
             : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
         }`}
       >
-        <FileText className={`w-8 h-8 mx-auto mb-2 ${isDragging ? "text-blue-500" : "text-slate-300"}`} />
+        <Upload className={`w-8 h-8 mx-auto mb-2 ${isDragging ? "text-blue-500" : "text-slate-300"}`} />
         <p className="text-xs font-medium text-slate-700">
-          Kéo thả file hoặc tap để chọn
+          Kéo thả file hoặc tap để chọn — nhập dữ liệu chuyến xe
         </p>
         <p className="text-[11px] text-slate-400 mt-1">
           .csv, .xlsx, .xls
@@ -243,19 +378,19 @@ export function ImportSection() {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-800">
                 {result.failed === 0
-                  ? `✅ ${result.imported} dòng đã nhập thành công`
-                  : `⚠️ Đã nhập ${result.imported}, thất bại ${result.failed} dòng`}
+                  ? `Da nhap thanh cong ${result.imported} dong`
+                  : `Da nhap ${result.imported}, that bai ${result.failed} dong`}
               </p>
               {result.errors.length > 0 && (
                 <div className="mt-1 space-y-0.5">
                   {result.errors.slice(0, 3).map((err, i) => (
                     <p key={i} className="text-[11px] text-slate-500">
-                      Dòng {err.row}: {err.message}
+                      Dong {err.row}: {err.message}
                     </p>
                   ))}
                   {result.errors.length > 3 && (
                     <p className="text-[11px] text-slate-400">
-                      ... và {result.errors.length - 3} lỗi khác
+                      ... va {result.errors.length - 3} loi khac
                     </p>
                   )}
                 </div>
@@ -265,17 +400,9 @@ export function ImportSection() {
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={downloadTemplate}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Tải mẫu
-        </button>
-        <div className="flex-1" />
-        {preview.length > 0 && (
+      {/* Import action */}
+      {preview.length > 0 && (
+        <div className="flex items-center justify-end">
           <button
             onClick={handleImport}
             disabled={importing}
@@ -286,10 +413,10 @@ export function ImportSection() {
             ) : (
               <Upload className="w-3.5 h-3.5" />
             )}
-            {importing ? "Đang nhập..." : `Nhập ${preview.length} dòng`}
+            {importing ? "Dang nhap..." : `Nhap ${preview.length} dong`}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

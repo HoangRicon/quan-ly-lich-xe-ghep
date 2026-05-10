@@ -89,7 +89,7 @@ async function main() {
   // Ensure we have enough customers
   if (customers.length < 50) {
     console.log(`Creating 100 customers...`);
-    const newCustomers = [];
+    const newCustomers: Array<{ phone: string; name: string; accountId: number }> = [];
     for (let i = 0; i < 100; i++) {
       newCustomers.push({
         phone: `090${String(randomInt(1000000, 9999999))}`,
@@ -126,7 +126,7 @@ async function main() {
   let created = 0;
 
   for (let batch = 0; batch < Math.ceil(TOTAL / BATCH_SIZE); batch++) {
-    const batchData = [];
+    const batchData: Array<import("@prisma/client").Prisma.TripCreateManyInput> = [];
     const count = Math.min(BATCH_SIZE, TOTAL - created);
 
     for (let i = 0; i < count; i++) {

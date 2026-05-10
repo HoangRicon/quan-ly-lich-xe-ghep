@@ -18,6 +18,7 @@ interface KpiData {
   totalTrips: number;
   completedTrips: number;
   unassignedTrips: number;
+  assignedTrips: number;
   inProgressTrips: number;
   cancelledTrips: number;
   avgTripValue: number;
@@ -93,7 +94,7 @@ export default function ReportsPage() {
 
       const res = await fetch(`/api/reports/stats?${params.toString()}`);
       const json = await res.json();
-      if (json.success) setKpiData(json.data);
+      if (json.success) setKpiData({ ...json.data, assignedTrips: json.data.inProgressTrips ?? 0 });
     } catch (err) {
       console.error("Failed to fetch stats:", err);
     } finally {
@@ -339,7 +340,13 @@ export default function ReportsPage() {
               {activeTab === "routes" && (
                 <RouteReportTab startDate={startDate} endDate={endDate} />
               )}
-              {activeTab === "import" && <ImportSection />}
+              {activeTab === "import" && (
+                <ImportSection
+                  startDate={startDate}
+                  endDate={endDate}
+                  selectedDriver={selectedDriver}
+                />
+              )}
             </div>
           </div>
         </div>

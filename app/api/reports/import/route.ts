@@ -129,12 +129,12 @@ export async function POST(request: NextRequest) {
             tripType: row.tripType === "bao" ? "bao" : "ghep",
             notes: row.notes || undefined,
             status: "scheduled",
-            accountId: user.accountId,
+            account: { connect: { id: user.accountId } },
             ...(customerId
               ? {
                   customers: {
                     create: {
-                      customerId,
+                      customer: { connect: { id: customerId } },
                       seats: 1,
                       status: "confirmed",
                       accountId: user.accountId,
