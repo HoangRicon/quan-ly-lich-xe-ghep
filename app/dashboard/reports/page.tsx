@@ -9,7 +9,6 @@ import { StatusPieChart } from "@/components/reports/status-pie-chart";
 import { DriverReportTab } from "@/components/reports/driver-report-tab";
 import { CustomerReportTab } from "@/components/reports/customer-report-tab";
 import { RouteReportTab } from "@/components/reports/route-report-tab";
-import { ImportSection } from "@/components/reports/import-section";
 import { type DateFilter } from "@/lib/date-utils";
 
 interface KpiData {
@@ -184,7 +183,6 @@ export default function ReportsPage() {
     { key: "drivers", label: "Tài xế" },
     { key: "customers", label: "Khách" },
     { key: "routes", label: "Tuyến" },
-    { key: "import", label: "Nhập DL" },
   ] as const;
 
   const selectedDriverName = drivers.find(
@@ -339,13 +337,6 @@ export default function ReportsPage() {
               )}
               {activeTab === "routes" && (
                 <RouteReportTab startDate={startDate} endDate={endDate} />
-              )}
-              {activeTab === "import" && (
-                <ImportSection
-                  startDate={startDate}
-                  endDate={endDate}
-                  selectedDriver={selectedDriver}
-                />
               )}
             </div>
           </div>

@@ -5,6 +5,7 @@ import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImportSection } from "@/components/reports/import-section";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,9 @@ import {
   Network,
   Eye,
   EyeOff,
+  Upload,
+  DownloadCloud,
+  FileSpreadsheet,
 } from "lucide-react";
 
 // Toast Component
@@ -2310,7 +2314,7 @@ function NotificationSettingsTab() {
 
 // Main Settings Page
 export default function NotificationSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"connections" | "templates" | "trip_statuses" | "triggers" | "notifications">("connections");
+  const [activeTab, setActiveTab] = useState<"connections" | "templates" | "trip_statuses" | "triggers" | "notifications" | "import_data">("connections");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" | "info") => {
@@ -2324,6 +2328,7 @@ export default function NotificationSettingsPage() {
     { id: "trip_statuses", label: "Trạng thái cuốc xe", icon: Car },
     // { id: "triggers", label: "Thiết lập gửi tin", icon: Bell },
     { id: "notifications", label: "Cài đặt thông báo", icon: Smartphone },
+    { id: "import_data", label: "Nhập dữ liệu", icon: Upload },
   ] as const;
 
   return (
@@ -2361,6 +2366,24 @@ export default function NotificationSettingsPage() {
           {activeTab === "trip_statuses" && <TripStatusSettingsTab />}
           {/* {activeTab === "triggers" && <AutoSendTriggers />} */}
           {activeTab === "notifications" && <NotificationSettingsTab />}
+          {activeTab === "import_data" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5" />
+                  Nhập / Xuất dữ liệu cuốc xe
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  Nhập danh sách chuyến xe từ file Excel/CSV hoặc xuất toàn bộ dữ liệu ra file.
+                </p>
+              </div>
+              <Card>
+                <CardContent className="p-4">
+                  <ImportSection />
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </Sidebar>
       <BottomNav />
