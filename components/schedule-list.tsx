@@ -731,16 +731,21 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   });
 
   const sortedTrips = [...filteredTrips].sort((a, b) => {
-    // When NOT filtering by status, sort by status priority first (Chờ gán → Đã gán → Đang đi → Hoàn thành → Đã hủy)
-    // When filtering by status, skip this to preserve server-side ordering
-    if (statusFilter === "all") {
-      const aPriority = statusPriority[a.status] ?? 99;
-      const bPriority = statusPriority[b.status] ?? 99;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-    }
+    // Fixed priority order: scheduled(1) → confirmed(2) → running(3) → completed(4) → cancelled(5)
+    const STATUS_PRIORITY: Record<string, number> = {
+      scheduled: 1,
+      confirmed: 2,
+      running: 3,
+      completed: 4,
+      cancelled: 5,
+    };
+    
+    // Sort by status priority first (Chờ gán → Đã gán → Đang đi → Hoàn thành → Đã hủy)
+    const aPriority = STATUS_PRIORITY[a.status] ?? 99;
+    const bPriority = STATUS_PRIORITY[b.status] ?? 99;
+    if (aPriority !== bPriority) return aPriority - bPriority;
     
     // Then, sort by selected field within same status
-    // Note: initialize to avoid TS "used before being assigned" warnings.
     let aVal: number | string = 0;
     let bVal: number | string = 0;
     if (sortField === "departureTime") {
