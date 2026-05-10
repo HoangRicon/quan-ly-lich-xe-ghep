@@ -731,12 +731,12 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   });
 
   const sortedTrips = [...filteredTrips].sort((a, b) => {
-    // First, sort by status priority (scheduled first)
-    const aPriority = statusPriority[a.status] || 99;
-    const bPriority = statusPriority[b.status] || 99;
-    
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
+    // When NOT filtering by status, sort by status priority first (Chờ gán → Đã gán → Đang đi → Hoàn thành → Đã hủy)
+    // When filtering by status, skip this to preserve server-side ordering
+    if (statusFilter === "all") {
+      const aPriority = statusPriority[a.status] ?? 99;
+      const bPriority = statusPriority[b.status] ?? 99;
+      if (aPriority !== bPriority) return aPriority - bPriority;
     }
     
     // Then, sort by selected field within same status
