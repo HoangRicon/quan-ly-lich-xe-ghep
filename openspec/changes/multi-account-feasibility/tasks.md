@@ -544,25 +544,7 @@ const drivers = await db.user.findMany({
 
 ---
 
-### PA-04: Cập nhật `/dashboard/reports` page
-**File:** `app/dashboard/reports/page.tsx`
-
-```typescript
-// Tất cả aggregate queries cần accountId filter
-const trips = await db.trip.findMany({ where: { accountId } });
-const customers = await db.customer.findMany({ where: { accountId } });
-```
-
-**Acceptance criteria:**
-- [ ] Reports chỉ hiển thị data thuộc account
-
----
-
-### PA-05: Cập nhật `/dashboard/analytics` page
-**File:** `app/dashboard/analytics/page.tsx`
-
-**Acceptance criteria:**
-- [ ] Analytics chỉ hiển thị data thuộc account
+**PA-04 & PA-05: `/dashboard/reports` và `/dashboard/analytics`** — Đã xóa (2026-05-10).
 
 ---
 

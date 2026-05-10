@@ -197,8 +197,6 @@ async function getAccountId(request: Request): Promise<number | null> {
 | `/dashboard/drivers` | ✅ (có) | ✅ cần thêm | ✅ users.filter by accountId + role |
 | `/dashboard/drivers/add` | ✅ (có) | ✅ cần thêm | Không |
 | `/dashboard/drivers/[id]/edit` | ✅ (có) | ✅ cần thêm | ✅ driver by accountId |
-| `/dashboard/reports` | ✅ (có) | ✅ cần thêm | ✅ all data by accountId |
-| `/dashboard/analytics` | ✅ (có) | ✅ cần thêm | ✅ all data by accountId |
 | `/dashboard/profile` | ✅ (có) | ✅ cần thêm | ✅ profile by accountId |
 | `/dashboard/settings` | ✅ (có) | ✅ cần thêm | ✅ settings by accountId |
 | `/dashboard/notifications` | ✅ (có) | ✅ cần thêm | ✅ notifications by accountId |

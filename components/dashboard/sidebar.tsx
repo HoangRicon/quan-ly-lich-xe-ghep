@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Calendar,
   Users,
-  BarChart3,
   Settings,
   LogOut,
   Menu,
@@ -20,6 +19,7 @@ import {
   Car,
   BookOpen,
   ExternalLink,
+  BarChart3,
 } from "lucide-react";
 import NotificationBell from "@/components/notification-bell";
 
@@ -207,7 +207,6 @@ function InfoButton() {
     { icon: Users, label: "Phân công tài xế", desc: "Gán tài xế nhanh chóng" },
     { icon: BarChart3, label: "Tính lợi nhuận", desc: "Tự động theo công thức" },
     { icon: Clock, label: "Nhắc lịch tự động", desc: "Thông báo trước giờ khởi hành" },
-    { icon: Star, label: "Báo cáo chi tiết", desc: "Doanh thu, lợi nhuận theo ngày/tháng" },
     { icon: CheckCircle, label: "Nhiều tài khoản", desc: "Hỗ trợ nhiều đơn vị kinh doanh" },
   ];
 

@@ -8,29 +8,37 @@ interface StatCardProps {
     value: number;
     isPositive: boolean;
   };
-  color: "blue" | "green" | "orange" | "purple";
+  color: "blue" | "green" | "orange" | "violet";
 }
 
 const colorClasses = {
   blue: {
-    bg: "bg-blue-50",
-    icon: "bg-blue-500",
+    bg: "bg-blue-50/70",
+    iconBg: "bg-blue-500",
+    icon: "text-white",
+    border: "border-blue-200/60",
     text: "text-blue-600",
   },
   green: {
-    bg: "bg-green-50",
-    icon: "bg-green-500",
-    text: "text-green-600",
+    bg: "bg-emerald-50/70",
+    iconBg: "bg-emerald-500",
+    icon: "text-white",
+    border: "border-emerald-200/60",
+    text: "text-emerald-600",
   },
   orange: {
-    bg: "bg-orange-50",
-    icon: "bg-orange-500",
-    text: "text-orange-600",
+    bg: "bg-amber-50/70",
+    iconBg: "bg-amber-500",
+    icon: "text-white",
+    border: "border-amber-200/60",
+    text: "text-amber-600",
   },
-  purple: {
-    bg: "bg-purple-50",
-    icon: "bg-purple-500",
-    text: "text-purple-600",
+  violet: {
+    bg: "bg-violet-50/70",
+    iconBg: "bg-violet-500",
+    icon: "text-white",
+    border: "border-violet-200/60",
+    text: "text-violet-600",
   },
 };
 
@@ -38,17 +46,17 @@ export function StatCard({ title, value, icon: Icon, trend, color }: StatCardPro
   const colors = colorClasses[color];
 
   return (
-    <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 hover:shadow-md transition-shadow duration-200">
-      <div className="flex items-start justify-between">
-        <div className={`p-3 rounded-xl ${colors.bg}`}>
-          <Icon className={`w-5 h-5 ${colors.text}`} />
+    <div className={`bg-white rounded-2xl p-4 border ${colors.border} shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group`}>
+      <div className="flex items-start justify-between mb-3">
+        <div className={`p-2 rounded-xl ${colors.iconBg} shadow-sm group-hover:scale-110 transition-transform duration-200`}>
+          <Icon className={`w-4 h-4 ${colors.icon}`} />
         </div>
         {trend && (
           <span
-            className={`text-xs font-medium px-2 py-1 rounded-full ${
+            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
               trend.isPositive
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-700"
+                ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                : "bg-red-50 text-red-500 border border-red-100"
             }`}
           >
             {trend.isPositive ? "+" : ""}
@@ -56,9 +64,9 @@ export function StatCard({ title, value, icon: Icon, trend, color }: StatCardPro
           </span>
         )}
       </div>
-      <div className="mt-4">
-        <p className="text-2xl font-bold text-slate-800">{value}</p>
-        <p className="text-sm text-slate-500 mt-1">{title}</p>
+      <div>
+        <p className="text-xl sm:text-2xl font-bold text-slate-800">{value}</p>
+        <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{title}</p>
       </div>
     </div>
   );
@@ -66,7 +74,7 @@ export function StatCard({ title, value, icon: Icon, trend, color }: StatCardPro
 
 export function StatCards() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
       <StatCard
         title="Cuốc xe chờ gán"
         value={12}
@@ -91,7 +99,7 @@ export function StatCards() {
         title="Khách hàng mới"
         value={24}
         icon={UserPlus}
-        color="purple"
+        color="violet"
         trend={{ value: 12, isPositive: true }}
       />
     </div>

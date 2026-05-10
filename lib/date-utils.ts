@@ -3,7 +3,7 @@
  * Uses local time (Asia/Ho_Chi_Minh) consistently across the codebase.
  */
 
-export type DateFilter = "today" | "week" | "month" | "all" | "custom";
+export type DateFilter = "today" | "week" | "month" | "year" | "all" | "custom";
 
 /**
  * Get local date as YYYY-MM-DD string.
@@ -68,6 +68,11 @@ export function getQuickDateRange(filter: DateFilter): DateRange {
   if (filter === "month") {
     const monthStart = getMonthStart(today);
     return { start: toLocalDateString(monthStart), end: toLocalDateString(today) };
+  }
+
+  if (filter === "year") {
+    const yearStart = new Date(today.getFullYear(), 0, 1);
+    return { start: toLocalDateString(yearStart), end: toLocalDateString(today) };
   }
 
   // "all" and "custom" have no preset range
