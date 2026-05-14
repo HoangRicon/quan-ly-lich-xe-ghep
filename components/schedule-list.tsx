@@ -378,6 +378,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
 
       const res = await fetch(`/api/trips?${params}`, { cache: "no-store" });
       const data = await res.json();
@@ -390,16 +391,17 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, startDate, endDate, currentPage, itemsPerPage]);
+  }, [statusFilter, startDate, endDate, searchTerm, currentPage, itemsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, startDate, endDate]);
+  }, [statusFilter, startDate, endDate, searchTerm]);
 
+  // Initial load — only runs once on mount
   useEffect(() => {
-    // currentPage is intentionally NOT in fetchTrips deps — we call it with current ref
     fetchTrips();
-  }, [fetchTrips, currentPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -717,21 +719,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     return startDate === toLocalDateString(firstDay) && endDate === toLocalDateString(lastDay);
   })();
 
-  // Sort and paginate
-  const filteredTrips = trips.filter((trip) => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      trip.departure?.toLowerCase().includes(search) ||
-      trip.destination?.toLowerCase().includes(search) ||
-      trip.customer?.name?.toLowerCase().includes(search) ||
-      trip.customer?.phone?.includes(search) ||
-      trip.driver?.fullName?.toLowerCase().includes(search)
-    );
-  });
-
-  const sortedTrips = [...filteredTrips].sort((a, b) => {
-    // Fixed priority order: scheduled(1) → confirmed(2) → running(3) → completed(4) → cancelled(5)
+  // Sort (data is already filtered server-side)
+  const sortedTrips = [...trips].sort((a, b) => {
     const STATUS_PRIORITY: Record<string, number> = {
       scheduled: 1,
       confirmed: 2,
@@ -739,13 +728,11 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       completed: 4,
       cancelled: 5,
     };
-    
-    // Sort by status priority first (Chờ gán → Đã gán → Đang đi → Hoàn thành → Đã hủy)
+
     const aPriority = STATUS_PRIORITY[a.status] ?? 99;
     const bPriority = STATUS_PRIORITY[b.status] ?? 99;
     if (aPriority !== bPriority) return aPriority - bPriority;
-    
-    // Then, sort by selected field within same status
+
     let aVal: number | string = 0;
     let bVal: number | string = 0;
     if (sortField === "departureTime") {
@@ -928,10 +915,18 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               type="text"
               placeholder="Tìm điểm đi, điểm đến, khách, Zom..."
               value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { setCurrentPage(1); fetchTrips(); } }}
               className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-white"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => { setCurrentPage(1); fetchTrips(); }}
+            className="flex-shrink-0 px-4 py-2 rounded-xl bg-blue-600 border border-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+          >
+            Tìm kiếm
+          </button>
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
@@ -1115,7 +1110,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500 mx-4">
             Đang tải...
           </div>
-        ) : filteredTrips.length === 0 ? (
+        ) : trips.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500 mx-4">
             Chưa có chuyến xe nào
           </div>

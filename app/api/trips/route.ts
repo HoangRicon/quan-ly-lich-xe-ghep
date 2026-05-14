@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("endDate");
     const driverId = searchParams.get("driverId");
     const customerPhone = searchParams.get("customerPhone");
+    const search = searchParams.get("search");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "500");
 
@@ -48,6 +49,18 @@ export async function GET(request: NextRequest) {
           },
         },
       };
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { departure: { contains: q, mode: "insensitive" } },
+        { destination: { contains: q, mode: "insensitive" } },
+        { title: { contains: q, mode: "insensitive" } },
+        { driver: { fullName: { contains: q, mode: "insensitive" } } },
+        { customers: { some: { customer: { phone: { contains: q } } } } },
+        { customers: { some: { customer: { name: { contains: q, mode: "insensitive" } } } } },
+      ];
     }
 
     if (date) {
