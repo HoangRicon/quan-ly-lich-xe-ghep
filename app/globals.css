@@ -242,6 +242,15 @@ body.hide-bottom-nav nav.lg\:hidden {
   display: none !important;
 }
 
+/* Hide scrollbar on horizontal scroll containers (iOS) */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Add padding-bottom to main content when bottom nav is visible (mobile) */
 @media (max-width: 1023px) {
   body:not(.hide-bottom-nav) .page-scroll,
