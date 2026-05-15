@@ -182,6 +182,9 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   // View mode: "list" | "timeline"
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
 
+  // Collapsible filter bar state (mobile only)
+  const [filterCollapsed, setFilterCollapsed] = useState(false);
+
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState<number>(() => {
     if (typeof window !== "undefined") {
@@ -913,44 +916,65 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     <div>
       {/* Search & Filter Bar */}
       <div className="mb-3 space-y-3">
-        {/* Search Row */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm điểm đi, điểm đến, khách..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { setCurrentPage(1); fetchTrips(); } }}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-white"
-            />
-          </div>
-          {searchTerm.trim() && (
-            <button
-              type="button"
-              onClick={() => setSearchAll(prev => !prev)}
-              title={searchAll ? "Tìm tất cả" : "Tìm trong trạng thái"}
-              className={`flex-shrink-0 px-2.5 py-2 rounded-xl border text-xs font-medium transition-all ${
-                searchAll
-                  ? "bg-orange-500 border-orange-500 text-white"
-                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <span className="flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                </svg>
-                Tất cả
-              </span>
-            </button>
-          )}
-        </div>
-
         {/* Filter Bar — mobile-first, stacked layout */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100">
-          {/* Row 1: Quick date chips + Total count */}
+          {/* Row 1: Search + Quick date chips + Total count + Collapse toggle */}
           <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              {/* Search — always visible */}
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm điểm đi, điểm đến, khách..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { setCurrentPage(1); fetchTrips(); } }}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm bg-white"
+                />
+              </div>
+              {searchTerm.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setSearchAll(prev => !prev)}
+                  title={searchAll ? "Tìm tất cả" : "Tìm trong trạng thái"}
+                  className={`flex-shrink-0 px-2.5 py-2 rounded-xl border text-xs font-medium transition-all ${
+                    searchAll
+                      ? "bg-orange-500 border-orange-500 text-white"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                    Tất cả
+                  </span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {totalCount > 0 && (
+                <span className="text-xs font-semibold text-slate-400">
+                  {totalCount} cuốc
+                </span>
+              )}
+              {/* Collapse toggle — hidden on desktop */}
+              <button
+                type="button"
+                onClick={() => setFilterCollapsed(prev => !prev)}
+                className="lg:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                title={filterCollapsed ? "Mở rộng bộ lọc" : "Thu gọn bộ lọc"}
+              >
+                <span className="text-xs font-medium">Bộ lọc</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${filterCollapsed ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Rows 2-5: collapsible on mobile */}
+          <div className={filterCollapsed ? "hidden lg:block" : "block"}>
+          <div className="px-3 py-2.5">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-400 font-medium flex-shrink-0">
                 <Calendar className="w-3.5 h-3.5 inline -mt-0.5 mr-0.5" />
@@ -985,14 +1009,9 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 </button>
               )}
             </div>
-            {totalCount > 0 && (
-              <span className="text-xs font-semibold text-slate-400 flex-shrink-0">
-                {totalCount} cuốc
-              </span>
-            )}
           </div>
 
-          {/* Row 2: Date range inputs */}
+          {/* Row 3: Date range inputs */}
           <div className="px-3 py-2.5">
             <div className="flex items-center gap-1.5">
               <div className="flex-1 min-w-0">
@@ -1015,7 +1034,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
             </div>
           </div>
 
-          {/* Row 3: Status chips */}
+          {/* Row 4: Status chips */}
           <div className="px-3 py-2.5 overflow-x-auto">
             <div className="flex items-center gap-1.5 w-max min-w-full">
               <button
@@ -1057,7 +1076,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
             </div>
           </div>
 
-          {/* Row 4: Sort + Pagination */}
+          {/* Row 5: Sort + Pagination */}
           <div className="px-3 py-2 flex items-center gap-2">
             <select
               value={sortField === "price" ? (sortDirection === "desc" ? "price_desc" : "price_asc") : (sortDirection === "desc" ? "newest" : "oldest")}
@@ -1110,8 +1129,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               </select>
             </div>
           </div>
+          </div>
         </div>
-
       </div>
 
       {/* Mobile DataTable View */}
