@@ -54,6 +54,8 @@ export type DriverTripHistoryRow = {
   departureTime: string;
   lastAssignedAt: string | null;
   status: string;
+  statusLabel: string;
+  statusColor: string;
   price: number;
   pointsEarned: number;
   profit: number;
@@ -110,6 +112,13 @@ export async function getDriverTripHistory(
   const useAssignmentPeriod = hasRangeFilter(input.current);
   let trips: HistoryTrip[] = [];
   let assignmentEvents: AssignmentEvent[] = [];
+
+  // Fetch all active trip statuses once
+  const allStatuses = (await (db as unknown as Record<string, unknown>).tripStatus?.findMany?.({
+    where: { isActive: true },
+    select: { key: true, label: true, color: true },
+  })) as Array<{ key: string; label: string; color: string }> | undefined;
+  const statusMap = new Map(allStatuses?.map((s) => [s.key, s]) ?? []);
 
   if (useAssignmentPeriod) {
     const eventsInPeriod = (await db.tripEvent.findMany({
@@ -248,6 +257,8 @@ export async function getDriverTripHistory(
           ? toMoneyNumber(trip.profitRate)
           : null;
 
+    const tripStatus = statusMap.get(trip.status);
+
     return {
       tripId: trip.id,
       title: trip.title || `Cuoc #${trip.id}`,
@@ -256,6 +267,8 @@ export async function getDriverTripHistory(
       departureTime: trip.departureTime.toISOString(),
       lastAssignedAt: assignment ? assignment.createdAt.toISOString() : null,
       status: trip.status,
+      statusLabel: tripStatus?.label ?? trip.status,
+      statusColor: tripStatus?.color ?? "slate",
       price: toMoneyNumber(trip.price),
       pointsEarned: points,
       profit,

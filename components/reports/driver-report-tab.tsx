@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, History, Search, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { ReportTable } from "./report-table";
+import { TripInfoCardList } from "@/components/trip-info-card";
+import { statusColorClasses } from "@/lib/useTripStatuses";
 
 interface DriverStats {
   id: number;
@@ -35,6 +37,8 @@ interface DriverTripHistoryRow {
   departureTime: string;
   lastAssignedAt: string | null;
   status: string;
+  statusLabel: string;
+  statusColor: string;
   price: number;
   pointsEarned: number;
   profit: number;
@@ -483,7 +487,23 @@ export function DriverReportTab({
               </button>
             </div>
 
-            <div className="p-3 overflow-auto max-h-[72vh]">
+            <div className="p-3 pb-[72px] overflow-y-auto max-h-[72vh] touch-pan-y" style={{ WebkitOverflowScrolling: "touch" }}>
+              <style>{`
+                .touch-pan-y::-webkit-scrollbar {
+                  width: 4px;
+                  height: 4px;
+                }
+                .touch-pan-y::-webkit-scrollbar-track {
+                  background: transparent;
+                }
+                .touch-pan-y::-webkit-scrollbar-thumb {
+                  background: #cbd5e1;
+                  border-radius: 999px;
+                }
+                .touch-pan-y::-webkit-scrollbar-thumb:hover {
+                  background: #94a3b8;
+                }
+              `}</style>
               {historyLoading ? (
                 <div className="py-10 text-center text-sm text-slate-400">
                   Đang tải lịch sử cuốc...
@@ -504,51 +524,27 @@ export function DriverReportTab({
                   Chưa có cuốc nào trong kỳ để đối chiếu
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px]">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Cuốc</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Tuyến</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Tạo cuốc</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Gán cuối</th>
-                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase">Điểm</th>
-                        <th className="px-3 py-2 text-right text-[10px] font-semibold text-slate-500 uppercase">Công</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">Khung/Công thức</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase">TT</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {historyRows.map((row) => (
-                        <tr key={row.tripId} className="hover:bg-slate-50">
-                          <td className="px-3 py-2.5 text-xs font-medium text-slate-700">
-                            #{row.tripId}
-                            <div className="text-[10px] text-slate-400 truncate max-w-[160px]">
-                              {row.title}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-slate-600">{row.route}</td>
-                          <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap">
-                            {formatDateTime(row.createdAt)}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-amber-700 font-medium whitespace-nowrap">
-                            {formatDateTime(row.lastAssignedAt)}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-right font-semibold text-amber-600">
-                            {row.pointsEarned.toLocaleString("vi-VN")}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-right font-medium text-blue-600">
-                            {formatVND(row.profit)}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-slate-600">
-                            {row.formulaName || (row.formulaId ? `Formula #${row.formulaId}` : "--")}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-slate-500">{row.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <TripInfoCardList
+                  trips={historyRows.map((row) => {
+                    const statusColor = statusColorClasses(row.statusColor || "slate");
+                    return {
+                      id: row.tripId,
+                      departure: row.route.split(" → ")[0] || "",
+                      destination: row.route.split(" → ")[1] || row.route,
+                      status: row.status,
+                      statusLabel: row.statusLabel || row.status,
+                      statusColor: row.statusColor || "slate",
+                      pointsEarned: row.pointsEarned,
+                      profit: row.profit,
+                      profitRate: row.profitRate,
+                      matchedFormulaId: row.formulaId,
+                      matchedFormulaName: row.formulaName,
+                      createdAt: row.createdAt,
+                      assignedAt: row.lastAssignedAt,
+                    };
+                  })}
+                  className="max-w-full"
+                />
               )}
             </div>
           </div>
