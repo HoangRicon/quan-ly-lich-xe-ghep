@@ -3,6 +3,7 @@
 const TENANT_MODELS = new Set([
   "user",
   "trip",
+  "tripEvent",
   "booking",
   "customer",
   "tripCustomer",
@@ -38,6 +39,13 @@ function injectAccountIdToData(data: any, accountId: number) {
     return { ...data, accountId };
   }
   return { accountId };
+}
+
+function injectAccountIdToCreateManyData(data: any, accountId: number) {
+  if (Array.isArray(data)) {
+    return data.map((item) => injectAccountIdToData(item, accountId));
+  }
+  return injectAccountIdToData(data, accountId);
 }
 
 /**
@@ -102,6 +110,15 @@ function wrapModel(modelName: string, model: any, accountId: number): any {
     create(args: any, ...rest: any[]) {
       return model.create(
         { ...args, data: injectAccountIdToData(args?.data, accountId) },
+        ...rest
+      );
+    },
+    createMany(args: any, ...rest: any[]) {
+      return model.createMany(
+        {
+          ...args,
+          data: injectAccountIdToCreateManyData(args?.data, accountId),
+        },
         ...rest
       );
     },

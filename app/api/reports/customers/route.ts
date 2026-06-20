@@ -3,19 +3,24 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
+import { parseReportDateRange } from "@/lib/reports/date-range";
 
-function parseDateParams(startDate?: string | null, endDate?: string | null) {
-  const range: { gte?: Date; lte?: Date } = {};
-  if (startDate) {
-    const [y, m, d] = startDate.split("-").map(Number);
-    range.gte = new Date(y, m - 1, d, 0, 0, 0, 0);
-  }
-  if (endDate) {
-    const [y, m, d] = endDate.split("-").map(Number);
-    range.lte = new Date(y, m - 1, d, 23, 59, 59, 999);
-  }
-  return range;
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
+
+type CustomerStatsRow = {
+  id: number;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  totalTrips: number;
+  totalSpending: number;
+  favoriteRoute: string | null;
+  badge: string;
+  lastTripDate: string;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,10 +36,10 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const sortBy = searchParams.get("sortBy") || "totalTrips";
     const sortOrder = searchParams.get("sortOrder") || "desc";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const page = parsePositiveInt(searchParams.get("page"), 1);
+    const limit = parsePositiveInt(searchParams.get("limit"), 20);
 
-    const dateRange = parseDateParams(startDate, endDate);
+    const { current: dateRange } = parseReportDateRange(startDate, endDate);
 
     // Get all customers (account-scoped)
     const customerWhere: Prisma.CustomerWhereInput = {
@@ -75,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     if (Object.keys(dateRange).length > 0) {
       tripCustomerWhere.trip = {
-        departureTime: dateRange,
+        createdAt: dateRange,
       };
     }
 
@@ -134,7 +139,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let customerStats = customers.map((c) => {
+    const customerStats: CustomerStatsRow[] = customers.map((c) => {
       const stats = customerStatsMap.get(c.id)!;
       const entries = Object.entries(stats.routes) as [string, number][];
       const favoriteRoute =
@@ -159,23 +164,26 @@ export async function GET(request: NextRequest) {
     });
 
     // Sort
-    const sortFieldMap: Record<string, string> = {
+    const sortFieldMap: Record<
+      string,
+      keyof Pick<CustomerStatsRow, "totalSpending" | "totalTrips" | "name">
+    > = {
       totalSpending: "totalSpending",
       totalTrips: "totalTrips",
       name: "name",
     };
     const sortField = sortFieldMap[sortBy] || "totalTrips";
-    customerStats.sort((a: any, b: any) => {
+    customerStats.sort((a, b) => {
       const av = a[sortField] ?? "";
       const bv = b[sortField] ?? "";
       if (typeof av === "string") {
         return sortOrder === "asc"
-          ? av.localeCompare(bv as string)
-          : (bv as string).localeCompare(av);
+          ? av.localeCompare(String(bv))
+          : String(bv).localeCompare(av);
       }
       return sortOrder === "asc"
-        ? (av as number) - (bv as number)
-        : (bv as number) - (av as number);
+        ? av - Number(bv)
+        : Number(bv) - av;
     });
 
     const total = customerStats.length;

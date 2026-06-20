@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 import { KpiCards } from "@/components/reports/kpi-cards";
@@ -19,11 +19,15 @@ interface KpiData {
   unassignedTrips: number;
   assignedTrips: number;
   cancelledTrips: number;
+  completionRate: number;
+  cancelRate: number;
   avgTripValue: number;
   avgProfitPerTrip: number;
   revenueByDay: Array<{ date: string; revenue: number; profit: number; trips: number }>;
   revenueByMonth: Array<{ month: string; revenue: number; profit: number; trips: number }>;
   revenueByStatus: Record<string, number>;
+  statusDistribution: Array<{ bucket: string; label?: string; count: number; percent: number }>;
+  statusCounts: Record<string, number>;
   revenueChangePercent: number;
   profitChangePercent: number;
   tripsChangePercent: number;
@@ -80,8 +84,6 @@ export default function ReportsPage() {
     "overview" | "drivers" | "customers" | "routes" | "import"
   >("overview");
 
-  const filterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     try {
@@ -115,23 +117,12 @@ export default function ReportsPage() {
 
   // Set default filter to "Tất cả" on mount
   useEffect(() => {
-    applyQuickFilter("all");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
   useEffect(() => {
     fetchDrivers();
   }, [fetchDrivers]);
-
-  // Auto-apply filter after 600ms debounce (only for filter panel changes)
-  const scheduleFetch = (callback: () => void) => {
-    if (filterTimerRef.current) clearTimeout(filterTimerRef.current);
-    filterTimerRef.current = setTimeout(callback, 600);
-  };
 
   const applyQuickFilter = (key: string) => {
     const today = new Date();
@@ -195,8 +186,7 @@ export default function ReportsPage() {
   );
 
   const activeFilterCount = [
-    dateFilter !== "all",
-    startDate !== "",
+    dateFilter !== "all" || startDate !== "" || endDate !== "",
     selectedDriver !== "",
   ].filter(Boolean).length;
 
@@ -263,7 +253,6 @@ export default function ReportsPage() {
                       onChange={(e) => {
                         setStartDate(e.target.value);
                         setDateFilter("custom");
-                        scheduleFetch(fetchStats);
                       }}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     />
@@ -276,13 +265,101 @@ export default function ReportsPage() {
                       onChange={(e) => {
                         setEndDate(e.target.value);
                         setDateFilter("custom");
-                        scheduleFetch(fetchStats);
                       }}
                       min={startDate}
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     />
                     <p className="text-[10px] text-slate-400 mt-1 px-1">Đến ngày</p>
                   </div>
+                </div>
+              </div>
+
+              {/* Driver filter */}
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-2 px-1">
+                  Tài xế
+                </p>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setDriverDropdownOpen((open) => !open)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200 text-xs bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <span
+                      className={
+                        selectedDriverName
+                          ? "font-medium text-slate-700 truncate"
+                          : "text-slate-400 truncate"
+                      }
+                    >
+                      {selectedDriverName || "Tất cả tài xế"}
+                    </span>
+                    <span className="text-slate-400 text-[10px]">
+                      {driverDropdownOpen ? "Ẩn" : "Chọn"}
+                    </span>
+                  </button>
+
+                  {driverDropdownOpen && (
+                    <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-2">
+                      <input
+                        type="text"
+                        value={driverSearch}
+                        onChange={(e) => setDriverSearch(e.target.value)}
+                        placeholder="Tìm tên hoặc SĐT..."
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      />
+                      <div className="mt-2 max-h-56 overflow-y-auto space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDriver("");
+                            setDriverSearch("");
+                            setDriverDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${
+                            selectedDriver === ""
+                              ? "bg-blue-50 text-blue-600 font-semibold"
+                              : "text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          Tất cả tài xế
+                        </button>
+
+                        {driversLoading ? (
+                          <div className="px-3 py-3 text-xs text-slate-400">
+                            Đang tải danh sách tài xế...
+                          </div>
+                        ) : filteredDrivers.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-slate-400">
+                            Không tìm thấy tài xế phù hợp
+                          </div>
+                        ) : (
+                          filteredDrivers.map((driver) => (
+                            <button
+                              key={driver.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDriver(String(driver.id));
+                                setDriverDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${
+                                selectedDriver === String(driver.id)
+                                  ? "bg-blue-50 text-blue-600 font-semibold"
+                                  : "text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              <span className="block truncate">{driver.fullName}</span>
+                              {driver.phone && (
+                                <span className="block text-[10px] text-slate-400">
+                                  {driver.phone}
+                                </span>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -391,8 +468,7 @@ function OverviewTab({
           dateFilter={dateFilter}
         />
         <StatusPieChart
-          revenueByStatus={data.revenueByStatus || {}}
-          totalTrips={data.totalTrips || 0}
+          distribution={data.statusDistribution || []}
           loading={false}
         />
       </div>

@@ -1,139 +1,172 @@
-# Thuật Toán Lọc & Chỉ Số Báo Cáo
+# Thuật toán lọc và chỉ số báo cáo
 
-## Bộ Lọc Ngày
+## Bộ lọc ngày
 
-### Các Tùy Chọn
+Frontend chỉ tạo `startDate` và `endDate`. API chuyển các ngày này thành khoảng đầu ngày/cuối ngày theo múi giờ Việt Nam rồi lọc bằng `Trip.createdAt`.
 
-| Filter | Mô Tả | Ngày bắt đầu | Ngày kết thúc |
-|--------|--------|---------------|----------------|
-| **Hôm nay** | Dữ liệu trong ngày hiện tại | Hôm nay | Hôm nay |
-| **Tuần** | Dữ liệu từ đầu tuần đến hôm nay | Thứ 2 đầu tuần | Hôm nay |
-| **Tháng** (mặc định) | Dữ liệu từ ngày 1 tháng đến hôm nay | Ngày 1 tháng hiện tại | Hôm nay |
-| **Năm** | Dữ liệu từ ngày 1/1 đến hôm nay | 1/1 năm hiện tại | Hôm nay |
-| **Tất cả** | Tất cả dữ liệu | Không giới hạn | Không giới hạn |
+| Filter | Ngày bắt đầu | Ngày kết thúc |
+| --- | --- | --- |
+| Hôm nay | Hôm nay | Hôm nay |
+| Tuần | Thứ 2 đầu tuần | Hôm nay |
+| Tháng | Ngày 1 của tháng | Hôm nay |
+| Năm | Ngày 1/1 của năm | Hôm nay |
+| Tất cả | Không giới hạn | Không giới hạn |
 
-### Thuật Toán Tính Khoảng Ngày (Frontend)
-
-```typescript
-// File: app/dashboard/reports/page.tsx
-// Hàm: applyQuickFilter(key)
-
-Hôm nay  → start = today, end = today
-Tuần     → start = firstDayOfWeek(today), end = today
-Tháng   → start = firstDayOfMonth(today), end = today
-Năm     → start = Jan 1 of current year, end = today
-Tất cả  → start = "", end = ""
+```ts
+// app/dashboard/reports/page.tsx
+today -> startDate = today, endDate = today
+week -> startDate = mondayOfCurrentWeek, endDate = today
+month -> startDate = firstDayOfCurrentMonth, endDate = today
+year -> startDate = firstDayOfCurrentYear, endDate = today
+all -> startDate = "", endDate = ""
 ```
 
-## Các Chỉ Số KPI
+## Trục ngày kế toán
 
-Mỗi chỉ số được tính **trên toàn bộ trips trong khoảng ngày đã chọn**.
+Quy tắc quan trọng nhất:
 
-### Danh Sách Chỉ Số
-
-| STT | Tên | Công Thức | Nguồn Dữ Liệu |
-|-----|-----|-----------|----------------|
-| 1 | **Doanh thu** | Tổng `price` của tất cả trips | `SUM(trip.price)` |
-| 2 | **Lợi nhuận** | Tổng `profit` của tất cả trips | `SUM(trip.profit)` |
-| 3 | **Tổng cuốc** | Đếm tất cả trips | `COUNT(trip)` |
-| 4 | **Chưa gán** | Trips có `status = 'scheduled'` VÀ `driverId = null` | `WHERE status='scheduled' AND driverId IS NULL` |
-| 5 | **Hoàn thành** | Trips có `status = 'completed'` | `WHERE status='completed'` |
-| 6 | **Đang chạy** | Trips có `status = 'in_progress'` | `WHERE status='in_progress'` |
-| 7 | **Đã hủy** | Trips có `status = 'cancelled'` | `WHERE status='cancelled'` |
-| 8 | **TB cuốc** | Doanh thu / Tổng cuốc | `SUM(price) / COUNT(trips)` |
-| 9 | **TB lợi nhuận** | Lợi nhuận / Tổng cuốc | `SUM(profit) / COUNT(trips)` |
-
-### Chỉ Số So Sánh (Trend %)
-
-Mỗi chỉ số có % thay đổi so với **khoảng thời gian trước đó cùng độ dài**.
-
-**Ví dụ:** Filter "Tháng" (30 ngày: 1/5 → 10/5)
-- Khoảng hiện tại: 10/4 → 10/5 (30 ngày)
-- Khoảng trước đó: 11/3 → 10/4 (30 ngày)
-
-```typescript
-// Công thức:
-changePercent = prevValue > 0
-  ? ((currentValue - prevValue) / prevValue) * 100
-  : currentValue > 0 ? 100 : 0
+```text
+Kỳ báo cáo = Trip.createdAt
+Doanh thu được cộng khi status = completed
 ```
 
-## Biểu Đồ Doanh Thu
+Ví dụ: cuốc tạo ngày 20/06/2026, hoàn thành ngày 21/06/2026. Khi cuốc đã completed, doanh thu của cuốc này thuộc báo cáo ngày 20/06/2026.
 
-### Logic Chọn Data
+## Công thức KPI
 
-| Filter | Data Nguồn | Label Trục X | Title |
-|--------|-----------|--------------|-------|
-| Hôm nay | `revenueByDay` (1 ngày) | `DD/MM` | Doanh thu hôm nay |
-| Tuần | `revenueByDay` (7 ngày) | `DD/MM` | Doanh thu tuần này |
-| Tháng | `revenueByDay` (≤31 ngày) | `DD/MM` | Doanh thu tháng này |
-| Năm | `revenueByMonth` (12 tháng) | `T1,T2...T12` | Doanh thu theo tháng |
-| Tất cả | `revenueByMonth` | `T1,T2...T12` | Doanh thu theo tháng |
+| Chỉ số | Công thức |
+| --- | --- |
+| `totalTrips` | Đếm tất cả cuốc tạo trong kỳ |
+| `completedTrips` | Đếm cuốc tạo trong kỳ có `status = completed` |
+| `cancelledTrips` | Đếm cuốc tạo trong kỳ có `status = cancelled` |
+| `assignedTrips` | Đếm cuốc chưa completed/cancelled và có `driverId` |
+| `unassignedTrips` | Đếm cuốc chưa completed/cancelled và không có `driverId` |
+| `totalRevenue` | Tổng `price` của cuốc completed |
+| `totalProfit` | Tổng `profit` của cuốc completed |
+| `completionRate` | `completedTrips / totalTrips * 100` |
+| `cancelRate` | `cancelledTrips / totalTrips * 100` |
+| `avgTripValue` | `totalRevenue / completedTrips` |
+| `avgProfitPerTrip` | `totalProfit / completedTrips` |
 
-### Revenue By Day
+Nếu mẫu số bằng 0, tỷ lệ và trung bình trả về 0.
 
-Nhóm trips theo **YYYY-MM-DD**, tính tổng revenue và profit mỗi ngày.
+## So sánh kỳ trước
 
-### Revenue By Month
+Khi có đủ `startDate` và `endDate`, service tạo một khoảng kỳ trước có cùng độ dài ngay trước kỳ hiện tại.
 
-Nhóm trips theo **YYYY-MM**, tính tổng revenue và profit mỗi tháng.
-
-## Bộ Lọc Tùy Chỉnh (Panel Mở Rộng)
-
-Khi click "Bộ lọc", panel mở rộng cho phép:
-
-1. **Ngày tùy chỉnh** — chọn "Từ ngày" và "Đến ngày" cụ thể
-2. **Tài xế** — lọc theo tài xế được chọn (áp dụng cho tab Tài xế)
-
-> **Lưu ý:** Không có bộ lọc Trạng thái trên trang Báo cáo tổng quan. Trạng thái được hiển thị trong KPI cards và biểu đồ tròn.
-
-## Luồng Dữ Liệu
-
-```
-User click filter
-  → applyQuickFilter(key)
-    → setDateFilter(key)
-    → setStartDate() + setEndDate()
-    → setStatsLoading(true)
-  → fetchStats()
-    → GET /api/reports/stats?startDate=...&endDate=...
-      → Prisma: WHERE departureTime >= start AND departureTime <= end
-      → Trả JSON: { totalRevenue, totalProfit, totalTrips, ..., revenueByDay, revenueByMonth }
-  → setKpiData(json.data)
-  → OverviewTab render
-    → KpiCards: 9 metrics
-    → RevenueChart: revenueByDay (day/week/month) | revenueByMonth (year/all)
-    → StatusPieChart: phân bổ theo status
-    → MonthlyTable: revenueByMonth
+```ts
+changePercent =
+  previous > 0
+    ? ((current - previous) / previous) * 100
+    : current > 0
+      ? 100
+      : 0;
 ```
 
-## API Endpoint
+## Nhóm doanh thu theo ngày/tháng
 
+Chỉ cuốc completed mới đi vào `revenueByDay` và `revenueByMonth`.
+
+```ts
+const completedTrips = trips.filter((trip) => trip.status === "completed");
+
+for (const trip of completedTrips) {
+  const dayKey = toDayKey(trip.createdAt);
+  const monthKey = toMonthKey(trip.createdAt);
+
+  addMoney(revenueByDay[dayKey], trip.price, trip.profit);
+  addMoney(revenueByMonth[monthKey], trip.price, trip.profit);
+}
 ```
-GET /api/reports/stats
-  ?startDate=YYYY-MM-DD    (optional)
-  ?endDate=YYYY-MM-DD      (optional)
-  ?driverId=N              (optional)
 
-Response:
+## Bucket trạng thái
+
+```ts
+function reportStatusBucket(trip) {
+  if (trip.status === "completed") return "completed";
+  if (trip.status === "cancelled") return "cancelled";
+  return trip.driverId == null ? "unassigned" : "assigned";
+}
+```
+
+`StatusPieChart` hiển thị `count` và `percent`, không dùng doanh thu để vẽ trạng thái.
+
+## Báo cáo tài xế
+
+Mỗi dòng tài xế gồm 4 nhóm dữ liệu:
+
+- Sản lượng: tổng cuốc được gán trong kỳ, hoàn thành, đã gán, chưa gán, đã hủy.
+- Tài chính: doanh thu, lợi nhuận, trung bình doanh thu/lợi nhuận trên cuốc completed.
+- Chất lượng: tỷ lệ hoàn thành, tỷ lệ hủy, điểm/công chốt theo lần gán.
+- Thời gian gần nhất: lần gán tài xế gần nhất và lần hoàn thành gần nhất.
+
+Lần gán tài xế gần nhất phải lấy từ `trip_events`, không dùng `updatedAt`, vì `updatedAt` cũng đổi khi sửa giá, ghi chú hoặc thông tin khác.
+
+Trục kỳ của điểm/công Zom là `trip_events.createdAt` của event `driver_assigned` hoặc `driver_changed`. Nếu một cuốc được tạo ngày 01/06/2026 nhưng gán tài xế ngày 19/06/2026, cuốc đó vẫn nằm trong báo cáo công/điểm tài xế ngày 19/06/2026. Ngược lại, nếu cuốc tạo trong kỳ nhưng gán sau kỳ, điểm/công của cuốc đó chưa thuộc kỳ hiện tại.
+
+Khi tính điểm/công, service lấy snapshot mới nhất theo cặp `tripId + toDriverId`. Điều này tránh lấy nhầm điểm/công của tài xế cũ khi cuốc đã bị đổi tài xế. Với event backfill cũ chưa có snapshot, service fallback về `Trip.pointsEarned`, `Trip.profit`, `Trip.profitRate`, và `Trip.matchedFormulaId`.
+
+## Luồng dữ liệu runtime
+
+```text
+User chọn filter
+  -> page.tsx cập nhật startDate/endDate/driverId
+  -> useEffect gọi fetchStats()
+  -> GET /api/reports/stats?startDate=...&endDate=...&driverId=...
+  -> parseReportDateRange()
+  -> getOverviewReport()
+  -> Prisma WHERE createdAt trong kỳ
+  -> Frontend render KPI, RevenueChart, StatusPieChart
+```
+
+```text
+User mở tab Tài xế
+  -> DriverReportTab gọi /api/reports/drivers
+  -> getDriverReport()
+  -> trip_events theo giờ gán trong kỳ
+  -> trips hiện tại của các cuốc có event gán trong kỳ
+  -> table/mobile cards/export Excel
+```
+
+```text
+User bấm "Cuốc" ở tab Tài xế
+  -> DriverReportTab gọi /api/reports/drivers/:driverId/trips
+  -> getDriverTripHistory()
+  -> trip_events theo giờ gán trong kỳ
+  -> trips hiện tại của các cuốc tương ứng
+  -> modal hiển thị ngày tạo cuốc, giờ gán cuối, điểm, công, công thức/khung
+```
+
+## Response chính của `/api/reports/stats`
+
+```json
 {
-  success: true,
-  data: {
-    totalRevenue,        // number
-    totalProfit,        // number
-    totalTrips,         // number
-    completedTrips,     // number
-    unassignedTrips,    // number
-    inProgressTrips,   // number
-    cancelledTrips,     // number
-    avgTripValue,       // number
-    avgProfitPerTrip,   // number
-    revenueChangePercent,  // number (%)
-    profitChangePercent,   // number (%)
-    tripsChangePercent,    // number (%)
-    revenueByDay: [{ date, revenue, profit, trips }],
-    revenueByMonth: [{ month, revenue, profit, trips }],
-    revenueByStatus: { "completed": N, "in_progress": N, ... }
+  "success": true,
+  "data": {
+    "totalRevenue": 0,
+    "totalProfit": 0,
+    "totalTrips": 0,
+    "completedTrips": 0,
+    "assignedTrips": 0,
+    "unassignedTrips": 0,
+    "cancelledTrips": 0,
+    "completionRate": 0,
+    "cancelRate": 0,
+    "avgTripValue": 0,
+    "avgProfitPerTrip": 0,
+    "revenueByDay": [],
+    "revenueByMonth": [],
+    "statusDistribution": [],
+    "statusCounts": {},
+    "revenueByStatus": {}
   }
 }
 ```
+
+## Lưu ý vận hành
+
+- Không đối chiếu doanh thu báo cáo bằng `departureTime`.
+- Không cộng tiền cuốc cancelled, scheduled hoặc assigned vào doanh thu/lợi nhuận đã ghi nhận.
+- Không đối chiếu điểm/công Zom bằng `Trip.createdAt` hoặc `departureTime`; phải dùng giờ gán tài xế trong `trip_events`.
+- Schema công thức hiện chưa có cột khung giờ bắt đầu/kết thúc. Hệ thống hiện chốt snapshot công thức tại lúc gán và hiển thị để đối chiếu; nếu muốn tự động chọn công thức theo ca giờ, cần bổ sung schema công thức khung giờ riêng.
+- Nếu sau này cần báo cáo theo ngày hoàn thành, nên thêm field riêng `completedAt` hoặc dùng event `trip_completed` với tên báo cáo khác, không thay đổi báo cáo doanh thu theo ngày tạo cuốc hiện tại.

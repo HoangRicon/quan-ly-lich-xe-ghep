@@ -8,6 +8,7 @@ import {
   applyFormula,
   TripMatchInput,
 } from "@/lib/formula-engine";
+import { recordDriverAssignmentEvent } from "@/lib/trip-events";
 
 export async function GET(request: NextRequest) {
   try {
@@ -190,7 +191,7 @@ export async function GET(request: NextRequest) {
         price: trip.price,
         profit: trip.profit != null ? Number(trip.profit) : null,
         tripDirection: trip.tripDirection,
-        tripType: (trip as any).tripType || "ghep",
+        tripType: trip.tripType || "ghep",
         pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
         profitRate: trip.profitRate ? Number(trip.profitRate) : null,
         matchedFormulaId: trip.matchedFormulaId,
@@ -316,24 +317,6 @@ export async function POST(request: NextRequest) {
 
     const db = createTenantPrisma(prisma, user.accountId);
 
-    // Handle customer - create or get existing (tenant-scoped)
-    let customerId = null;
-    if (customerPhone) {
-      const customer = await db.customer.upsert({
-        where: { idx_customers_account_phone: { phone: customerPhone, accountId: user.accountId } },
-        create: {
-          phone: customerPhone,
-          name: customerName || "Khách vãng lai",
-          email: customerEmail,
-          notes: customerNotes,
-        },
-        update: {
-          totalTrips: { increment: 1 },
-        },
-      });
-      customerId = customer.id;
-    }
-
     // Determine driverId
     const finalDriverId = requestedDriverId || null;
     const safePrice = clampDecimal10_2(parsedPrice);
@@ -347,6 +330,7 @@ export async function POST(request: NextRequest) {
       profit: null,
       matchedFormulaId: null,
     };
+    let matchedFormulaName: string | null = null;
 
     if (finalDriverId) {
       // Lấy profitRate của driver (driver phải cùng account)
@@ -393,6 +377,7 @@ export async function POST(request: NextRequest) {
       }));
 
       const matchedFormula = findMatchingFormula(normalizedFormulas, tripInput);
+      matchedFormulaName = matchedFormula?.formulaName ?? null;
       formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
     }
 
@@ -402,48 +387,87 @@ export async function POST(request: NextRequest) {
     // profitRate có thể lớn hơn decimal(10,2), nhưng vẫn cần guard cơ bản
     const safeProfitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
 
-    const trip = await db.trip.create({
-      data: {
-        title,
-        description,
-        departure,
-        destination,
-        pickupLocation: normalizeOptionalText(pickupLocation),
-        dropoffLocation: normalizeOptionalText(dropoffLocation),
-        departureTime: new Date(departureTime),
-        arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
-        price: safePrice,
-        tripDirection: parsedDirection,
-        tripType: tripType === "bao" ? "bao" : "ghep",
-        ...(finalDriverId ? { driverId: finalDriverId } : {}),
-        ...(user ? { createdById: user.id } : {}),
-        totalSeats: parsedTotalSeats,
-        status: "scheduled",
-        ...(notes ? { notes } : {}),
-        pointsEarned: safePointsEarned,
-        profitRate: safeProfitRate,
-        profit: safeProfit,
-        matchedFormulaId: formulaResult.matchedFormulaId,
-        ...(customerId ? {
+    const trip = await db.$parent.$transaction(async (tx: Prisma.TransactionClient) => {
+      const txDb = createTenantPrisma(tx, user.accountId);
+
+      let customerId: number | null = null;
+      if (customerPhone) {
+        const customer = await txDb.customer.upsert({
+          where: { idx_customers_account_phone: { phone: customerPhone, accountId: user.accountId } },
+          create: {
+            phone: customerPhone,
+            name: customerName || "Khách vãng lai",
+            email: customerEmail,
+            notes: customerNotes,
+          },
+          update: {
+            totalTrips: { increment: 1 },
+          },
+        });
+        customerId = customer.id;
+      }
+
+      const createdTrip = await txDb.trip.create({
+        data: {
+          title,
+          description,
+          departure,
+          destination,
+          pickupLocation: normalizeOptionalText(pickupLocation),
+          dropoffLocation: normalizeOptionalText(dropoffLocation),
+          departureTime: new Date(departureTime),
+          arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
+          price: safePrice,
+          tripDirection: parsedDirection,
+          tripType: tripType === "bao" ? "bao" : "ghep",
+          ...(finalDriverId ? { driverId: finalDriverId } : {}),
+          ...(user ? { createdById: user.id } : {}),
+          totalSeats: parsedTotalSeats,
+          status: "scheduled",
+          ...(notes ? { notes } : {}),
+          pointsEarned: safePointsEarned,
+          profitRate: safeProfitRate,
+          profit: safeProfit,
+          matchedFormulaId: formulaResult.matchedFormulaId,
+          ...(customerId ? {
+            customers: {
+              create: {
+                customerId,
+                seats: seats || 1,
+                status: "confirmed",
+                notes: customerNotes,
+                accountId: user.accountId,
+              },
+            },
+          } : {}),
+        },
+        include: {
+          driver: true,
           customers: {
-            create: {
-              customerId,
-              seats: seats || 1,
-              status: "confirmed",
-              notes: customerNotes,
-              accountId: user.accountId,
+            include: {
+              customer: true,
             },
           },
-        } : {}),
-      } as any,
-      include: {
-        driver: true,
-        customers: {
-          include: {
-            customer: true,
-          },
         },
-      },
+      });
+
+      if (createdTrip.driverId) {
+        await recordDriverAssignmentEvent(txDb, {
+          tripId: createdTrip.id,
+          accountId: user.accountId,
+          fromDriverId: null,
+          toDriverId: createdTrip.driverId,
+          actorId: user.id,
+          createdAt: createdTrip.createdAt,
+          pointsEarned: safePointsEarned,
+          profit: safeProfit,
+          profitRate: safeProfitRate,
+          formulaId: formulaResult.matchedFormulaId,
+          formulaName: matchedFormulaName,
+        });
+      }
+
+      return createdTrip;
     });
 
     // Format response
@@ -459,7 +483,7 @@ export async function POST(request: NextRequest) {
       arrivalTime: trip.arrivalTime,
       price: trip.price,
       tripDirection: trip.tripDirection,
-      tripType: (trip as any).tripType || "ghep",
+      tripType: trip.tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
       profitRate: trip.profitRate ? Number(trip.profitRate) : null,
       profit: trip.profit ? Number(trip.profit) : null,

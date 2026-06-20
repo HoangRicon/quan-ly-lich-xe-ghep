@@ -1,121 +1,121 @@
-# Task Plan: Refactor Trip Status Control Flow
+# Task Plan: Reporting Overhaul
 
-## Mục tiêu
-Ngăn chặn tình trạng cuốc xe có `status = "confirmed"` nhưng `driverId = null` bằng cách:
-1. Validate ở API (reject các transition không hợp lệ).
-2. Frontend ẩn các option chuyển trạng thái không khả thi.
-3. Auto-cascade status khi gán/bỏ gán Zom.
+## Muc tieu
 
-## Cấu trúc file thay đổi
+Dai tu trang bao cao theo huong 3:
 
-### Mới tạo
-- `lib/trip-status-transitions.ts` — helper module
+1. Them lich su su kien cuoc xe (`trip_events`) de tinh lan gan tai xe gan nhat dung nghiep vu.
+2. Backfill event gan tai xe cho du lieu cu co `driverId`.
+3. Doi logic bao cao doanh thu sang `Trip.createdAt`, chi cong cuoc `completed`.
+4. Tach reporting layer ra `lib/reports/*`.
+5. Cai thien UI tong quan va tai xe voi ty le hoan thanh/huy, diem/cong, lan gan gan nhat.
+6. Doi diem/cong Zom sang truc gio gan tai xe (`trip_events.createdAt`) va them lich su cuoc de doi chieu khung tinh diem.
 
-### Sửa
-- `app/api/trips/[id]/route.ts` — validate + cascade status
-- `components/schedule-list.tsx` — filter dropdown + cascade trong modal gán Zom
+## File mapping
 
-### Tài liệu
-- (Không cần cập nhật docs trong change này — đã covered bởi change `fix-revenue-report-accuracy`)
+- `prisma/schema.prisma` - them `TripEvent`.
+- `prisma/migrations/20260620000001_add_trip_events/migration.sql` - tao bang/index.
+- `lib/trip-events.ts` - ghi event gan/doi/bo gan/status.
+- `scripts/backfill-trip-events.ts` - backfill idempotent.
+- `lib/reports/date-range.ts` - date range theo local day.
+- `lib/reports/trip-metrics.ts` - bucket/rate/date key helpers.
+- `lib/reports/overview-report.ts` - KPI/chart tong quan.
+- `lib/reports/driver-report.ts` - bao cao tai xe.
+- `scripts/verify-report-metrics.ts` - test logic thuan.
+- `app/api/trips/route.ts` - record event khi tao trip co driver.
+- `app/api/trips/[id]/route.ts` - record event khi update driver/status.
+- `app/api/reports/stats/route.ts` - dung overview service.
+- `app/api/reports/drivers/route.ts` - dung driver service.
+- `app/api/reports/routes/route.ts` - loc ky theo `createdAt`.
+- `app/api/reports/customers/route.ts` - loc ky theo `createdAt`.
+- `app/dashboard/reports/page.tsx` - update data contract/layout.
+- `components/reports/kpi-cards.tsx` - group money/operations/quality.
+- `components/reports/status-pie-chart.tsx` - count/percent by bucket.
+- `components/reports/revenue-chart.tsx` - label theo ngay tao cuoc.
+- `components/reports/driver-report-tab.tsx` - cot rate/points/latest assignment.
+- `lib/reports/driver-trip-history.ts` - lich su cuoc theo gio gan de doi chieu diem/cong.
+- `app/api/reports/drivers/[driverId]/trips/route.ts` - API lich su cuoc tai xe.
+- `docs/bao-cao-data-flow.md`, `docs/bao-cao-thuat-toan.md` - cap nhat semantics.
 
----
+## Phases
 
-## Giai đoạn thực hiện
+### Phase 1: Schema + event history
 
-### Phase 1: Helper module + unit tests (nền tảng)
-1. **Tạo `lib/trip-status-transitions.ts`** với 2 helper:
-   - `getValidNextStatuses(currentStatus, hasDriver)` — cho frontend
-   - `validateStatusTransition(currentStatus, newStatus, newDriverId)` — cho backend
-2. **Verify TypeScript compile** — đảm bảo helper không có lỗi type.
+- [x] 1.1 Add `TripEvent` model and migration.
+- [x] 1.2 Generate Prisma client.
+- [x] 1.3 Create `lib/trip-events.ts`.
+- [x] 1.4 Record events in trip create/update APIs.
+- [x] 1.5 Create and run/prepare backfill script.
 
-**Acceptance**: file tồn tại, compile pass, helper trả đúng cho 5 case test (xem tasks.md 1.3).
+Acceptance:
 
-### Phase 2: Backend API (validate + cascade)
-1. Sửa PUT handler trong `app/api/trips/[id]/route.ts`:
-   - Import helper
-   - Xác định `finalDriverId` sau khi merge input với DB state
-   - Auto-cascade status khi driverId thay đổi
-   - Validate transition trước khi commit
-2. Manual test qua curl:
-   - `PUT { status: "confirmed" }` không có driverId → expect 400
-   - `PUT { status: "confirmed", driverId: 5 }` từ scheduled → expect 200, status="confirmed"
-   - `PUT { status: "cancelled" }` từ completed → expect 400
+- Prisma generate pass.
+- Assignment/status event helpers compile.
+- Backfill script is idempotent.
 
-**Acceptance**: API reject đúng case, cascade đúng case.
+### Phase 2: Reporting service
 
-### Phase 3: Frontend list view dropdown
-1. Sửa `components/schedule-list.tsx`:
-   - Thay `nextMap[trip.status]` bằng `getValidNextStatuses(trip.status, !!trip.driver)`
-   - Render fallback "Trạng thái cuối" khi `validNext.length === 0`
-2. Test qua UI:
-   - Trip scheduled + không driver → dropdown chỉ có "Đã hủy"
-   - Trip scheduled + có driver → dropdown có "Đã hủy", "Đã gán"
-   - Trip confirmed → dropdown có "Chờ gán", "Đã hủy", "Hoàn thành"
-   - Trip completed → không có dropdown, hiển thị text
+- [x] 2.1 Create date range helper.
+- [x] 2.2 Create metric helper and verification script.
+- [x] 2.3 Create overview report service.
+- [x] 2.4 Create driver report service.
+- [x] 2.5 Run focused metric verification.
 
-**Acceptance**: dropdown filter đúng theo hasDriver.
+Acceptance:
 
-### Phase 4: Modal gán Zom (cascade)
-1. Trong handler gọi API từ `openDriverModal`:
-   - Nếu set driverId (không null) từ status scheduled → gửi `status: "confirmed"`
-   - Nếu clear driverId từ status confirmed → gửi `status: "scheduled"`
-2. Trong handler error 400:
-   - Hiển thị toast với message từ server
-   - Reload danh sách
+- Revenue filters/grouping use `createdAt`.
+- Revenue/profit only count `completed`.
+- Status distribution uses counts/percent.
 
-**Acceptance**: gán Zom tự động đổi status; bỏ gán Zom tự động về scheduled.
+### Phase 3: API refactor
 
-### Phase 5: Cleanup data cũ
-1. Viết SQL detect các trip "orphan" (status confirmed/running không có driver)
-2. Hướng dẫn user xử lý
+- [x] 3.1 Refactor stats API.
+- [x] 3.2 Refactor drivers API.
+- [x] 3.3 Align routes/customers API date semantics.
+- [x] 3.4 Preserve stable response shape where useful.
 
-**Acceptance**: User biết phải làm gì với data cũ trước khi deploy.
+Acceptance:
 
-### Phase 6: Verification cuối
-1. TypeScript check
-2. Lint check
-3. Manual test 8 scenarios trong spec
-4. Regression test: các flow cũ vẫn hoạt động (tạo trip, gán Zom, đổi trạng thái)
+- Existing tabs still load.
+- New fields available for UI.
 
-**Acceptance**: All tests pass, không regress.
+### Phase 4: UI upgrade
 
----
+- [x] 4.1 Update overview KPI groups.
+- [x] 4.2 Update revenue chart labels.
+- [x] 4.3 Update status chart to count/percent.
+- [x] 4.4 Update driver table/mobile cards.
+- [x] 4.5 Verify responsive density.
 
-## Test points chính
+Acceptance:
 
-| Phase | Test point | Cách verify |
-|-------|-----------|-------------|
-| 1 | Helper trả đúng cho 5 case | Code review + manual test |
-| 2 | API reject scheduled→confirmed no driver | curl/Postman |
-| 2 | API auto-cascade status khi gán Zom | curl/Postman |
-| 3 | Dropdown ẩn option không hợp lệ | UI manual test |
-| 4 | Modal gán Zom cascade đúng status | UI manual test |
-| 5 | SQL detect orphan trips | psql query |
-| 6 | TypeScript + lint + 8 scenarios | automation + manual |
+- Tong quan co nhom tien/van hanh/chat luong.
+- Tai xe co ty le hoan thanh, ty le huy, diem/cong, lan gan gan nhat.
 
----
+### Phase 5: Docs + verification
 
-## Phụ thuộc giữa các phase
+- [x] 5.1 Update report docs.
+- [x] 5.2 Run `npx prisma generate`.
+- [x] 5.3 Run `npx tsx scripts/verify-report-metrics.ts`.
+- [x] 5.4 Run `npx tsc --noEmit`.
+- [x] 5.5 Run `npm run lint` and classify pre-existing failures.
+- [x] 5.6 Update `progress.md` with evidence.
 
-```
-Phase 1 (helper)
-    ↓
-Phase 2 (API) ──→ Phase 3 (Frontend dropdown) ──→ Phase 4 (Modal cascade)
-    ↓                                                  ↓
-Phase 5 (cleanup) ───────────────────────────────────┘
-    ↓
-Phase 6 (verify)
-```
+### Phase 6: Driver assignment point reconciliation
 
-Phase 2 và Phase 3 có thể làm song song (cùng dùng helper từ Phase 1).
+- [x] 6.1 Add assignment snapshot fields to `TripEvent`.
+- [x] 6.2 Store point/profit/formula snapshot when assigning/changing driver.
+- [x] 6.3 Use latest assignment snapshot by `tripId + toDriverId` in driver reports.
+- [x] 6.4 Filter driver points/profit and trip history by assignment event time, not trip created time.
+- [x] 6.5 Add per-driver trip history API and UI reconciliation modal.
+- [x] 6.6 Add regression checks for cross-period `createdAt != assignedAt` behavior.
 
----
+Acceptance:
 
-## Risk + Mitigation
+- Typecheck pass.
+- No new report-related lint blockers.
+- Verification evidence logged.
 
-| Risk | Mitigation |
-|------|-----------|
-| Helper sai logic → frontend filter sai → UX broken | Phase 1: viết unit test kỹ trước khi dùng |
-| API reject quá mạnh → block user hợp lệ | Phase 2: test kỹ các edge case trước khi áp |
-| Data cũ có trip orphan → user không biết | Phase 5: query detect + hướng dẫn |
-| Edit form (giữ nguyên) cho chọn status tự do | Đã chấp nhận rủi ro — API vẫn validate, frontend hiển thị lỗi |
+## Detailed implementation plan
+
+See `docs/superpowers/plans/2026-06-20-reporting-overhaul.md`.

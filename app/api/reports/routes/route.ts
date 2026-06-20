@@ -4,19 +4,28 @@ import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 import { tripStatusBucket } from "@/lib/trip-status-buckets";
+import { parseReportDateRange } from "@/lib/reports/date-range";
 
-function parseDateParams(startDate?: string | null, endDate?: string | null) {
-  const range: { gte?: Date; lte?: Date } = {};
-  if (startDate) {
-    const [y, m, d] = startDate.split("-").map(Number);
-    range.gte = new Date(y, m - 1, d, 0, 0, 0, 0);
-  }
-  if (endDate) {
-    const [y, m, d] = endDate.split("-").map(Number);
-    range.lte = new Date(y, m - 1, d, 23, 59, 59, 999);
-  }
-  return range;
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
+
+type RouteStatsRow = {
+  route: string;
+  departure: string;
+  destination: string;
+  totalTrips: number;
+  completedTrips: number;
+  assignedTrips: number;
+  unassignedTrips: number;
+  cancelledTrips: number;
+  totalRevenue: number;
+  totalProfit: number;
+  avgTripValue: number;
+  avgProfit: number;
+  avgSeats: number;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,17 +41,17 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const sortBy = searchParams.get("sortBy") || "totalTrips";
     const sortOrder = searchParams.get("sortOrder") || "desc";
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const page = parsePositiveInt(searchParams.get("page"), 1);
+    const limit = parsePositiveInt(searchParams.get("limit"), 20);
 
-    const dateRange = parseDateParams(startDate, endDate);
+    const { current: dateRange } = parseReportDateRange(startDate, endDate);
 
     // Build trip where clause
     const tripWhere: Prisma.TripWhereInput = {
       accountId: user.accountId,
     };
     if (Object.keys(dateRange).length > 0) {
-      tripWhere.departureTime = dateRange;
+      tripWhere.createdAt = dateRange;
     }
 
     const trips = await db.trip.findMany({
@@ -77,7 +86,6 @@ export async function GET(request: NextRequest) {
 
     for (const trip of trips) {
       const routeKey = `${trip.departure}|||${trip.destination}`;
-      const routeName = `${trip.departure} - ${trip.destination}`;
       let stats = routeStatsMap.get(routeKey);
       if (!stats) {
         stats = {
@@ -108,7 +116,7 @@ export async function GET(request: NextRequest) {
       else if (b === "assigned") stats.assignedTrips++;
     }
 
-    let routeStats = Array.from(routeStatsMap.values()).map((s) => ({
+    let routeStats: RouteStatsRow[] = Array.from(routeStatsMap.values()).map((s) => ({
       route: `${s.departure} - ${s.destination}`,
       departure: s.departure,
       destination: s.destination,
@@ -136,7 +144,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Sort
-    const sortFieldMap: Record<string, string> = {
+    const sortFieldMap: Record<
+      string,
+      keyof Pick<
+        RouteStatsRow,
+        | "totalRevenue"
+        | "totalTrips"
+        | "totalProfit"
+        | "completedTrips"
+        | "assignedTrips"
+        | "route"
+      >
+    > = {
       totalRevenue: "totalRevenue",
       totalTrips: "totalTrips",
       totalProfit: "totalProfit",
@@ -145,17 +164,17 @@ export async function GET(request: NextRequest) {
       route: "route",
     };
     const sortField = sortFieldMap[sortBy] || "totalTrips";
-    routeStats.sort((a: any, b: any) => {
+    routeStats.sort((a, b) => {
       const av = a[sortField] ?? "";
       const bv = b[sortField] ?? "";
       if (typeof av === "string") {
         return sortOrder === "asc"
-          ? av.localeCompare(bv as string)
-          : (bv as string).localeCompare(av);
+          ? av.localeCompare(String(bv))
+          : String(bv).localeCompare(av);
       }
       return sortOrder === "asc"
-        ? (av as number) - (bv as number)
-        : (bv as number) - (av as number);
+        ? av - Number(bv)
+        : Number(bv) - av;
     });
 
     const total = routeStats.length;

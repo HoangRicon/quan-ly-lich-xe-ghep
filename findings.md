@@ -1,78 +1,54 @@
-# Findings
+# Findings: Reporting Overhaul
 
-## Context dự án
-- Tech stack: Next.js (app router), Prisma + PostgreSQL, Tailwind CSS, TypeScript.
-- Multi-tenant: mọi query qua `createTenantPrisma(prisma, user.accountId)`.
-- Timezone server: **UTC** (theo user xác nhận).
-- DB schema đã có `last_assigned_at` cho trip? **CHƯA** (sẽ làm trong change khác).
+## Repo context
 
-## Khám phá codebase đã thực hiện
+- Stack: Next.js App Router, TypeScript, Prisma/PostgreSQL, Tailwind, Recharts.
+- Auth/tenant pattern: APIs call `getSession()` then `createTenantPrisma(prisma, user.accountId)`.
+- Current reports APIs calculate inside route handlers.
+- Existing root planning files were for completed change `refactor-trip-status-control-flow`; this task replaces root plan context with `reporting-overhaul`.
 
-### Files liên quan status
-1. `lib/useTripStatuses.ts` — quản lý status qua API + fallback
-   - `nextMap` hiện tại: auto-gen từ sortOrder (status nào có sortOrder cao hơn → là "next" của status trước).
-   - `fixedOrder`: scheduled=1, confirmed=2, running=3, completed=4, cancelled=5.
-   - **Đây là chỗ gây bug**: khi trip đang `scheduled`, dropdown hiện cả `confirmed`, `running`, `completed`, `cancelled`.
+## Current report issues confirmed
 
-2. `components/schedule-list.tsx` — list view chính
-   - Dòng ~1467: `{(nextMap[trip.status] || []).slice(0, 6).map(...)}` — render dropdown.
-   - Dòng ~2036-2053: edit form có list status đầy đủ để user click (giữ nguyên theo yêu cầu).
-   - Có `openDriverModal` — modal chọn Zom. **Cần xem chi tiết handler** để biết gọi API thế nào.
+- `app/api/reports/stats/route.ts` filters by `departureTime`.
+- `app/api/reports/stats/route.ts` groups revenue by `departureTime`.
+- `app/api/reports/drivers/route.ts` filters driver trips by `departureTime`.
+- `revenueByStatus` sums `price` for all statuses, including scheduled/cancelled, while KPI revenue sums only completed trips.
+- Driver tab does not expose completion rate, cancel rate, points, last assignment, or last completion.
+- `DriverReportTab` receives `selectedDriver` but does not use it.
+- Schema has no event/history table; `updatedAt` cannot be used for last assignment because unrelated edits update it.
 
-3. `app/api/trips/[id]/route.ts` — handler PUT trip
-   - Đã có logic recalculate formula/profit, cascade driver thay đổi (set `pointsEarned`, `profitRate`, `profit` về null khi clear driver).
-   - **CHƯA có** validate transition status.
-   - **CHƯA có** auto-cascade status khi driverId thay đổi.
+## Chosen scope
 
-### Files chưa cần đụng trong change này
-- `lib/trip-status-buckets.ts` — dùng cho báo cáo (change khác).
-- `app/api/reports/*` — báo cáo (change khác).
-- `components/trip-form.tsx` — tạo trip mới (giữ nguyên).
+User chose "Huong 3" after being offered:
 
-## Quyết định kỹ thuật
+1. Minimal logic fix.
+2. Balanced reporting correction.
+3. Full reporting layer + event history.
 
-### Q1: Helper đặt ở đâu?
-- **Chọn**: `lib/trip-status-transitions.ts` (file mới).
-- Lý do: cần share giữa frontend (`schedule-list.tsx`) và backend (`api/trips/[id]/route.ts`). Đặt trong `lib/` để cả hai import được.
+Selected: full reporting layer + event history.
 
-### Q2: Status nào được coi là "next" của scheduled?
-- **Bảng trong spec**:
-  - `scheduled` → `cancelled` (luôn)
-  - `scheduled` → `confirmed` (chỉ khi có driver)
-  - `scheduled` → `completed` (cho phép từ list view, mặc dù thực tế nên qua bước confirmed)
-  - **Lý do giữ `scheduled → completed`**: edge case có thể có trip confirm đường khác (vd: import) chưa qua flow scheduled.
-- `running` không dùng trong change này (theo user: chỉ dùng `confirmed`).
+## Business decisions
 
-### Q3: Khi API reject 400, frontend xử lý thế nào?
-- Toast error với message từ server (`error` field trong response).
-- KHÔNG revert UI state — chỉ reload danh sách từ server (đảm bảo đồng bộ).
+- Financial reporting date = `Trip.createdAt`.
+- Revenue/profit only count `status = "completed"`.
+- `totalTrips` = all trips created in selected period.
+- `completionRate = completedTrips / totalTrips`.
+- `cancelRate = cancelledTrips / totalTrips`.
+- Status distribution chart uses counts/percent, not revenue.
+- "Lan gan tai xe gan nhat" means latest driver assignment/change event, not latest trip and not `updatedAt`.
+- Legacy data should be backfilled using `Trip.createdAt` for trips that already have `driverId`.
 
-### Q4: Có cần thêm trường DB không?
-- **KHÔNG trong change này**. Schema không thay đổi. Logic thời gian gán sẽ thuộc change `fix-revenue-report-accuracy`.
+## Existing worktree notes
 
-### Q5: Edit form có cần validate không?
-- Theo user: giữ nguyên (dropdown đầy đủ).
-- Nhưng nếu user chọn status không hợp lệ → API reject → toast error.
-- Frontend KHÔNG tự ngăn user chọn, nhưng cũng không có UX thân thiện. **Rủi ro chấp nhận được** vì API là lớp bảo vệ cuối.
+At plan creation, unrelated or pre-existing changes existed:
 
-## Backward compatibility issues
+- `components/schedule-list.tsx` modified.
+- Deleted old `openspec/changes/fix-revenue-report-accuracy/*`.
+- Untracked `openspec/changes/ai-quick-trip-entry/`.
+- New spec files for `openspec/changes/reporting-overhaul/`.
 
-### Issue 1: Data cũ có trip "orphan"
-- Dữ liệu cũ có thể có trip `status = "confirmed"` (hoặc `running`) mà `driverId = null`.
-- Nguyên nhân: bug đã tồn tại trước change này.
-- Giải pháp:
-  - Query SQL detect: `SELECT id FROM trips WHERE status IN ('confirmed','running') AND driver_id IS NULL;`
-  - Hướng dẫn user chạy fix script hoặc xử lý thủ công.
+Do not revert unrelated changes.
 
-### Issue 2: Hard-coded status key
-- Hiện tại code có những chỗ check `status === "confirmed"` hoặc `status === "cancelled"` hard-coded (vd: `if (status === "completed" || status === "cancelled")` trong schedule-list).
-- Khi thêm helper, cần chú ý không break các đoạn check cũ.
+## Verification baseline
 
-## Câu hỏi còn mở
-
-1. Có cần backfill trường `lastAssignedAt` cho trip cũ không? → Trì hoãn sang change `fix-revenue-report-accuracy`.
-2. Modal gán Zom có cho phép clear driverId (bỏ gán) không? → Theo user: có (khi đó status tự về `scheduled`).
-
-## Phụ thuộc với change khác
-
-- `fix-revenue-report-accuracy`: phần thêm trường `lastAssignedAt` / `currentAssignedAt` sẽ dùng helper `getValidNextStatuses` để biết trip có driver hay không. **Có thể dùng lại helper.**
+Previous `npm run lint` failed repo-wide with many pre-existing issues. For this change, full lint may remain red; implementation should avoid introducing new report/trip-event lint errors and should document remaining pre-existing failures.

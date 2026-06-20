@@ -36,9 +36,10 @@ interface ReportTableProps<T> {
   cardAvatar?: (item: T) => React.ReactNode;
   cardTitle?: (item: T) => string;
   cardSubtitle?: (item: T) => string;
+  cardAction?: (item: T) => React.ReactNode;
 }
 
-export function ReportTable<T extends Record<string, any>>({
+export function ReportTable<T extends object>({
   columns,
   data,
   loading,
@@ -54,6 +55,7 @@ export function ReportTable<T extends Record<string, any>>({
   cardAvatar,
   cardTitle,
   cardSubtitle,
+  cardAction,
 }: ReportTableProps<T>) {
   if (loading) {
     return (
@@ -150,6 +152,7 @@ export function ReportTable<T extends Record<string, any>>({
                     </p>
                   )}
                 </div>
+                {cardAction && <div className="shrink-0">{cardAction(item)}</div>}
               </div>
 
               {/* Card metric rows */}

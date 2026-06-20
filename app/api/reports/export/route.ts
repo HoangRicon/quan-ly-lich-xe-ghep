@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
+import { parseReportDateRange } from "@/lib/reports/date-range";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,19 +31,9 @@ export async function GET(request: NextRequest) {
       where.driverId = parseInt(driverId);
     }
 
-    if (startDate && endDate) {
-      const [sY, sM, sD] = startDate.split("-").map(Number);
-      const [eY, eM, eD] = endDate.split("-").map(Number);
-      where.departureTime = {
-        gte: new Date(sY, sM - 1, sD, 0, 0, 0, 0),
-        lte: new Date(eY, eM - 1, eD, 23, 59, 59, 999),
-      };
-    } else if (startDate) {
-      const [sY, sM, sD] = startDate.split("-").map(Number);
-      where.departureTime = { gte: new Date(sY, sM - 1, sD, 0, 0, 0, 0) };
-    } else if (endDate) {
-      const [eY, eM, eD] = endDate.split("-").map(Number);
-      where.departureTime = { lte: new Date(eY, eM - 1, eD, 23, 59, 59, 999) };
+    const { current } = parseReportDateRange(startDate, endDate);
+    if (Object.keys(current).length > 0) {
+      where.createdAt = current;
     }
 
     const trips = await db.trip.findMany({
@@ -104,7 +95,7 @@ export async function GET(request: NextRequest) {
           .join("; "),
         ghi_chu: trip.notes ?? "",
         tao_luc: formatDateTime(trip.createdAt),
-       cong_thuc_id: trip.matchedFormulaId ?? "",
+        cong_thuc_id: trip.matchedFormulaId ?? "",
       };
     });
 

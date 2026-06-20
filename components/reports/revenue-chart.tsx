@@ -1,14 +1,13 @@
 "use client";
 
 import {
-  LineChart,
+  CartesianGrid,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { TrendingUp } from "lucide-react";
 
@@ -25,19 +24,6 @@ interface RevenueChartProps {
   dateFilter?: string;
 }
 
-function formatVND(value: number): string {
-  if (value >= 1000000000) {
-    return `${(value / 1000000000).toFixed(1)} tỷ`;
-  }
-  if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(1)}M`;
-  }
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(0)}K`;
-  }
-  return value.toString();
-}
-
 function formatVNDShort(value: number): string {
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`;
@@ -49,22 +35,22 @@ function formatVNDShort(value: number): string {
 }
 
 function formatDayLabel(dateStr: string): string {
-  const [year, month, day] = dateStr.split("-");
+  const [, month, day] = dateStr.split("-");
   return `${parseInt(day)}/${parseInt(month)}`;
 }
 
 function formatMonthLabel(dateStr: string): string {
-  const [year, month] = dateStr.split("-");
+  const [, month] = dateStr.split("-");
   const monthNames = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12"];
   return monthNames[parseInt(month) - 1] || dateStr;
 }
 
 const CHART_TITLE_MAP: Record<string, string> = {
-  today: "Doanh thu hôm nay",
-  week: "Doanh thu tuần này",
-  month: "Doanh thu tháng này",
-  year: "Doanh thu theo tháng",
-  all: "Doanh thu theo tháng",
+  today: "Doanh thu theo ngày tạo cuốc",
+  week: "Doanh thu theo ngày tạo cuốc",
+  month: "Doanh thu theo ngày tạo cuốc",
+  year: "Doanh thu theo tháng tạo cuốc",
+  all: "Doanh thu theo tháng tạo cuốc",
 };
 
 function CustomTooltip({
@@ -101,18 +87,39 @@ function CustomTooltip({
   );
 }
 
+function ChartHeader({ title, showLegend = false }: { title: string; showLegend?: boolean }) {
+  return (
+    <div className="flex items-start gap-2 mb-4">
+      <TrendingUp className="w-4 h-4 text-slate-500 mt-0.5" />
+      <div>
+        <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
+        <p className="text-[11px] text-slate-400">Chỉ tính cuốc hoàn thành</p>
+      </div>
+      {showLegend && (
+        <div className="ml-auto flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <span className="text-slate-500">Doanh thu</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+            <span className="text-slate-500">Lợi nhuận</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RevenueChart({ data, loading, dateFilter = "month" }: RevenueChartProps) {
-  const chartTitle = CHART_TITLE_MAP[dateFilter] || "Doanh thu theo ngày";
+  const chartTitle = CHART_TITLE_MAP[dateFilter] || "Doanh thu theo ngày tạo cuốc";
   const useMonthLabels = dateFilter === "year" || dateFilter === "all";
   const hasData = data.length > 0;
 
   if (loading) {
     return (
       <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-4 h-4 text-slate-500" />
-          <h3 className="font-semibold text-slate-800 text-sm">{chartTitle}</h3>
-        </div>
+        <ChartHeader title={chartTitle} />
         <div className="h-64 bg-slate-100 rounded-lg animate-pulse" />
       </div>
     );
@@ -121,10 +128,7 @@ export function RevenueChart({ data, loading, dateFilter = "month" }: RevenueCha
   if (!hasData) {
     return (
       <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-4 h-4 text-slate-500" />
-          <h3 className="font-semibold text-slate-800 text-sm">{chartTitle}</h3>
-        </div>
+        <ChartHeader title={chartTitle} />
         <div className="h-64 flex items-center justify-center text-slate-400 text-sm">
           Chưa có dữ liệu trong khoảng thời gian này
         </div>
@@ -145,20 +149,7 @@ export function RevenueChart({ data, loading, dateFilter = "month" }: RevenueCha
 
   return (
     <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="w-4 h-4 text-slate-500" />
-        <h3 className="font-semibold text-slate-800 text-sm">{chartTitle}</h3>
-        <div className="ml-auto flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span className="text-slate-500">Doanh thu</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span className="text-slate-500">Lợi nhuận</span>
-          </div>
-        </div>
-      </div>
+      <ChartHeader title={chartTitle} showLegend />
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />

@@ -15,6 +15,7 @@ model Account {
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   customers Customer[]
+  tripEvents TripEvent[]
   trips     Trip[]
   users     User[]
 
@@ -83,10 +84,12 @@ model Trip {
   accountId        Int            @map("account_id")
   bookings         Booking[]
   customers        TripCustomer[]
+  events           TripEvent[]
   account          Account        @relation(fields: [accountId], references: [id])
   createdBy        User?          @relation("CreatedTrips", fields: [createdById], references: [id])
   driver           User?          @relation(fields: [driverId], references: [id])
 
+  @@unique([id, accountId], map: "trips_id_account_id_key")
   @@index([driverId], map: "idx_trips_driver")
   @@index([departureTime], map: "idx_trips_departure_time")
   @@index([status], map: "idx_trips_status")
@@ -95,6 +98,33 @@ model Trip {
   @@index([accountId, status], map: "idx_trips_account_status")
   @@index([accountId, driverId], map: "idx_trips_account_driver")
   @@map("trips")
+}
+
+model TripEvent {
+  id           Int      @id @default(autoincrement())
+  tripId       Int      @map("trip_id")
+  accountId    Int      @map("account_id")
+  type         String   @db.VarChar(50)
+  fromStatus   String?  @map("from_status") @db.VarChar(50)
+  toStatus     String?  @map("to_status") @db.VarChar(50)
+  fromDriverId Int?     @map("from_driver_id")
+  toDriverId   Int?     @map("to_driver_id")
+  actorId      Int?     @map("actor_id")
+  pointsEarned Decimal? @map("points_earned") @db.Decimal(10, 2)
+  profit       Decimal? @db.Decimal(10, 2)
+  profitRate   Decimal? @map("profit_rate") @db.Decimal(15, 2)
+  formulaId    Int?     @map("formula_id")
+  formulaName  String?  @map("formula_name") @db.VarChar(255)
+  note         String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  account      Account  @relation(fields: [accountId], references: [id])
+  trip         Trip     @relation(fields: [tripId, accountId], references: [id, accountId], onDelete: Cascade)
+
+  @@index([accountId, createdAt], map: "idx_trip_events_account_created")
+  @@index([accountId, type, createdAt], map: "idx_trip_events_account_type_created")
+  @@index([accountId, toDriverId, createdAt], map: "idx_trip_events_account_to_driver_created")
+  @@index([tripId], map: "idx_trip_events_trip")
+  @@map("trip_events")
 }
 
 model Booking {

@@ -12,6 +12,20 @@ import {
   validateStatusTransition,
   resolveStatusAfterDriverChange,
 } from "@/lib/trip-status-transitions";
+import {
+  recordDriverAssignmentEvent,
+  recordStatusEvents,
+} from "@/lib/trip-events";
+
+class TripMutationError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+    this.name = "TripMutationError";
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -94,7 +108,7 @@ export async function GET(
       price: trip.price,
       profit: trip.profit != null ? Number(trip.profit) : null,
       tripDirection: trip.tripDirection,
-      tripType: (trip as any).tripType || "ghep",
+      tripType: trip.tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
       profitRate: trip.profitRate ? Number(trip.profitRate) : null,
       matchedFormulaId: trip.matchedFormulaId,
@@ -181,23 +195,58 @@ export async function PUT(
       return String(value).trim() || null;
     };
 
+    const trip = await db.$parent.$transaction(async (tx: Prisma.TransactionClient) => {
+      const txDb = createTenantPrisma(tx, user.accountId);
+      const db = txDb;
+
     const updateData: Prisma.TripUpdateInput = {};
 
-    // Lấy trạng thái + driverId hiện tại để validate transition và cascade.
-    // Dùng `findFirst` để vẫn filter theo tenant (accountId).
-    const currentTripForValidation = await db.trip.findFirst({
-      where: { id: tripId, accountId: user.accountId },
-      select: { id: true, status: true, driverId: true },
-    });
+    // Lock current trip row before deriving event "from" values.
+    const [currentTripForValidation] = await tx.$queryRaw<
+      Array<{
+        id: number;
+        accountId: number;
+        status: string;
+        driverId: number | null;
+      }>
+    >`
+      SELECT
+        "id",
+        "account_id" AS "accountId",
+        "status",
+        "driver_id" AS "driverId"
+      FROM "trips"
+      WHERE "id" = ${tripId}
+        AND "account_id" = ${user.accountId}
+      FOR UPDATE
+    `;
     if (!currentTripForValidation) {
-      return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+      throw new TripMutationError(404, "Trip not found");
     }
     const currentStatus = currentTripForValidation.status;
     const oldDriverId = currentTripForValidation.driverId;
 
     // DriverId thực tế sẽ được áp dụng sau khi merge input với DB state.
-    const finalDriverId =
-      driverId !== undefined ? driverId : oldDriverId;
+    const requestedDriverId =
+      driverId === undefined ? undefined : driverId === null ? null : Number(driverId);
+
+    if (driverId !== undefined && requestedDriverId !== null) {
+      if (!Number.isInteger(requestedDriverId)) {
+        throw new TripMutationError(400, "Driver not found in your account");
+      }
+
+      const driver = await db.user.findFirst({
+        where: { id: requestedDriverId, accountId: user.accountId },
+        select: { id: true },
+      });
+
+      if (!driver) {
+        throw new TripMutationError(400, "Driver not found in your account");
+      }
+    }
+
+    const finalDriverId: number | null =
+      requestedDriverId !== undefined ? requestedDriverId : oldDriverId;
 
     // Auto-cascade status khi driverId thay đổi (chỉ khi user không gửi status riêng).
     let cascadedStatus: string | undefined;
@@ -205,7 +254,7 @@ export async function PUT(
       cascadedStatus = resolveStatusAfterDriverChange(
         currentStatus,
         oldDriverId,
-        driverId
+        finalDriverId
       );
     }
 
@@ -220,7 +269,7 @@ export async function PUT(
         finalDriverId
       );
       if (!check.ok) {
-        return NextResponse.json({ error: check.message }, { status: 400 });
+        throw new TripMutationError(400, check.message);
       }
     }
 
@@ -237,7 +286,7 @@ export async function PUT(
       updateData.driver =
         driverId === null
           ? { disconnect: true }
-          : { connect: { id: driverId as number } };
+          : { connect: { id: requestedDriverId as number } };
     }
 
     if (departure !== undefined) {
@@ -262,14 +311,16 @@ export async function PUT(
     }
 
     // Nếu có recalculate=true thì bỏ qua profit thủ công, dùng formula engine
-    if (recalculate === true) {
+    let assignmentFormulaName: string | null = null;
+
+    if (recalculate === true || driverId !== undefined) {
       // Lấy thông tin trip hiện tại để tính toán
       const currentTrip = await db.trip.findFirst({
         where: { id: tripId, accountId: user.accountId },
         include: { customers: true },
       });
       if (!currentTrip) {
-        return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+        throw new TripMutationError(404, "Trip not found");
       }
 
       const finalPriceRaw = price !== undefined ? parseVndNumber(price) : Number(currentTrip.price);
@@ -278,7 +329,6 @@ export async function PUT(
       const finalTotalSeatsParsed = totalSeats !== undefined ? parseInt(String(totalSeats), 10) : currentTrip.totalSeats;
       const finalTotalSeats = Number.isFinite(finalTotalSeatsParsed) && finalTotalSeatsParsed > 0 ? finalTotalSeatsParsed : currentTrip.totalSeats;
       const finalDirection = tripDirection || currentTrip.tripDirection || "oneway";
-      const finalDriverId = driverId !== undefined ? driverId : currentTrip.driverId;
 
       // Normalize tripType đầu vào về 2 loại "ghep" | "bao" (formula engine sẽ tự map theo tripDirection).
       // Lưu ý: frontend có thể gửi tripType dạng "*_roundtrip", nên không được suy sai bằng passengerCount.
@@ -289,7 +339,7 @@ export async function PUT(
       };
 
       const parsedTripTypeFromReq = normalizeBaseTripType(tripType);
-      const parsedTripTypeFromCurrent = normalizeBaseTripType((currentTrip as any).tripType);
+      const parsedTripTypeFromCurrent = normalizeBaseTripType(currentTrip.tripType);
 
       // Ưu tiên tripType đã lưu trong DB. Chỉ fallback sang suy luận passengerCount khi không có thông tin hợp lệ.
       let parsedTripType: "ghep" | "bao";
@@ -351,6 +401,7 @@ export async function PUT(
         }));
 
         const matched = findMatchingFormula(normalizedFormulas, tripInput);
+        assignmentFormulaName = matched?.formulaName ?? null;
         const formulaResult = applyFormula(tripInput, driverProfitRate, matched);
 
         updateData.pointsEarned = sanitizeOptionalDecimal10_2(formulaResult.pointsEarned);
@@ -479,26 +530,52 @@ export async function PUT(
       });
     }
 
-    const trip = await db.trip.update({
-      where: { id: tripId, accountId: user.accountId },
-      data: updateData,
-      include: {
-        driver: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            formulaIds: true,
-            profitRate: true,
-            formula: { select: { isActive: true } },
+      const updatedTrip = await db.trip.update({
+        where: { id: tripId, accountId: user.accountId },
+        data: updateData,
+        include: {
+          driver: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              formulaIds: true,
+              profitRate: true,
+              formula: { select: { isActive: true } },
+            },
+          },
+          customers: {
+            include: {
+              customer: true,
+            },
           },
         },
-        customers: {
-          include: {
-            customer: true,
-          },
-        },
-      },
+      });
+
+      await recordDriverAssignmentEvent(db, {
+        tripId: updatedTrip.id,
+        accountId: currentTripForValidation.accountId,
+        fromDriverId: oldDriverId,
+        toDriverId: updatedTrip.driverId,
+        actorId: user.id,
+        pointsEarned:
+          updatedTrip.pointsEarned != null ? Number(updatedTrip.pointsEarned) : null,
+        profit: updatedTrip.profit != null ? Number(updatedTrip.profit) : null,
+        profitRate:
+          updatedTrip.profitRate != null ? Number(updatedTrip.profitRate) : null,
+        formulaId: updatedTrip.matchedFormulaId,
+        formulaName: assignmentFormulaName,
+      });
+
+      await recordStatusEvents(db, {
+        tripId: updatedTrip.id,
+        accountId: currentTripForValidation.accountId,
+        fromStatus: currentStatus,
+        toStatus: updatedTrip.status,
+        actorId: user.id,
+      });
+
+      return updatedTrip;
     });
 
     // Fetch all formulas for the driver
@@ -542,7 +619,7 @@ export async function PUT(
       price: trip.price,
       profit: trip.profit != null ? Number(trip.profit) : null,
       tripDirection: trip.tripDirection,
-      tripType: (trip as any).tripType || "ghep",
+      tripType: trip.tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
       profitRate: trip.profitRate ? Number(trip.profitRate) : null,
       matchedFormulaId: trip.matchedFormulaId,
@@ -571,6 +648,9 @@ export async function PUT(
     res.headers.set("Expires", "0");
     return res;
   } catch (error) {
+    if (error instanceof TripMutationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("Update trip error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
