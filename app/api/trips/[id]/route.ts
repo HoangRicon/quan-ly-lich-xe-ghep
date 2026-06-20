@@ -8,6 +8,10 @@ import {
   applyFormula,
   TripMatchInput,
 } from "@/lib/formula-engine";
+import {
+  validateStatusTransition,
+  resolveStatusAfterDriverChange,
+} from "@/lib/trip-status-transitions";
 
 export async function GET(
   request: NextRequest,
@@ -179,9 +183,49 @@ export async function PUT(
 
     const updateData: Prisma.TripUpdateInput = {};
 
-    // Allow updating status even if the caller sends a falsy value (defensive).
-    if (status !== undefined) {
-      updateData.status = status;
+    // Lấy trạng thái + driverId hiện tại để validate transition và cascade.
+    // Dùng `findFirst` để vẫn filter theo tenant (accountId).
+    const currentTripForValidation = await db.trip.findFirst({
+      where: { id: tripId, accountId: user.accountId },
+      select: { id: true, status: true, driverId: true },
+    });
+    if (!currentTripForValidation) {
+      return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+    }
+    const currentStatus = currentTripForValidation.status;
+    const oldDriverId = currentTripForValidation.driverId;
+
+    // DriverId thực tế sẽ được áp dụng sau khi merge input với DB state.
+    const finalDriverId =
+      driverId !== undefined ? driverId : oldDriverId;
+
+    // Auto-cascade status khi driverId thay đổi (chỉ khi user không gửi status riêng).
+    let cascadedStatus: string | undefined;
+    if (driverId !== undefined && status === undefined) {
+      cascadedStatus = resolveStatusAfterDriverChange(
+        currentStatus,
+        oldDriverId,
+        driverId
+      );
+    }
+
+    // Status cuối cùng sẽ ghi vào DB (user gửi → ưu tiên, không gửi → dùng cascade nếu có)
+    const finalStatus = status !== undefined ? status : cascadedStatus;
+
+    // Validate transition trước khi ghi (chỉ khi status thực sự thay đổi)
+    if (finalStatus !== undefined && finalStatus !== currentStatus) {
+      const check = validateStatusTransition(
+        currentStatus,
+        finalStatus,
+        finalDriverId
+      );
+      if (!check.ok) {
+        return NextResponse.json({ error: check.message }, { status: 400 });
+      }
+    }
+
+    if (finalStatus !== undefined) {
+      updateData.status = finalStatus;
     }
 
     if (title !== undefined) {

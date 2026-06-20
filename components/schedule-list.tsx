@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Combobox } from "@/components/ui/combobox";
 import { statusColorClasses, useTripStatuses } from "@/lib/useTripStatuses";
+import { getValidNextStatuses } from "@/lib/trip-status-transitions";
 import { toLocalDateString, getWeekStart, getMonthStart } from "@/lib/date-utils";
 
 interface Trip {
@@ -169,7 +170,7 @@ function generateAutoNoteLikeTripForm(
 }
 
 export default function ScheduleList({ showToast }: { showToast: (message: string, type: "success" | "error") => void }) {
-  const { statuses, map: statusMap, priority: statusPriority, nextMap } = useTripStatuses();
+  const { statuses, map: statusMap, priority: statusPriority } = useTripStatuses();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1188,18 +1189,34 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                         <Bell className="w-4 h-4" />
                       </button>
                     )}
-                    <select
-                      value={trip.status}
-                      onChange={(e) => { e.stopPropagation(); updateStatus(trip.id, e.target.value); }}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text}`}
-                    >
-                      {statuses.map((s) => (
-                        <option key={s.key} value={s.key}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
+                    {(() => {
+                      const validNext = getValidNextStatuses(trip.status, !!trip.driver);
+                      if (validNext.length === 0) {
+                        return (
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text}`}
+                            title="Trạng thái cuối, không thể chuyển"
+                          >
+                            {statusMap.get(trip.status)?.label || trip.status}
+                          </span>
+                        );
+                      }
+                      return (
+                        <select
+                          value={trip.status}
+                          onChange={(e) => { e.stopPropagation(); updateStatus(trip.id, e.target.value); }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").bg} ${statusColorClasses(statusMap.get(trip.status)?.color || "slate").text}`}
+                        >
+                          <option value={trip.status}>{statusMap.get(trip.status)?.label || trip.status}</option>
+                          {validNext.map((s) => (
+                            <option key={s} value={s}>
+                              {statusMap.get(s)?.label || s}
+                            </option>
+                          ))}
+                        </select>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1464,15 +1481,21 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                         </button>
                         {openStatusMenu === trip.id && (
                           <div className="absolute z-20 mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 min-w-[120px]">
-                            {(nextMap[trip.status] || []).slice(0, 6).map((nextStatus) => (
-                              <button
-                                key={nextStatus}
-                                onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, nextStatus); }}
-                                className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
-                              >
-                                {statusMap.get(nextStatus)?.label || nextStatus}
-                              </button>
-                            ))}
+                            {getValidNextStatuses(trip.status, !!trip.driver).length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-slate-400 italic">
+                                Trạng thái cuối
+                              </div>
+                            ) : (
+                              getValidNextStatuses(trip.status, !!trip.driver).map((nextStatus) => (
+                                <button
+                                  key={nextStatus}
+                                  onClick={(e) => { e.stopPropagation(); updateStatus(trip.id, nextStatus); }}
+                                  className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50"
+                                >
+                                  {statusMap.get(nextStatus)?.label || nextStatus}
+                                </button>
+                              ))
+                            )}
                           </div>
                         )}
                       </div>
