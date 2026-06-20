@@ -536,11 +536,16 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
   const updateStatus = async (tripId: number, newStatus: string) => {
     try {
+      const trip = trips.find((t) => t.id === tripId);
+      const payload: Record<string, unknown> = { status: newStatus };
+      if (newStatus === "scheduled" && trip?.driver) {
+        payload.driverId = null;
+      }
       const res = await fetch(`/api/trips/${tripId}`, {
         method: "PUT",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {

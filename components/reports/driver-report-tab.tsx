@@ -467,8 +467,8 @@ export function DriverReportTab({
 
       {historyDriver && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 p-3 lg:p-8 flex items-end lg:items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-5xl max-h-[86vh] overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 flex items-start justify-between gap-3">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-5xl h-[70vh] lg:h-[75vh] flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-start justify-between gap-3 flex-shrink-0">
               <div>
                 <h3 className="font-semibold text-slate-800 text-sm">
                   Lịch sử cuốc: {historyDriver.fullName}
@@ -487,7 +487,7 @@ export function DriverReportTab({
               </button>
             </div>
 
-            <div className="p-3 pb-[72px] overflow-y-auto max-h-[72vh] touch-pan-y" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div className="flex-1 overflow-y-auto min-h-0 p-3 pb-[72px]" style={{ WebkitOverflowScrolling: "touch" }}>
               <style>{`
                 .touch-pan-y::-webkit-scrollbar {
                   width: 4px;
@@ -541,6 +541,7 @@ export function DriverReportTab({
                       matchedFormulaName: row.formulaName,
                       createdAt: row.createdAt,
                       assignedAt: row.lastAssignedAt,
+                      departureTime: row.departureTime,
                     };
                   })}
                   className="max-w-full"

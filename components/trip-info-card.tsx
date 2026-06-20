@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Calendar, UserCheck, Calculator } from "lucide-react";
+import { ChevronDown, ChevronUp, Calendar, UserCheck, Calculator, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { statusColorClasses } from "@/lib/useTripStatuses";
@@ -21,6 +21,7 @@ interface TripInfoCardProps {
     matchedFormulaName?: string | null;
     createdAt: string;
     assignedAt?: string | null;
+    departureTime?: string | null;
   };
   className?: string;
 }
@@ -140,6 +141,17 @@ export function TripInfoCard({ trip, className }: TripInfoCardProps) {
       {expanded && (
         <div className="px-3 pb-3 pt-0 border-t border-slate-100 mt-0">
           <div className="pt-2.5 space-y-2">
+            {/* Departure time */}
+            {trip.departureTime && (
+              <div className="flex items-center gap-2 text-xs">
+                <Clock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                <span className="text-slate-500">Khởi hành:</span>
+                <span className="text-slate-700 font-medium ml-auto">
+                  {formatDate(trip.departureTime)}
+                </span>
+              </div>
+            )}
+
             {/* Created date */}
             <div className="flex items-center gap-2 text-xs">
               <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
