@@ -13,7 +13,9 @@ function generateAutoNote(
   phone: string,
   seats: number,
   tripType: string,
-  tripDirection?: string
+  tripDirection?: string,
+  pickupLocation?: string,
+  dropoffLocation?: string
 ): string {
   // Tính thời gian chênh lệch
   const now = new Date();
@@ -68,9 +70,15 @@ function generateAutoNote(
   }
   
   // Ghép các phần thành ghi chú
-  const note = `${timePart}${directionSuffix} ${departure} - ${destination} ${priceDisplay} ${phone}`;
+  const baseNote = `${timePart}${directionSuffix} ${departure} - ${destination} ${priceDisplay} ${phone}`.trim();
   
-  return note;
+  // Thêm vị trí đón/trả nếu có
+  const safePickup = (pickupLocation || "").trim();
+  const safeDropoff = (dropoffLocation || "").trim();
+  const pickupLine = safePickup ? `\nVị trí đón: ${safePickup}` : "";
+  const dropoffLine = safeDropoff ? `\nVị trí trả: ${safeDropoff}` : "";
+  
+  return `${baseNote}${pickupLine}${dropoffLine}`;
 }
 
 // Hàm định dạng số với dấu chấm phân cách
@@ -436,7 +444,9 @@ export default function TripForm() {
       formData.customerPhone,
       parseInt(formData.totalSeats) || 1,
       rawType,
-      direction
+      direction,
+      formData.pickupLocation,
+      formData.dropoffLocation
     );
   };
 
@@ -482,7 +492,9 @@ export default function TripForm() {
           formData.customerPhone || "",
           parseInt(formData.totalSeats) || 1,
           direction === "roundtrip" ? "ghep" : formData.tripType.replace("_roundtrip", ""),
-          direction
+          direction,
+          formData.pickupLocation,
+          formData.dropoffLocation
         );
       }
 
@@ -937,8 +949,7 @@ export default function TripForm() {
           />
           {formData.departureTime && formData.departure && formData.destination && formData.price && (
             <div className="mt-2 p-3 bg-slate-50 rounded-lg">
-              <div className="text-xs text-slate-500 mb-1">Xem trước:</div>
-              <div className="text-sm font-mono text-slate-700">
+              <div className="text-sm font-mono text-slate-700 whitespace-pre-wrap">
                 {buildGeneratedNote()}
               </div>
             </div>

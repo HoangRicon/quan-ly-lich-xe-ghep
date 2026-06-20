@@ -110,7 +110,9 @@ function generateAutoNoteLikeTripForm(
   price: string,
   phone: string,
   seats: number,
-  tripType: "ghep" | "bao"
+  tripType: "ghep" | "bao",
+  pickupLocation?: string,
+  dropoffLocation?: string
 ): string {
   // Tính thời gian chênh lệch
   const now = new Date();
@@ -164,9 +166,15 @@ function generateAutoNoteLikeTripForm(
   const safeDeparture = (departure || "").trim() || "?";
   const safeDestination = (destination || "").trim() || "?";
   const safePhone = (phone || "").trim();
+  const safePickup = (pickupLocation || "").trim();
+  const safeDropoff = (dropoffLocation || "").trim();
 
   // Ghép các phần thành ghi chú
-  return `${timePart} ${safeDeparture} - ${safeDestination} ${priceDisplay} ${safePhone}`.trim();
+  const baseNote = `${timePart} ${safeDeparture} - ${safeDestination} ${priceDisplay} ${safePhone}`.trim();
+  const pickupLine = safePickup ? `\nVị trí đón: ${safePickup}` : "";
+  const dropoffLine = safeDropoff ? `\nVị trí trả: ${safeDropoff}` : "";
+
+  return `${baseNote}${pickupLine}${dropoffLine}`;
 }
 
 export default function ScheduleList({ showToast }: { showToast: (message: string, type: "success" | "error") => void }) {
@@ -2092,7 +2100,9 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                           editForm.price,
                           editForm.customerPhone,
                           seats,
-                          isBao ? "bao" : "ghep"
+                          isBao ? "bao" : "ghep",
+                          editForm.pickupLocation,
+                          editForm.dropoffLocation
                         );
                         if (!quick) return;
                         const existing = (editForm.notes || "").trim();
@@ -2116,6 +2126,31 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                     </button>
                   </div>
                 </div>
+
+                {/* Pickup & Dropoff location inputs */}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Vị trí đón</label>
+                    <input
+                      type="text"
+                      value={editForm.pickupLocation}
+                      onChange={(e) => setEditForm({ ...editForm, pickupLocation: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                      placeholder="Địa điểm đón..."
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Vị trí trả</label>
+                    <input
+                      type="text"
+                      value={editForm.dropoffLocation}
+                      onChange={(e) => setEditForm({ ...editForm, dropoffLocation: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                      placeholder="Địa điểm trả..."
+                    />
+                  </div>
+                </div>
+
                 <textarea
                   value={editForm.notes}
                   onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
