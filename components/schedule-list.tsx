@@ -103,6 +103,12 @@ function formatPriceK(price: string): string {
 }
 
 // Ghi chú tự động (bắt chước mẫu trong TripForm)
+function getDirection(tripType: string): string {
+  if (tripType.includes("roundtrip")) return "roundtrip";
+  if (tripType.includes("oneway")) return "oneway";
+  return tripType === "bao" ? "oneway" : "oneway";
+}
+
 function generateAutoNoteLikeTripForm(
   departureTime: string,
   departure: string,
@@ -112,7 +118,8 @@ function generateAutoNoteLikeTripForm(
   seats: number,
   tripType: "ghep" | "bao",
   pickupLocation?: string,
-  dropoffLocation?: string
+  dropoffLocation?: string,
+  tripDirection?: string
 ): string {
   // Tính thời gian chênh lệch
   const now = new Date();
@@ -163,6 +170,9 @@ function generateAutoNoteLikeTripForm(
     timePart = `${departureHour}h${departureMinute} ${seatType}`;
   }
 
+  // Thêm suffix cho 2 chiều
+  const directionSuffix = tripDirection === "roundtrip" ? " 2C" : "";
+
   const safeDeparture = (departure || "").trim() || "?";
   const safeDestination = (destination || "").trim() || "?";
   const safePhone = (phone || "").trim();
@@ -170,7 +180,7 @@ function generateAutoNoteLikeTripForm(
   const safeDropoff = (dropoffLocation || "").trim();
 
   // Ghép các phần thành ghi chú
-  const baseNote = `${timePart} ${safeDeparture} - ${safeDestination} ${priceDisplay} ${safePhone}`.trim();
+  const baseNote = `${timePart}${directionSuffix} ${safeDeparture} - ${safeDestination} ${priceDisplay} ${safePhone}`.trim();
   const pickupLine = safePickup ? `\nVị trí đón: ${safePickup}` : "";
   const dropoffLine = safeDropoff ? `\nVị trí trả: ${safeDropoff}` : "";
 
@@ -2093,6 +2103,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                       onClick={() => {
                         const seats = Math.max(1, parseInt(editForm.totalSeats, 10) || 1);
                         const isBao = editForm.tripType === "bao" || editForm.tripType === "bao_roundtrip";
+                        const direction = getDirection(editForm.tripType);
                         const quick = generateAutoNoteLikeTripForm(
                           editForm.departureTime,
                           editForm.departure,
@@ -2102,7 +2113,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                           seats,
                           isBao ? "bao" : "ghep",
                           editForm.pickupLocation,
-                          editForm.dropoffLocation
+                          editForm.dropoffLocation,
+                          direction
                         );
                         if (!quick) return;
                         const existing = (editForm.notes || "").trim();
@@ -2124,30 +2136,6 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                     >
                       Xóa tất cả ghi chú
                     </button>
-                  </div>
-                </div>
-
-                {/* Pickup & Dropoff location inputs */}
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Vị trí đón</label>
-                    <input
-                      type="text"
-                      value={editForm.pickupLocation}
-                      onChange={(e) => setEditForm({ ...editForm, pickupLocation: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
-                      placeholder="Địa điểm đón..."
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Vị trí trả</label>
-                    <input
-                      type="text"
-                      value={editForm.dropoffLocation}
-                      onChange={(e) => setEditForm({ ...editForm, dropoffLocation: e.target.value })}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
-                      placeholder="Địa điểm trả..."
-                    />
                   </div>
                 </div>
 
