@@ -146,6 +146,8 @@ interface TripData {
   id: number;
   departure: string;
   destination: string;
+  pickupLocation?: string | null;
+  dropoffLocation?: string | null;
   departureTime: string;
   price: number;
   totalSeats: number;
@@ -180,6 +182,8 @@ export default function TripForm() {
     customerNotes: "",
     departure: "",
     destination: "",
+    pickupLocation: "",
+    dropoffLocation: "",
     departureDate: new Date().toISOString().split("T")[0],
     departureTime: new Date().toTimeString().slice(0, 5),
     price: "",
@@ -229,6 +233,8 @@ export default function TripForm() {
           customerNotes: trip.notes || "",
           departure: trip.departure,
           destination: trip.destination,
+          pickupLocation: trip.pickupLocation || "",
+          dropoffLocation: trip.dropoffLocation || "",
           departureDate: departureDate.toISOString().split("T")[0],
           departureTime: departureDate.toTimeString().slice(0, 5),
           price: trip.price ? trip.price.toString() : "",
@@ -377,6 +383,8 @@ export default function TripForm() {
           ...prev,
           departure: recentTrip.departure || prev.departure,
           destination: recentTrip.destination || prev.destination,
+          pickupLocation: recentTrip.pickupLocation || prev.pickupLocation,
+          dropoffLocation: recentTrip.dropoffLocation || prev.dropoffLocation,
           price: recentTrip.price ? recentTrip.price.toString() : prev.price,
           tripType: combinedTripType,
           totalSeats: recentTrip.totalSeats ? recentTrip.totalSeats.toString() : prev.totalSeats,
@@ -486,6 +494,8 @@ export default function TripForm() {
             title: `${formData.departure} - ${formData.destination}`,
             departure: formData.departure,
             destination: formData.destination,
+            pickupLocation: formData.pickupLocation,
+            dropoffLocation: formData.dropoffLocation,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
             totalSeats: formData.tripType.startsWith("bao") ? 0 : (parseInt(formData.totalSeats) || 1),
@@ -515,6 +525,8 @@ export default function TripForm() {
             title: `${formData.departure} - ${formData.destination}`,
             departure: formData.departure,
             destination: formData.destination,
+            pickupLocation: formData.pickupLocation,
+            dropoffLocation: formData.dropoffLocation,
             departureTime: getDepartureTimeForSubmit(formData.departureTime, formData.departureDate),
             price: parseInt(formData.price.replace(/\./g, "")) || 0,
             totalSeats: formData.tripType.startsWith("bao") ? 0 : (parseInt(formData.totalSeats) || 1),
@@ -652,6 +664,8 @@ export default function TripForm() {
                 ...formData,
                 departure: formData.destination,
                 destination: formData.departure,
+                pickupLocation: formData.dropoffLocation,
+                dropoffLocation: formData.pickupLocation,
               });
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
@@ -687,6 +701,33 @@ export default function TripForm() {
               placeholder="Hải Phòng"
               className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base"
               required
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Vị trí đón
+            </label>
+            <textarea
+              value={formData.pickupLocation}
+              onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value })}
+              placeholder="Dán địa chỉ đón từ Zalo Map"
+              rows={2}
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Vị trí trả
+            </label>
+            <textarea
+              value={formData.dropoffLocation}
+              onChange={(e) => setFormData({ ...formData, dropoffLocation: e.target.value })}
+              placeholder="Dán địa chỉ trả từ Zalo Map"
+              rows={2}
+              className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-base resize-none"
             />
           </div>
         </div>

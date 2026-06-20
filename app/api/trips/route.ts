@@ -56,6 +56,8 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { departure: { contains: q, mode: "insensitive" } },
         { destination: { contains: q, mode: "insensitive" } },
+        { pickupLocation: { contains: q, mode: "insensitive" } },
+        { dropoffLocation: { contains: q, mode: "insensitive" } },
         { title: { contains: q, mode: "insensitive" } },
         { driver: { fullName: { contains: q, mode: "insensitive" } } },
         { customers: { some: { customer: { phone: { contains: q } } } } },
@@ -181,6 +183,8 @@ export async function GET(request: NextRequest) {
         title: trip.title,
         departure: trip.departure,
         destination: trip.destination,
+        pickupLocation: trip.pickupLocation,
+        dropoffLocation: trip.dropoffLocation,
         departureTime: trip.departureTime,
         arrivalTime: trip.arrivalTime,
         price: trip.price,
@@ -260,7 +264,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      title, description, departure, destination, departureTime, arrivalTime,
+      title, description, departure, destination, pickupLocation, dropoffLocation, departureTime, arrivalTime,
       price, totalSeats, tripType, notes,
       customerPhone, customerName, customerEmail, customerNotes,
       seats, driverId: requestedDriverId, tripDirection,
@@ -273,6 +277,11 @@ export async function POST(request: NextRequest) {
     const parsedPriceRaw = parseFloat(String(price).replace(/[.,]/g, ""));
     const parsedPrice = Number.isFinite(parsedPriceRaw) ? parsedPriceRaw : 0;
     const parsedDirection = tripDirection === "roundtrip" ? "roundtrip" : "oneway";
+    const normalizeOptionalText = (value: unknown) => {
+      if (value === undefined || value === null) return null;
+      const trimmed = String(value).trim();
+      return trimmed || null;
+    };
 
     const DECIMAL_10_2_MAX = 99999999.99;
     const DECIMAL_15_2_MAX = 9999999999999.99;
@@ -399,6 +408,8 @@ export async function POST(request: NextRequest) {
         description,
         departure,
         destination,
+        pickupLocation: normalizeOptionalText(pickupLocation),
+        dropoffLocation: normalizeOptionalText(dropoffLocation),
         departureTime: new Date(departureTime),
         arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
         price: safePrice,
@@ -442,6 +453,8 @@ export async function POST(request: NextRequest) {
       title: trip.title,
       departure: trip.departure,
       destination: trip.destination,
+      pickupLocation: trip.pickupLocation,
+      dropoffLocation: trip.dropoffLocation,
       departureTime: trip.departureTime,
       arrivalTime: trip.arrivalTime,
       price: trip.price,

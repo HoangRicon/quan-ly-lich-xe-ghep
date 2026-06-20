@@ -83,6 +83,8 @@ export async function GET(
       title: trip.title,
       departure: trip.departure,
       destination: trip.destination,
+      pickupLocation: trip.pickupLocation,
+      dropoffLocation: trip.dropoffLocation,
       departureTime: trip.departureTime,
       arrivalTime: trip.arrivalTime,
       price: trip.price,
@@ -134,7 +136,7 @@ export async function PUT(
     const tripId = parseInt(id);
 
     const {
-      status, driverId, departure, destination, price, profit,
+      status, driverId, departure, destination, pickupLocation, dropoffLocation, price, profit,
       title, departureTime, totalSeats, notes,
       customerPhone,
       customerName,
@@ -170,6 +172,10 @@ export async function PUT(
       const n = parseFloat(String(v ?? "").replace(/[.,]/g, ""));
       return Number.isFinite(n) ? n : NaN;
     };
+    const normalizeOptionalText = (value: unknown) => {
+      if (value === null || value === "") return null;
+      return String(value).trim() || null;
+    };
 
     const updateData: Prisma.TripUpdateInput = {};
 
@@ -196,6 +202,14 @@ export async function PUT(
 
     if (destination !== undefined) {
       updateData.destination = destination;
+    }
+
+    if (pickupLocation !== undefined) {
+      updateData.pickupLocation = normalizeOptionalText(pickupLocation);
+    }
+
+    if (dropoffLocation !== undefined) {
+      updateData.dropoffLocation = normalizeOptionalText(dropoffLocation);
     }
 
     if (price !== undefined) {
@@ -477,6 +491,8 @@ export async function PUT(
       title: trip.title,
       departure: trip.departure,
       destination: trip.destination,
+      pickupLocation: trip.pickupLocation,
+      dropoffLocation: trip.dropoffLocation,
       departureTime: trip.departureTime,
       arrivalTime: trip.arrivalTime,
       price: trip.price,

@@ -62,6 +62,8 @@ model Trip {
   description      String?
   departure        String         @map("departure") @db.VarChar(255)
   destination      String         @map("destination") @db.VarChar(255)
+  pickupLocation   String?        @map("pickup_location")
+  dropoffLocation  String?        @map("dropoff_location")
   departureTime    DateTime       @map("departure_time") @db.Timestamptz(6)
   arrivalTime      DateTime?      @map("arrival_time") @db.Timestamptz(6)
   price            Decimal        @db.Decimal(10, 2)

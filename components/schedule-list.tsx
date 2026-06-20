@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
-  Search, Plus, MapPin, Clock, Phone, MessageCircle,
+  Search, Plus, MapPin, Clock, Phone, MessageCircle, ArrowLeftRight,
   ChevronDown, Check, X, Edit2, Trash2, MoreHorizontal, ArrowRight,
   Bell, Calendar, ChevronLeft, ChevronRight, ArrowUpDown, Copy, FileText, Star
 } from "lucide-react";
@@ -20,6 +20,8 @@ interface Trip {
   title: string;
   departure: string;
   destination: string;
+  pickupLocation?: string | null;
+  dropoffLocation?: string | null;
   departureTime: string;
   arrivalTime: string | null;
   price: number;
@@ -277,6 +279,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const [editForm, setEditForm] = useState({
     departure: "",
     destination: "",
+    pickupLocation: "",
+    dropoffLocation: "",
     departureDate: "",
     departureTime: "",
     price: "",
@@ -670,8 +674,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           data: {
             customer_name: customer.name,
             departure_time: `${timeStr} ${dateStr}`,
-            pickup_location: trip.departure,
-            dropoff_location: trip.destination,
+            pickup_location: trip.pickupLocation || trip.departure,
+            dropoff_location: trip.dropoffLocation || trip.destination,
           },
         }),
       });
@@ -818,6 +822,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     setEditForm({
       departure: trip.departure,
       destination: trip.destination,
+      pickupLocation: trip.pickupLocation || "",
+      dropoffLocation: trip.dropoffLocation || "",
       departureDate: toLocalDateString(deptDate),
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: trip.price?.toString() || "",
@@ -871,6 +877,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
         body: JSON.stringify({
           departure: editForm.departure,
           destination: editForm.destination,
+          pickupLocation: editForm.pickupLocation,
+          dropoffLocation: editForm.dropoffLocation,
           departureTime: departureDateTime,
           price: editForm.price,
           totalSeats: editForm.totalSeats,
@@ -1037,17 +1045,6 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           {/* Row 4: Status chips */}
           <div className="px-3 py-2.5 overflow-x-auto">
             <div className="flex items-center gap-1.5 w-max min-w-full">
-              <button
-                type="button"
-                onClick={() => setStatusFilter("all")}
-                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                  statusFilter === "all"
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                Tất cả
-              </button>
               {statuses.filter(s => s.isActive).map(s => {
                 const isActive = statusFilter === s.key;
                 const colorMap: Record<string, { active: string; dot: string; ina: string }> = {
@@ -1212,6 +1209,17 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                   <span className="text-slate-400 flex-shrink-0">→</span>
                   <span className="text-slate-800 font-medium text-sm truncate">{trip.destination}</span>
                 </div>
+
+                {(trip.pickupLocation || trip.dropoffLocation) && (
+                  <div className="space-y-0.5 mb-1">
+                    {trip.pickupLocation && (
+                      <div className="text-[11px] text-slate-500 truncate">Đón: {trip.pickupLocation}</div>
+                    )}
+                    {trip.dropoffLocation && (
+                      <div className="text-[11px] text-slate-500 truncate">Trả: {trip.dropoffLocation}</div>
+                    )}
+                  </div>
+                )}
 
                 {/* Customer Phone - Left under route */}
                 {trip.customer?.phone && (
@@ -1396,6 +1404,32 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                               <Copy className="w-3 h-3" />
                             </button>
                           </div>
+                          {trip.pickupLocation && (
+                            <div className="text-xs text-slate-600 flex items-center gap-1">
+                              <span>Vị trí đón:</span>
+                              <span className="font-normal truncate">{trip.pickupLocation}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.pickupLocation || "", "Vị trí đón"); }}
+                                className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600 flex-shrink-0"
+                                title="Copy vị trí đón"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                          {trip.dropoffLocation && (
+                            <div className="text-xs text-slate-600 flex items-center gap-1">
+                              <span>Vị trí trả:</span>
+                              <span className="font-normal truncate">{trip.dropoffLocation}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(trip.dropoffLocation || "", "Vị trí trả"); }}
+                                className="p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-blue-600 flex-shrink-0"
+                                title="Copy vị trí trả"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TableCell>
@@ -1753,27 +1787,71 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
               {/* Trip Info */}
               <div className="bg-slate-50 rounded-xl p-3">
-                <p className="text-sm font-medium text-slate-700 mb-3">Thông tin chuyến</p>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-sm font-medium text-slate-700">Lộ trình</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditForm({
+                        ...editForm,
+                        departure: editForm.destination,
+                        destination: editForm.departure,
+                        pickupLocation: editForm.dropoffLocation,
+                        dropoffLocation: editForm.pickupLocation,
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors"
+                    title="Đảo chiều điểm đón và điểm đến"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                    Đảo chiều
+                  </button>
+                </div>
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Điểm đón</label>
-                    <input
-                      type="text"
-                      value={editForm.departure}
-                      onChange={(e) => setEditForm({ ...editForm, departure: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                      placeholder="Điểm đón"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Điểm đón</label>
+                      <input
+                        type="text"
+                        value={editForm.departure}
+                        onChange={(e) => setEditForm({ ...editForm, departure: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                        placeholder="Điểm đón"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Điểm đến</label>
+                      <input
+                        type="text"
+                        value={editForm.destination}
+                        onChange={(e) => setEditForm({ ...editForm, destination: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                        placeholder="Điểm đến"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Điểm đến</label>
-                    <input
-                      type="text"
-                      value={editForm.destination}
-                      onChange={(e) => setEditForm({ ...editForm, destination: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                      placeholder="Điểm đến"
-                    />
+                  {/* Vị trí đón / Vị trí trả */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Vị trí đón</label>
+                      <textarea
+                        value={editForm.pickupLocation}
+                        onChange={(e) => setEditForm({ ...editForm, pickupLocation: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm resize-none"
+                        placeholder="Dán địa chỉ đón từ Zalo Map"
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Vị trí trả</label>
+                      <textarea
+                        value={editForm.dropoffLocation}
+                        onChange={(e) => setEditForm({ ...editForm, dropoffLocation: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm resize-none"
+                        placeholder="Dán địa chỉ trả từ Zalo Map"
+                        rows={2}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Ngày đi</label>
@@ -2024,9 +2102,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 />
               </div>
             </div>
-            </div>
 
-            {/* Action Buttons */}
+              {/* Action Buttons */}
             <div className="p-4 border-t border-slate-100 bg-white flex-shrink-0 flex gap-3">
               <button
                 onClick={() => setShowEditSheet(false)}
@@ -2042,6 +2119,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 <Check className="w-5 h-5" />
                 Lưu
               </button>
+            </div>
             </div>
           </div>
         </div>

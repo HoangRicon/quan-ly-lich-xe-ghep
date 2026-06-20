@@ -248,8 +248,8 @@ export async function GET(request: NextRequest) {
       const data = {
         customer_name: customerNames || "Khách",
         departure_time: fmtViDateTime(new Date(trip.departureTime)),
-        pickup_location: trip.departure,
-        dropoff_location: trip.destination,
+        pickup_location: trip.pickupLocation || trip.departure,
+        dropoff_location: trip.dropoffLocation || trip.destination,
         driver_name: (trip as any)?.driver?.fullName || "",
       };
 
