@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { Car, MessageCircle, Trash2 } from "lucide-react";
 
-import { DRAFT_STATUS_CONFIG, MISSING_FIELD_LABELS } from "@/lib/quick-create/constants";
+import { DRAFT_STATUS_CONFIG } from "@/lib/quick-create/constants";
 import { canCreateRideFromDraft } from "@/lib/quick-create/draft-helpers";
 import {
   formatCurrency,
@@ -23,12 +23,41 @@ interface DraftCardProps {
   isDeleting?: boolean;
 }
 
-function WarningBadge({ label }: { label: string }) {
-  return (
-    <span className="flex-shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
-      {label}
-    </span>
-  );
+const EXPECTED_FIELDS = [
+  "departureTime",
+  "departure",
+  "destination",
+  "price",
+  "customerPhone",
+  "customerName",
+] as const;
+
+const FIELD_LABELS: Record<(typeof EXPECTED_FIELDS)[number], string> = {
+  departureTime: "giờ đi",
+  departure: "điểm đón",
+  destination: "điểm trả",
+  price: "giá",
+  customerPhone: "SĐT",
+  customerName: "tên",
+};
+
+function getFilledPercent(item: DraftItem): number {
+  const parsed = item.parsedData;
+  if (!parsed) return 0;
+  const filled = EXPECTED_FIELDS.filter((f) => {
+    const val = parsed[f];
+    return val !== null && val !== undefined && val !== "" && val !== 0;
+  }).length;
+  return Math.round((filled / EXPECTED_FIELDS.length) * 100);
+}
+
+function getFilledFields(item: DraftItem): string[] {
+  const parsed = item.parsedData;
+  if (!parsed) return [];
+  return EXPECTED_FIELDS.filter((f) => {
+    const val = parsed[f];
+    return val !== null && val !== undefined && val !== "" && val !== 0;
+  }).map((f) => FIELD_LABELS[f]);
 }
 
 export const DraftCard = memo(function DraftCard({
@@ -41,15 +70,14 @@ export const DraftCard = memo(function DraftCard({
 }: DraftCardProps) {
   const parsed = item.parsedData;
   const statusCfg = DRAFT_STATUS_CONFIG[item.status] ?? DRAFT_STATUS_CONFIG.pending;
-  const missingLabels = item.missingFields
-    .map((field) => MISSING_FIELD_LABELS[field] ?? field)
-    .slice(0, 2);
   const isRoundtrip = parsed?.tripDirection === "roundtrip";
   const isSaved =
     item.status === "saved" || item.status === "auto_saved" || !!item.createdTripId;
   const isFailed = item.status === "failed";
   const isIncomplete = item.missingFields.length > 0;
   const canCreateRide = canCreateRideFromDraft(item);
+  const filledFields = getFilledFields(item);
+  const filledPercent = getFilledPercent(item);
 
   const cardClasses = [
     "cursor-pointer select-none rounded-lg border bg-white p-2.5 transition-all",
@@ -90,10 +118,16 @@ export const DraftCard = memo(function DraftCard({
           </span>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-1">
-          {missingLabels.map((label) => (
-            <WarningBadge key={label} label={label} />
-          ))}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {isIncomplete ? (
+            <span className="whitespace-nowrap text-[10px] text-slate-500">
+              {filledFields.length}/{EXPECTED_FIELDS.length} — {filledPercent}%
+            </span>
+          ) : (
+            <span className="whitespace-nowrap text-[10px] font-medium text-green-600">
+              ✓ Đủ {filledPercent}%
+            </span>
+          )}
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusCfg.bg} ${statusCfg.text}`}
           >

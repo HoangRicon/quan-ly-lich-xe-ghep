@@ -36,8 +36,30 @@ async function main() {
   );
   assert.match(
     serviceSource,
+    /quickEntryProcessingQueues/,
+    "Async quick-entry processing must keep a per-session queue",
+  );
+  assert.match(
+    serviceSource,
+    /getQuickEntryProcessingQueueKey/,
+    "Async queue must be keyed per account and session",
+  );
+  assert.match(
+    serviceSource,
     /parseStatus:\s*QUICK_ENTRY_ITEM_STATUSES\.PENDING/,
     "Async quick-entry submissions must create a pending placeholder item",
+  );
+
+  const hookSource = await readFile("hooks/use-quick-create-drafts.ts", "utf8");
+  assert.match(
+    hookSource,
+    /processingMode:\s*"async"/,
+    "Quick-create draft submission must request async processing",
+  );
+  assert.match(
+    hookSource,
+    /normalizeCreatedDraftItems/,
+    "Quick-create draft hook must normalize async response items",
   );
 
   console.log("quick-trip async contract checks passed");

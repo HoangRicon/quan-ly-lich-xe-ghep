@@ -5,6 +5,7 @@ const PHONE_PATTERN = /(?:^|[^\d])((?:0\d{9,10}|84\d{9,10}))(?!\d)/;
 const PRICE_K_PATTERN = /(?:^|[\s,;])(\d{2,4}(?:[.,]\d+)?)\s*k\b/i;
 const PRICE_THOUSAND_PATTERN =
   /(?:^|[\s,;])(\d{2,4}(?:[.,]\d+)?)\s*(?:nghin|ngan)\b/i;
+const PRICE_CA_PATTERN = /(?:^|[\s,;])(\d{2,4}(?:[.,]\d+)?)\s*ca\b/i;
 const PRICE_MILLION_PATTERN =
   /(?:^|[\s,;])(\d{1,3}(?:[.,]\d+)?)\s*(?:tr|trieu)\b/i;
 const PRICE_CONTEXT_NUMBER_PATTERN =
@@ -15,6 +16,22 @@ const TIME_WORD_PATTERN =
   /(?:^|[^\d])([01]?\d|2[0-3])\s*(?:gio|g)(?:\s*([0-5]\d))?(?:\s*(sang|trua|chieu|toi|dem))?\b/i;
 const SEAT_PATTERN = /(?:^|[^\d])([1-9]\d?)\s*(?:khach|ghe)(?:\b|$)/i;
 const SEAT_K_PATTERN = /(?:^|[^\d])([1-9])\s*k\b/i;
+const RELATIVE_DATE_QUANTITY_PATTERN =
+  "\\d+|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi";
+const RELATIVE_DATE_QUANTITY_TOKEN_PATTERN = new RegExp(
+  `\\b(${RELATIVE_DATE_QUANTITY_PATTERN})\\s+(ngay|hom|tuan|thang)\\s+(?:nua|sau|toi)\\b`,
+  "i",
+);
+const RELATIVE_DATE_TOKEN_PATTERNS = [
+  RELATIVE_DATE_QUANTITY_TOKEN_PATTERN,
+  /\b(?:hom\s+nay|ngay\s+nay)\b/i,
+  /\b(?:ngay\s+mai|mai)\b/i,
+  /\b(?:ngay\s+(?:kia|mot)|ngay\s+mot|kia)\b/i,
+  /\b(?:tuan|thang)\s+(?:sau|toi)\b/i,
+];
+const RELATIVE_DATE_STRIP_PATTERNS = RELATIVE_DATE_TOKEN_PATTERNS.map(
+  (pattern) => new RegExp(pattern.source, "gi"),
+);
 const ROUTE_STOP_WORDS =
   "luc|gio|gia|cuoc|phi|tra|tien|sdt|so dien thoai|dien thoai|lien he|dt|phone|khach|don|tra khach|ghi chu|note";
 const ROUTE_STOP_LOOKAHEAD = `(?=\\s+(?:${ROUTE_STOP_WORDS})\\b|$)`;
@@ -44,7 +61,8 @@ function parsePrice(text: string): number | undefined {
   const searchableText = toAsciiText(text);
   const thousandMatch =
     searchableText.match(PRICE_K_PATTERN) ??
-    searchableText.match(PRICE_THOUSAND_PATTERN);
+    searchableText.match(PRICE_THOUSAND_PATTERN) ??
+    searchableText.match(PRICE_CA_PATTERN);
 
   if (thousandMatch) {
     const amount = Number.parseFloat(thousandMatch[1].replace(",", "."));
@@ -94,6 +112,93 @@ function normalizeHourForPeriod(hour: number, period: string | undefined) {
   return hour;
 }
 
+function parseRelativeQuantity(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  const numberWords: Record<string, number> = {
+    mot: 1,
+    hai: 2,
+    ba: 3,
+    bon: 4,
+    tu: 4,
+    nam: 5,
+    sau: 6,
+    bay: 7,
+    tam: 8,
+    chin: 9,
+    muoi: 10,
+  };
+
+  return numberWords[value.toLowerCase()];
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function addMonths(date: Date, months: number) {
+  const result = new Date(date);
+  const dayOfMonth = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + months);
+
+  const lastDayOfTargetMonth = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0,
+  ).getDate();
+  result.setDate(Math.min(dayOfMonth, lastDayOfTargetMonth));
+
+  return result;
+}
+
+function resolveRelativeDate(text: string, now: Date) {
+  const searchableText = toSearchableText(text);
+  const quantityMatch = searchableText.match(RELATIVE_DATE_QUANTITY_TOKEN_PATTERN);
+
+  if (quantityMatch) {
+    const amount = parseRelativeQuantity(quantityMatch[1]);
+    if (amount) {
+      const unit = quantityMatch[2];
+      if (unit === "thang") {
+        return addMonths(now, amount);
+      }
+
+      return addDays(now, unit === "tuan" ? amount * 7 : amount);
+    }
+  }
+
+  if (/\b(?:ngay\s+(?:kia|mot)|ngay\s+mot|kia)\b/.test(searchableText)) {
+    return addDays(now, 2);
+  }
+
+  if (/\b(?:ngay\s+mai|mai)\b/.test(searchableText)) {
+    return addDays(now, 1);
+  }
+
+  if (/\b(?:tuan)\s+(?:sau|toi)\b/.test(searchableText)) {
+    return addDays(now, 7);
+  }
+
+  if (/\b(?:thang)\s+(?:sau|toi)\b/.test(searchableText)) {
+    return addMonths(now, 1);
+  }
+
+  return new Date(now);
+}
+
+export function hasRelativeDateExpression(text: string) {
+  const searchableText = toSearchableText(text);
+  return RELATIVE_DATE_TOKEN_PATTERNS.some((pattern) =>
+    pattern.test(searchableText),
+  );
+}
+
 function parseDepartureTime(text: string, now: Date): string | undefined {
   const searchableText = toAsciiText(text);
   const timeMatch =
@@ -110,7 +215,7 @@ function parseDepartureTime(text: string, now: Date): string | undefined {
     timeMatch[3],
   );
   const minute = Number.parseInt(timeMatch[2] ?? "0", 10);
-  const departureTime = new Date(now);
+  const departureTime = resolveRelativeDate(text, now);
   departureTime.setHours(hour, minute, 0, 0);
 
   return departureTime.toISOString();
@@ -157,10 +262,14 @@ function cleanEndpoint(value: string): string | undefined {
 }
 
 function removeKnownTokens(text: string): string {
-  return toAsciiText(text)
+  return RELATIVE_DATE_STRIP_PATTERNS.reduce(
+    (value, pattern) => value.replace(pattern, " "),
+    toAsciiText(text),
+  )
     .replace(PHONE_PATTERN, " ")
     .replace(PRICE_K_PATTERN, " ")
     .replace(PRICE_THOUSAND_PATTERN, " ")
+    .replace(PRICE_CA_PATTERN, " ")
     .replace(PRICE_MILLION_PATTERN, " ")
     .replace(PRICE_CONTEXT_NUMBER_PATTERN, " ")
     .replace(TIME_COLON_PATTERN, " ")

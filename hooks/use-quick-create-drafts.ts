@@ -12,6 +12,25 @@ import type {
   SaveResult,
 } from "@/lib/quick-create/types";
 
+function normalizeCreatedDraftItems(data: unknown): DraftItem[] {
+  if (Array.isArray(data)) {
+    return data as DraftItem[];
+  }
+
+  if (data && typeof data === "object") {
+    const record = data as { items?: unknown; id?: unknown };
+    if (Array.isArray(record.items)) {
+      return record.items as DraftItem[];
+    }
+
+    if (typeof record.id === "number") {
+      return [record as DraftItem];
+    }
+  }
+
+  return [];
+}
+
 export function useDrafts(sessionId: number | null) {
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,11 +85,16 @@ export function useDrafts(sessionId: number | null) {
       const res = await fetch(`/api/quick-trip-entry/sessions/${sessionId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText, source, autoSave: false }),
+        body: JSON.stringify({
+          rawText,
+          source,
+          autoSave: false,
+          processingMode: "async",
+        }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Tao ban nhap that bai");
-      const items = (Array.isArray(json.data) ? json.data : [json.data]) as DraftItem[];
+      const items = normalizeCreatedDraftItems(json.data);
       setDrafts((prev) => [...prev, ...items]);
       return items;
     },

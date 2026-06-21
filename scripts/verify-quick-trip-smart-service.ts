@@ -107,6 +107,68 @@ async function main() {
   assert.equal(mergedDrafts[0].candidate.destination, "HP");
   assert.equal(mergedDrafts[0].candidate.price, 150000);
 
+  const sparseAiProvider: QuickTripAiProvider = {
+    async parse() {
+      return {};
+    },
+    async parseMany() {
+      return [
+        {
+          rawText: "9h HN - HP 300 ca 0912345678",
+          candidate: {
+            departureTime: undefined,
+            price: 300,
+            confidence: 0.96,
+            missingFields: [],
+            warnings: [],
+          },
+        },
+      ];
+    },
+  };
+
+  const repairedDrafts = await parseQuickEntryDrafts({
+    rawText: "9h HN - HP 300 ca 0912345678",
+    parseMode: "smart",
+    provider: sparseAiProvider,
+  });
+
+  assert.equal(repairedDrafts.length, 1);
+  assert.equal(repairedDrafts[0].candidate.departureTime, "2026-06-22T02:00:00.000Z");
+  assert.equal(repairedDrafts[0].candidate.price, 300000);
+
+  const wrongRelativeDateAiProvider: QuickTripAiProvider = {
+    async parse() {
+      return {};
+    },
+    async parseMany() {
+      return [
+        {
+          rawText: "ngay mai 9h HN - HP 150k 0912345678",
+          candidate: {
+            departureTime: "2026-06-22T02:00:00.000Z",
+            price: 150000,
+            confidence: 0.96,
+            missingFields: [],
+            warnings: [],
+          },
+        },
+      ];
+    },
+  };
+
+  const relativeDateDrafts = await parseQuickEntryDrafts({
+    rawText: "ngay mai 9h HN - HP 150k 0912345678",
+    parseMode: "smart",
+    provider: wrongRelativeDateAiProvider,
+  });
+
+  assert.equal(relativeDateDrafts.length, 1);
+  assert.equal(
+    relativeDateDrafts[0].candidate.departureTime,
+    "2026-06-23T02:00:00.000Z",
+  );
+
   console.log("quick-trip smart service checks passed");
 }
 

@@ -2,7 +2,11 @@ import {
   getQuickTripAiProvider,
   type QuickTripAiProvider,
 } from "./ai-provider";
-import { parseQuickTripChunk, parseQuickTripInput } from "./parser";
+import {
+  hasRelativeDateExpression,
+  parseQuickTripChunk,
+  parseQuickTripInput,
+} from "./parser";
 import type { ParsedQuickTripChunk, QuickTripCandidate } from "./types";
 
 export type QuickEntryParseMode = "rule" | "smart";
@@ -15,6 +19,50 @@ function toStringArray(value: unknown): string[] {
 
 function uniqueWarnings(warnings: string[]): string[] {
   return [...new Set(warnings)];
+}
+
+function pickUsefulCandidateFields(
+  candidate: Partial<QuickTripCandidate>,
+): Partial<QuickTripCandidate> {
+  return Object.fromEntries(
+    Object.entries(candidate).filter(([, value]) => {
+      if (value === undefined || value === null) return false;
+      return typeof value !== "string" || value.trim() !== "";
+    }),
+  ) as Partial<QuickTripCandidate>;
+}
+
+function chooseMergedPrice(
+  rulePrice: number | undefined,
+  aiPrice: number | undefined,
+) {
+  if (!Number.isFinite(aiPrice) || aiPrice == null || aiPrice <= 0) {
+    return rulePrice;
+  }
+
+  if (
+    Number.isFinite(rulePrice) &&
+    rulePrice != null &&
+    rulePrice > 0 &&
+    rulePrice >= 10_000 &&
+    aiPrice < 10_000
+  ) {
+    return rulePrice;
+  }
+
+  return aiPrice;
+}
+
+function chooseMergedDepartureTime(
+  rawText: string,
+  ruleDepartureTime: string | undefined,
+  aiDepartureTime: string | undefined,
+) {
+  if (hasRelativeDateExpression(rawText) && ruleDepartureTime) {
+    return ruleDepartureTime;
+  }
+
+  return aiDepartureTime ?? ruleDepartureTime;
 }
 
 function normalizeCandidate(candidate: QuickTripCandidate): QuickTripCandidate {
@@ -36,7 +84,13 @@ function normalizeParsedChunk(chunk: ParsedQuickTripChunk): ParsedQuickTripChunk
     rawText: chunk.rawText,
     candidate: normalizeCandidate({
       ...ruleCandidate,
-      ...aiCandidate,
+      ...pickUsefulCandidateFields(aiCandidate),
+      departureTime: chooseMergedDepartureTime(
+        chunk.rawText,
+        ruleCandidate.departureTime,
+        aiCandidate.departureTime,
+      ),
+      price: chooseMergedPrice(ruleCandidate.price, aiCandidate.price),
       confidence: Math.max(
         Number(ruleCandidate.confidence) || 0,
         Number(aiCandidate.confidence) || 0,

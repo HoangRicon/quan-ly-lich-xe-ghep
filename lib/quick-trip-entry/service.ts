@@ -78,6 +78,7 @@ const SAVED_STATUSES = [
   QUICK_ENTRY_ITEM_STATUSES.AUTO_SAVED,
   QUICK_ENTRY_ITEM_STATUSES.SAVED,
 ];
+const quickEntryProcessingQueues = new Map<string, Promise<void>>();
 
 function getTenantDb(parentDb: ParentDb, context: QuickEntryContext): TenantDb {
   return createTenantPrisma(parentDb, context.accountId);
@@ -147,13 +148,73 @@ function uniqueWarnings(warnings: string[]): string[] {
   return [...new Set(warnings)];
 }
 
+function pickUsefulCandidateFields(
+  candidate: Partial<QuickTripCandidate>,
+): Partial<QuickTripCandidate> {
+  return Object.fromEntries(
+    Object.entries(candidate).filter(([, value]) => {
+      if (value === undefined || value === null) return false;
+      return typeof value !== "string" || value.trim() !== "";
+    }),
+  ) as Partial<QuickTripCandidate>;
+}
+
+function chooseMergedPrice(
+  basePrice: number | undefined,
+  aiPrice: number | undefined,
+) {
+  if (!Number.isFinite(aiPrice) || aiPrice == null || aiPrice <= 0) {
+    return basePrice;
+  }
+
+  if (
+    Number.isFinite(basePrice) &&
+    basePrice != null &&
+    basePrice > 0 &&
+    basePrice >= 10_000 &&
+    aiPrice < 10_000
+  ) {
+    return basePrice;
+  }
+
+  return aiPrice;
+}
+
+function normalizeManualEditedCandidate(
+  candidate: QuickTripCandidate,
+): QuickTripCandidate {
+  const confidence = Number(candidate.confidence);
+
+  return normalizeCandidate({
+    ...candidate,
+    confidence: Math.max(
+      Number.isFinite(confidence) ? confidence : 0,
+      QUICK_ENTRY_AUTO_SAVE_THRESHOLD,
+    ),
+    missingFields: [],
+    warnings: [],
+  });
+}
+
+function hasBlockingValidationIssue(candidate: QuickTripCandidate) {
+  return candidate.missingFields.length > 0 || candidate.warnings.length > 0;
+}
+
+function getQuickEntryProcessingQueueKey(
+  context: QuickEntryContext,
+  input: CreateQuickEntryItemsInput,
+) {
+  return `${context.accountId}:${input.sessionId}`;
+}
+
 function mergeAiCandidate(
   baseCandidate: QuickTripCandidate,
   aiCandidate: Partial<QuickTripCandidate>,
 ): QuickTripCandidate {
   return normalizeCandidate({
     ...baseCandidate,
-    ...aiCandidate,
+    ...pickUsefulCandidateFields(aiCandidate),
+    price: chooseMergedPrice(baseCandidate.price, aiCandidate.price),
     confidence: Math.max(
       Number(baseCandidate.confidence) || 0,
       Number(aiCandidate.confidence) || 0,
@@ -369,9 +430,14 @@ export function enqueueQuickEntryItemsProcessing(
   input: CreateQuickEntryItemsInput,
   placeholderItemId: number,
 ) {
-  setTimeout(() => {
-    void processQuickEntryItemsNow(parentDb, context, input, placeholderItemId).catch(
-      async (error) => {
+  const queueKey = getQuickEntryProcessingQueueKey(context, input);
+  const previousJob = quickEntryProcessingQueues.get(queueKey) ?? Promise.resolve();
+  const nextJob = previousJob
+    .catch(() => undefined)
+    .then(async () => {
+      try {
+        await processQuickEntryItemsNow(parentDb, context, input, placeholderItemId);
+      } catch (error) {
         console.error("Quick entry background processing error:", error);
         await markQuickEntryItemFailed(
           parentDb,
@@ -379,9 +445,15 @@ export function enqueueQuickEntryItemsProcessing(
           placeholderItemId,
           "Background processing failed",
         );
-      },
-    );
-  }, 0);
+      }
+    });
+
+  quickEntryProcessingQueues.set(queueKey, nextJob);
+  void nextJob.finally(() => {
+    if (quickEntryProcessingQueues.get(queueKey) === nextJob) {
+      quickEntryProcessingQueues.delete(queueKey);
+    }
+  });
 }
 
 export async function listQuickEntrySessions(
@@ -565,7 +637,7 @@ export async function updateQuickEntryItem(
 
     const validation = await validateQuickTripCandidateForAccount(
       txDb,
-      parsedData,
+      normalizeManualEditedCandidate(parsedData),
     );
     const candidate = validation.candidate;
     const item = (await txDb.quickTripEntryItem.update({
@@ -624,7 +696,7 @@ export async function saveQuickEntryItem(
       );
       const candidate = validation.candidate;
 
-      if (statusForValidation(candidate) === QUICK_ENTRY_ITEM_STATUSES.NEEDS_REVIEW) {
+      if (hasBlockingValidationIssue(candidate)) {
         const updatedItem = (await txDb.quickTripEntryItem.update({
           where: { id: item.id },
           data: {

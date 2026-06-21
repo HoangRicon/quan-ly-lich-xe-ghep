@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 import ScheduleList from "@/components/schedule-list";
 
@@ -29,12 +28,6 @@ export default function SchedulePage() {
         <Sidebar>
           <Header />
           <div className="p-2 lg:p-4 pb-24 lg:pb-0">
-            <Link
-              href="/dashboard/quick-create"
-              className="mb-3 flex min-h-[48px] items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-lg shadow-slate-950/15 transition active:scale-[0.98] lg:hidden"
-            >
-              Tao cuoc nhanh
-            </Link>
             <ScheduleList showToast={showToast} />
           </div>
         </Sidebar>

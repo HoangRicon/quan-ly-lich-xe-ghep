@@ -20,10 +20,57 @@ const completeCandidate = parseQuickTripChunk(oneLine, now);
 assert.equal(completeCandidate.customerPhone, "0912345678");
 assert.equal(completeCandidate.departure, "HN");
 assert.equal(completeCandidate.destination, "HP");
+assert.equal(completeCandidate.departureTime, "2026-06-21T01:00:00.000Z");
 assert.equal(completeCandidate.price, 150000);
 assert.equal(completeCandidate.totalSeats, 1);
 assert.equal(completeCandidate.tripType, "ghep");
 assert.equal(validateQuickTripCandidate(completeCandidate).canAutoSave, true);
+
+const shorthandPriceCandidate = parseQuickTripChunk(
+  "9h HN - HP 300 ca 0912345678",
+  now,
+);
+assert.equal(shorthandPriceCandidate.departureTime, "2026-06-21T02:00:00.000Z");
+assert.equal(shorthandPriceCandidate.price, 300000);
+assert.equal(validateQuickTripCandidate(shorthandPriceCandidate).canAutoSave, true);
+
+const tomorrowCandidate = parseQuickTripChunk(
+  "ngay mai 9h HN - HP 150k 0912345678",
+  now,
+);
+assert.equal(tomorrowCandidate.departureTime, "2026-06-22T02:00:00.000Z");
+assert.equal(tomorrowCandidate.departure, "HN");
+assert.equal(tomorrowCandidate.destination, "HP");
+assert.equal(validateQuickTripCandidate(tomorrowCandidate).canAutoSave, true);
+
+const dayAfterTomorrowCandidate = parseQuickTripChunk(
+  "ngay kia 9h HN - HP 150k 0912345678",
+  now,
+);
+assert.equal(
+  dayAfterTomorrowCandidate.departureTime,
+  "2026-06-23T02:00:00.000Z",
+);
+
+const nextWeekCandidate = parseQuickTripChunk(
+  "tuan sau 9h HN - HP 150k 0912345678",
+  now,
+);
+assert.equal(nextWeekCandidate.departureTime, "2026-06-28T02:00:00.000Z");
+
+const twoWeeksLaterCandidate = parseQuickTripChunk(
+  "2 tuan nua 9h HN - HP 150k 0912345678",
+  now,
+);
+assert.equal(twoWeeksLaterCandidate.departureTime, "2026-07-05T02:00:00.000Z");
+
+const nextMonthCandidate = parseQuickTripChunk(
+  "thang sau 9h HN - HP 150k 0912345678",
+  now,
+);
+assert.equal(nextMonthCandidate.departureTime, "2026-07-21T02:00:00.000Z");
+assert.equal(nextMonthCandidate.departure, "HN");
+assert.equal(nextMonthCandidate.destination, "HP");
 
 const incompleteCandidate = parseQuickTripChunk("HN - HP 0912345678", now);
 const incompleteValidation = validateQuickTripCandidate(incompleteCandidate);

@@ -204,7 +204,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
 
   // Collapsible filter bar state (mobile only)
-  const [filterCollapsed, setFilterCollapsed] = useState(false);
+  const [filterCollapsed, setFilterCollapsed] = useState(true);
 
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState<number>(() => {
@@ -1152,6 +1152,15 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           </div>
           </div>
         </div>
+
+        {/* Manual Add Button */}
+        <Link
+          href="/dashboard/schedule/add"
+          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 text-xs font-semibold hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Tạo cuốc thủ công
+        </Link>
       </div>
 
       {/* Mobile DataTable View */}
