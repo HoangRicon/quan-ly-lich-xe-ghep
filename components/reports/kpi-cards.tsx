@@ -131,7 +131,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
   const groups: StatGroup[] = [
     {
       title: "Tiền",
-      helper: "theo cuốc hoàn thành",
+      helper: "doanh thu sau khi hoàn thành nhưng sẽ tính cho ngày đã gán cuối cùng",
       columns: "grid-cols-2",
       items: [
         {

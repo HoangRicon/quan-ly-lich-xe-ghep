@@ -1,12 +1,38 @@
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient as PrismaClientType } from "@prisma/client";
+import { createRequire } from "node:module";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  getMissingPrismaDelegates,
+  hasRequiredPrismaDelegates,
+} from "./prisma-client-guards";
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: PrismaClientType | undefined;
 };
 
-function createPrismaClient() {
+const requireFromHere = createRequire(import.meta.url);
+
+type PrismaClientConstructor = new (options: {
+  adapter: PrismaPg;
+  log: ("query" | "error" | "warn")[];
+}) => PrismaClientType;
+
+function loadPrismaClientConstructor(refresh = false): PrismaClientConstructor {
+  const clientPath = requireFromHere.resolve("@prisma/client");
+
+  if (refresh) {
+    delete requireFromHere.cache[clientPath];
+  }
+
+  const prismaModule = requireFromHere("@prisma/client") as {
+    PrismaClient: PrismaClientConstructor;
+  };
+
+  return prismaModule.PrismaClient;
+}
+
+function createPrismaClient(refreshGeneratedClient = false) {
   const databaseUrl = process.env.DATABASE_URL;
   
   if (!databaseUrl) {
@@ -33,6 +59,7 @@ function createPrismaClient() {
   });
 
   const adapter = new PrismaPg(pool);
+  const PrismaClient = loadPrismaClientConstructor(refreshGeneratedClient);
 
   return new PrismaClient({
     adapter,
@@ -40,6 +67,39 @@ function createPrismaClient() {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+const cachedPrisma = globalForPrisma.prisma;
+const shouldReuseCachedPrisma =
+  cachedPrisma && hasRequiredPrismaDelegates(cachedPrisma);
+
+if (cachedPrisma && !shouldReuseCachedPrisma) {
+  console.warn(
+    `Discarding stale PrismaClient cache; missing delegates: ${getMissingPrismaDelegates(
+      cachedPrisma,
+    ).join(", ")}`,
+  );
+  cachedPrisma.$disconnect().catch((error) => {
+    console.warn("Failed to disconnect stale PrismaClient cache:", error);
+  });
+}
+
+export const prisma = shouldReuseCachedPrisma ? cachedPrisma : createPrismaClient(true);
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+export function getCurrentPrismaClient() {
+  const cached = globalForPrisma.prisma;
+  if (cached && hasRequiredPrismaDelegates(cached)) {
+    return cached;
+  }
+
+  if (hasRequiredPrismaDelegates(prisma)) {
+    return prisma;
+  }
+
+  const refreshedPrisma = createPrismaClient(true);
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = refreshedPrisma;
+  }
+
+  return refreshedPrisma;
+}

@@ -4,11 +4,9 @@ import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 import {
-  findMatchingFormula,
-  applyFormula,
-  TripMatchInput,
-} from "@/lib/formula-engine";
-import { recordDriverAssignmentEvent } from "@/lib/trip-events";
+  createTripForAccount,
+  CreateTripError,
+} from "@/lib/trips/create-trip";
 
 export async function GET(request: NextRequest) {
   try {
@@ -264,210 +262,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const {
-      title, description, departure, destination, pickupLocation, dropoffLocation, departureTime, arrivalTime,
-      price, totalSeats, tripType, notes,
-      customerPhone, customerName, customerEmail, customerNotes,
-      seats, driverId: requestedDriverId, tripDirection,
-    } = body;
-
-    const parsedTotalSeatsRaw = parseInt(String(totalSeats), 10);
-    const parsedTotalSeats = Number.isFinite(parsedTotalSeatsRaw) && parsedTotalSeatsRaw > 0 ? parsedTotalSeatsRaw : 1;
-
-    // Giá có thể ở format VN (vd: "1.111.000") → cần bỏ "."/"," trước khi parse
-    const parsedPriceRaw = parseFloat(String(price).replace(/[.,]/g, ""));
-    const parsedPrice = Number.isFinite(parsedPriceRaw) ? parsedPriceRaw : 0;
-    const parsedDirection = tripDirection === "roundtrip" ? "roundtrip" : "oneway";
-    const normalizeOptionalText = (value: unknown) => {
-      if (value === undefined || value === null) return null;
-      const trimmed = String(value).trim();
-      return trimmed || null;
-    };
-
-    const DECIMAL_10_2_MAX = 99999999.99;
-    const DECIMAL_15_2_MAX = 9999999999999.99;
-    const round2 = (x: number) => Math.round(x * 100) / 100;
-    const clampDecimal10_2 = (x: number) => {
-      if (!Number.isFinite(x)) return 0;
-      return Math.max(0, Math.min(DECIMAL_10_2_MAX, round2(x)));
-    };
-    const sanitizeOptionalDecimal10_2 = (x: number | null | undefined) => {
-      if (x == null) return null;
-      const n = Number(x);
-      if (!Number.isFinite(n)) return null;
-      const r = round2(n);
-      if (Math.abs(r) > DECIMAL_10_2_MAX) return null;
-      return r;
-    };
-    const sanitizeOptionalDecimal15_2 = (x: number | null | undefined) => {
-      if (x == null) return null;
-      const n = Number(x);
-      if (!Number.isFinite(n)) return null;
-      const r = round2(n);
-      if (Math.abs(r) > DECIMAL_15_2_MAX) return null;
-      return r;
-    };
-
-    if (!title || !departure || !destination || !departureTime || !price) {
+    if (!body.title || !body.departure || !body.destination || !body.departureTime || !body.price) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const db = createTenantPrisma(prisma, user.accountId);
-
-    // Determine driverId
-    const finalDriverId = requestedDriverId || null;
-    const safePrice = clampDecimal10_2(parsedPrice);
-
-    // === FORMULA ENGINE ===
-    // Chỉ tính points/profit khi đã có driverId (tức là đã "chọn Zom").
-    // Trường hợp chưa chọn Zom: giữ các field lợi nhuận ở NULL để tránh hiển thị mặc định trên DOM.
-    let formulaResult: ReturnType<typeof applyFormula> = {
-      pointsEarned: null,
-      profitRate: null,
-      profit: null,
-      matchedFormulaId: null,
-    };
-    let matchedFormulaName: string | null = null;
-
-    if (finalDriverId) {
-      // Lấy profitRate của driver (driver phải cùng account)
-      let driverProfitRate = 1000;
-      const driver = await db.user.findUnique({
-        where: { id: finalDriverId },
-        select: { profitRate: true, formulaIds: true, accountId: true },
-      });
-      if (driver && driver.accountId === user.accountId) {
-        driverProfitRate = Number(driver.profitRate);
-      } else {
-        // Driver not found or not in this account
-        return NextResponse.json({ error: "Driver not found in your account" }, { status: 400 });
-      }
-
-      // Match theo công thức được gán cho Zom (formulaIds). Nếu không có thì fallback: tất cả công thức active
-      const driverFormulaIds = Array.isArray(driver?.formulaIds) ? driver!.formulaIds : [];
-      const allFormulas =
-        driverFormulaIds.length > 0
-          ? await db.pricingFormula.findMany({
-              where: { id: { in: driverFormulaIds }, isActive: true },
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            })
-          : await db.pricingFormula.findMany({
-              where: { isActive: true },
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            });
-
-      const tripInput: TripMatchInput = {
-        price: safePrice,
-        totalSeats: parsedTotalSeats,
-        tripType: tripType === "bao" ? "bao" : "ghep",
-        tripDirection: parsedDirection,
-      };
-
-      const normalizedFormulas = allFormulas.map((f) => ({
-        id: f.id,
-        name: f.name,
-        tripType: f.tripType,
-        seats: f.seats ?? null,
-        minPrice: f.minPrice ? Number(f.minPrice) : null,
-        maxPrice: f.maxPrice ? Number(f.maxPrice) : null,
-        points: Number(f.points),
-      }));
-
-      const matchedFormula = findMatchingFormula(normalizedFormulas, tripInput);
-      matchedFormulaName = matchedFormula?.formulaName ?? null;
-      formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
-    }
-
-    // Guard giá trị Decimal để tránh overflow numeric của Postgres
-    const safePointsEarned = sanitizeOptionalDecimal10_2(formulaResult.pointsEarned);
-    const safeProfit = sanitizeOptionalDecimal10_2(formulaResult.profit);
-    // profitRate có thể lớn hơn decimal(10,2), nhưng vẫn cần guard cơ bản
-    const safeProfitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
-
-    const trip = await db.$parent.$transaction(async (tx: Prisma.TransactionClient) => {
-      const txDb = createTenantPrisma(tx, user.accountId);
-
-      let customerId: number | null = null;
-      if (customerPhone) {
-        const customer = await txDb.customer.upsert({
-          where: { idx_customers_account_phone: { phone: customerPhone, accountId: user.accountId } },
-          create: {
-            phone: customerPhone,
-            name: customerName || "Khách vãng lai",
-            email: customerEmail,
-            notes: customerNotes,
-          },
-          update: {
-            totalTrips: { increment: 1 },
-          },
-        });
-        customerId = customer.id;
-      }
-
-      const createdTrip = await txDb.trip.create({
-        data: {
-          title,
-          description,
-          departure,
-          destination,
-          pickupLocation: normalizeOptionalText(pickupLocation),
-          dropoffLocation: normalizeOptionalText(dropoffLocation),
-          departureTime: new Date(departureTime),
-          arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
-          price: safePrice,
-          tripDirection: parsedDirection,
-          tripType: tripType === "bao" ? "bao" : "ghep",
-          ...(finalDriverId ? { driverId: finalDriverId } : {}),
-          ...(user ? { createdById: user.id } : {}),
-          totalSeats: parsedTotalSeats,
-          status: "scheduled",
-          ...(notes ? { notes } : {}),
-          pointsEarned: safePointsEarned,
-          profitRate: safeProfitRate,
-          profit: safeProfit,
-          matchedFormulaId: formulaResult.matchedFormulaId,
-          ...(customerId ? {
-            customers: {
-              create: {
-                customerId,
-                seats: seats || 1,
-                status: "confirmed",
-                notes: customerNotes,
-                accountId: user.accountId,
-              },
-            },
-          } : {}),
-        },
-        include: {
-          driver: true,
-          customers: {
-            include: {
-              customer: true,
-            },
-          },
-        },
-      });
-
-      if (createdTrip.driverId) {
-        await recordDriverAssignmentEvent(txDb, {
-          tripId: createdTrip.id,
-          accountId: user.accountId,
-          fromDriverId: null,
-          toDriverId: createdTrip.driverId,
-          actorId: user.id,
-          createdAt: createdTrip.createdAt,
-          pointsEarned: safePointsEarned,
-          profit: safeProfit,
-          profitRate: safeProfitRate,
-          formulaId: formulaResult.matchedFormulaId,
-          formulaName: matchedFormulaName,
-        });
-      }
-
-      return createdTrip;
+    const trip = await createTripForAccount(prisma, body, {
+      accountId: user.accountId,
+      actorId: user.id,
     });
 
     // Format response
@@ -509,6 +313,10 @@ export async function POST(request: NextRequest) {
       data: formattedTrip,
     });
   } catch (error) {
+    if (error instanceof CreateTripError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     console.error("Create trip error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

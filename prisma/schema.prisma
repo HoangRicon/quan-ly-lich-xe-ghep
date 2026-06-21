@@ -16,6 +16,8 @@ model Account {
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   customers Customer[]
   tripEvents TripEvent[]
+  quickTripEntrySessions QuickTripEntrySession[]
+  quickTripEntryItems    QuickTripEntryItem[]
   trips     Trip[]
   users     User[]
 
@@ -44,6 +46,7 @@ model User {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   createdTrips      Trip[]             @relation("CreatedTrips")
+  quickTripEntrySessions QuickTripEntrySession[] @relation("QuickTripEntrySessionCreator")
   trips             Trip[]
   settings          UserSettings?
   account           Account            @relation(fields: [accountId], references: [id])
@@ -54,6 +57,7 @@ model User {
   @@index([status], map: "idx_users_status")
   @@index([formulaId], map: "idx_users_formula")
   @@index([accountId], map: "idx_users_account")
+  @@unique([id, accountId], map: "users_id_account_id_key")
   @@map("users")
 }
 
@@ -85,6 +89,7 @@ model Trip {
   bookings         Booking[]
   customers        TripCustomer[]
   events           TripEvent[]
+  quickEntryItems  QuickTripEntryItem[]
   account          Account        @relation(fields: [accountId], references: [id])
   createdBy        User?          @relation("CreatedTrips", fields: [createdById], references: [id])
   driver           User?          @relation(fields: [driverId], references: [id])
@@ -125,6 +130,51 @@ model TripEvent {
   @@index([accountId, toDriverId, createdAt], map: "idx_trip_events_account_to_driver_created")
   @@index([tripId], map: "idx_trip_events_trip")
   @@map("trip_events")
+}
+
+model QuickTripEntrySession {
+  id          Int                  @id @default(autoincrement())
+  name        String               @db.VarChar(120)
+  sourceType  String               @default("conversation") @map("source_type") @db.VarChar(50)
+  status      String               @default("active") @db.VarChar(30)
+  lastInputAt DateTime?            @map("last_input_at") @db.Timestamptz(6)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accountId   Int                  @map("account_id")
+  createdById Int?                 @map("created_by_id")
+  account     Account              @relation(fields: [accountId], references: [id])
+  createdBy   User?                @relation("QuickTripEntrySessionCreator", fields: [createdById, accountId], references: [id, accountId], onDelete: NoAction)
+  items       QuickTripEntryItem[]
+
+  @@unique([id, accountId], map: "quick_trip_entry_sessions_id_account_id_key")
+  @@index([accountId, updatedAt], map: "idx_qte_sessions_account_updated")
+  @@index([accountId, status, updatedAt], map: "idx_qte_sessions_account_status_updated")
+  @@map("quick_trip_entry_sessions")
+}
+
+model QuickTripEntryItem {
+  id            Int                   @id @default(autoincrement())
+  sessionId     Int                   @map("session_id")
+  accountId     Int                   @map("account_id")
+  rawText       String                @map("raw_text")
+  source        String                @default("text") @db.VarChar(20)
+  parseStatus   String                @default("pending") @map("parse_status") @db.VarChar(30)
+  parsedData    Json?                 @map("parsed_data")
+  missingFields Json?                 @map("missing_fields")
+  warnings      Json?
+  confidence    Decimal?              @db.Decimal(4, 2)
+  createdTripId Int?                  @map("created_trip_id")
+  errorMessage  String?               @map("error_message")
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  account       Account               @relation(fields: [accountId], references: [id])
+  session       QuickTripEntrySession @relation(fields: [sessionId, accountId], references: [id, accountId], onDelete: Cascade)
+  createdTrip   Trip?                 @relation(fields: [createdTripId, accountId], references: [id, accountId], onDelete: NoAction)
+
+  @@index([accountId, sessionId, createdAt], map: "idx_qte_items_account_session_created")
+  @@index([accountId, parseStatus], map: "idx_qte_items_account_status")
+  @@index([createdTripId], map: "idx_qte_items_created_trip")
+  @@map("quick_trip_entry_items")
 }
 
 model Booking {
