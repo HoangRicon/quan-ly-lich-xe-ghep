@@ -14,6 +14,8 @@ import { type DateFilter } from "@/lib/date-utils";
 interface KpiData {
   totalRevenue: number;
   totalProfit: number;
+  projectedRevenue: number;
+  projectedProfit: number;
   totalTrips: number;
   completedTrips: number;
   unassignedTrips: number;
