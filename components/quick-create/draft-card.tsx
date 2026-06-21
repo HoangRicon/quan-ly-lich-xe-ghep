@@ -1,0 +1,213 @@
+"use client";
+
+import { memo } from "react";
+import { Car, MessageCircle, Trash2 } from "lucide-react";
+
+import { DRAFT_STATUS_CONFIG, MISSING_FIELD_LABELS } from "@/lib/quick-create/constants";
+import { canCreateRideFromDraft } from "@/lib/quick-create/draft-helpers";
+import {
+  formatCurrency,
+  formatFullDate,
+  formatPhoneLink,
+  formatTime,
+  formatZaloLink,
+} from "@/lib/quick-create/formatters";
+import type { DraftItem } from "@/lib/quick-create/types";
+
+interface DraftCardProps {
+  item: DraftItem;
+  onCreateRide?: (item: DraftItem) => void;
+  onEdit?: (item: DraftItem) => void;
+  onDelete?: (item: DraftItem) => void;
+  isCreating?: boolean;
+  isDeleting?: boolean;
+}
+
+function WarningBadge({ label }: { label: string }) {
+  return (
+    <span className="flex-shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
+      {label}
+    </span>
+  );
+}
+
+export const DraftCard = memo(function DraftCard({
+  item,
+  onCreateRide,
+  onEdit,
+  onDelete,
+  isCreating = false,
+  isDeleting = false,
+}: DraftCardProps) {
+  const parsed = item.parsedData;
+  const statusCfg = DRAFT_STATUS_CONFIG[item.status] ?? DRAFT_STATUS_CONFIG.pending;
+  const missingLabels = item.missingFields
+    .map((field) => MISSING_FIELD_LABELS[field] ?? field)
+    .slice(0, 2);
+  const isRoundtrip = parsed?.tripDirection === "roundtrip";
+  const isSaved =
+    item.status === "saved" || item.status === "auto_saved" || !!item.createdTripId;
+  const isFailed = item.status === "failed";
+  const isIncomplete = item.missingFields.length > 0;
+  const canCreateRide = canCreateRideFromDraft(item);
+
+  const cardClasses = [
+    "cursor-pointer select-none rounded-lg border bg-white p-2.5 transition-all",
+    isFailed ? "border-red-300" : isIncomplete ? "border-amber-200" : "border-slate-200",
+    isCreating || isDeleting ? "pointer-events-none opacity-60" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const handleClick = () => {
+    onEdit?.(item);
+  };
+
+  return (
+    <div
+      className={cardClasses}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          handleClick();
+        }
+      }}
+    >
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {isRoundtrip && (
+            <span className="flex-shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">
+              2C
+            </span>
+          )}
+          <span className="flex-shrink-0 text-base font-bold text-slate-800">
+            {formatTime(parsed?.departureTime)}
+          </span>
+          <span className="text-[11px] font-semibold text-slate-800">
+            {formatFullDate(parsed?.departureTime)}
+          </span>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-1">
+          {missingLabels.map((label) => (
+            <WarningBadge key={label} label={label} />
+          ))}
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusCfg.bg} ${statusCfg.text}`}
+          >
+            {statusCfg.label}
+          </span>
+        </div>
+      </div>
+
+      {(parsed?.departure || parsed?.destination) && (
+        <div className="mb-0.5 flex items-center gap-2">
+          <span className="max-w-[44%] truncate text-sm font-medium text-slate-800">
+            {parsed?.departure || "—"}
+          </span>
+          <svg
+            className="h-4 w-4 flex-shrink-0 text-slate-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 8l4 4m0 0l-4 4m4-4H3"
+            />
+          </svg>
+          <span className="max-w-[44%] truncate text-sm font-medium text-slate-800">
+            {parsed?.destination || "—"}
+          </span>
+        </div>
+      )}
+
+      {(parsed?.pickupLocation || parsed?.dropoffLocation) && (
+        <div className="mb-1 space-y-0.5">
+          {parsed?.pickupLocation && (
+            <div className="truncate text-[11px] text-slate-500">Đón: {parsed.pickupLocation}</div>
+          )}
+          {parsed?.dropoffLocation && (
+            <div className="truncate text-[11px] text-slate-500">Trả: {parsed.dropoffLocation}</div>
+          )}
+        </div>
+      )}
+
+      {parsed?.customerPhone && (
+        <div className="mb-0.5 flex items-center gap-2">
+          <a
+            href={formatPhoneLink(parsed.customerPhone)}
+            className="shrink-0 text-xs text-blue-600 hover:underline"
+            onClick={(event) => event.stopPropagation()}
+            title="Gọi"
+          >
+            {parsed.customerPhone}
+          </a>
+          <a
+            href={formatZaloLink(parsed.customerPhone)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded bg-blue-50 p-1 text-blue-600 hover:bg-blue-100"
+            onClick={(event) => event.stopPropagation()}
+            title="Nhắn Zalo"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-sm font-bold text-slate-800">
+            {formatCurrency(parsed?.price)}
+          </span>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {!isSaved && !isFailed && onDelete && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(item);
+              }}
+              disabled={isDeleting}
+              className="rounded p-1 text-red-400 transition-colors hover:bg-red-50 disabled:opacity-50"
+              title="Xóa bản nháp"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+
+          {!isSaved && !isFailed && onCreateRide && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                onCreateRide(item);
+              }}
+              disabled={isCreating || !canCreateRide}
+              className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+              title={canCreateRide ? "Tạo cuốc xe" : "Bản nháp chưa sẵn sàng để tạo cuốc xe"}
+            >
+              {isCreating ? (
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/60 border-t-white" />
+              ) : (
+                <Car className="h-3.5 w-3.5" />
+              )}
+              Tạo cuốc xe
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isFailed && item.errorMessage && (
+        <div className="mt-1 rounded bg-red-50 px-2 py-1 text-[10px] text-red-500">
+          {item.errorMessage}
+        </div>
+      )}
+    </div>
+  );
+});

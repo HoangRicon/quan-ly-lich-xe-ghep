@@ -95,4 +95,15 @@ assert.ok(
   whitespaceRequiredValidation.candidate.missingFields.includes("departure"),
 );
 
+const invalidDepartureTimeValidation = validateQuickTripCandidate({
+  ...validCandidateBase,
+  departureTime: "khong-phai-ngay-hop-le",
+});
+assert.equal(invalidDepartureTimeValidation.canAutoSave, false);
+assert.ok(
+  invalidDepartureTimeValidation.candidate.warnings.includes(
+    "invalid_departure_time",
+  ),
+);
+
 console.log("quick-trip parser checks passed");

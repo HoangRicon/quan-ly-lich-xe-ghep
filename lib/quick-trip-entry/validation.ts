@@ -33,6 +33,13 @@ export function validateQuickTripCandidate(candidate: QuickTripCandidate): {
 } {
   const warnings = [...candidate.warnings];
 
+  if (candidate.departureTime != null) {
+    const parsedDepartureTime = new Date(candidate.departureTime);
+    if (Number.isNaN(parsedDepartureTime.getTime())) {
+      warnings.push("invalid_departure_time");
+    }
+  }
+
   if (
     candidate.price != null &&
     (!Number.isFinite(candidate.price) || candidate.price <= 0)

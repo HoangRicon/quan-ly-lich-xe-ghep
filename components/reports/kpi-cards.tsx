@@ -17,6 +17,8 @@ import {
 interface KpiData {
   totalRevenue: number;
   totalProfit: number;
+  projectedRevenue: number;
+  projectedProfit: number;
   totalTrips: number;
   completedTrips: number;
   assignedTrips: number;
@@ -131,7 +133,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
   const groups: StatGroup[] = [
     {
       title: "Tiền",
-      helper: "doanh thu sau khi hoàn thành nhưng sẽ tính cho ngày đã gán cuối cùng",
+      helper: "bao gồm doanh thu cuốc hoàn thành và cuốc đã gán",
       columns: "grid-cols-2",
       items: [
         {
@@ -151,15 +153,15 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
           type: "money",
         },
         {
-          label: "TB cuốc HT",
-          value: data.avgTripValue,
+          label: "Doanh thu dự kiến",
+          value: data.projectedRevenue,
           icon: BarChart3,
           colorKey: "slate",
           type: "money",
         },
         {
-          label: "TB lợi nhuận HT",
-          value: data.avgProfitPerTrip,
+          label: "Lợi nhuận dự kiến",
+          value: data.projectedProfit,
           icon: TrendingUp,
           colorKey: "cyan",
           type: "money",

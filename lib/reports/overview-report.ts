@@ -44,6 +44,8 @@ export type OverviewReport = {
   totalTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedRevenue: number;
+  projectedProfit: number;
   completedTrips: number;
   assignedTrips: number;
   unassignedTrips: number;
@@ -123,8 +125,11 @@ export function calculateOverviewReport(
 ): OverviewReport {
   const totalTrips = trips.length;
   const completedOnly = trips.filter((trip) => trip.status === "completed");
+  const revenueEarning = trips.filter((trip) => trip.status === "completed" || trip.status === "assigned");
   const totalRevenue = sumMoney(completedOnly, (trip) => trip.price);
   const totalProfit = sumMoney(completedOnly, (trip) => trip.profit);
+  const projectedRevenue = sumMoney(revenueEarning, (trip) => trip.price);
+  const projectedProfit = sumMoney(revenueEarning, (trip) => trip.profit);
 
   const statusCounts = emptyStatusCounts();
   for (const trip of trips) {
@@ -139,7 +144,7 @@ export function calculateOverviewReport(
   const revenueByDayMap = new Map<string, RevenuePeriodPoint>();
   const revenueByMonthMap = new Map<string, RevenuePeriodPoint>();
   const revenueByStatus = emptyStatusMoney();
-  for (const trip of completedOnly) {
+  for (const trip of revenueEarning) {
     addRevenuePoint(revenueByDayMap, toDayKey(trip.createdAt), trip);
     addRevenuePoint(revenueByMonthMap, toMonthKey(trip.createdAt), trip);
     revenueByStatus[reportStatusBucket(trip)] += toMoneyNumber(trip.price);
@@ -155,6 +160,8 @@ export function calculateOverviewReport(
     totalTrips,
     totalRevenue,
     totalProfit,
+    projectedRevenue,
+    projectedProfit,
     completedTrips,
     assignedTrips,
     unassignedTrips,

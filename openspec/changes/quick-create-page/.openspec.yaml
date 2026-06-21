@@ -1,0 +1,11 @@
+name: quick-create-page
+created: 2026-06-22
+status: planning
+summary: Mobile-first Quick Create page with AI chat composer, session management, and 1-click draft-to-ride conversion
+components:
+  - app/dashboard/quick-create/
+  - components/quick-create/
+  - hooks/
+  - lib/quick-create/
+depends_on: []
+blocks: []

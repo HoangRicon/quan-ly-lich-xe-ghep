@@ -114,10 +114,11 @@ export async function getDriverTripHistory(
   let assignmentEvents: AssignmentEvent[] = [];
 
   // Fetch all active trip statuses once
-  const allStatuses = (await (db as unknown as Record<string, unknown>).tripStatus?.findMany?.({
+  const tripStatusModel = (db as unknown as { tripStatus?: { findMany: (opts: { where: { isActive: boolean }; select: { key: true; label: true; color: true } }) => Promise<Array<{ key: string; label: string; color: string }>> } }).tripStatus;
+  const allStatuses = tripStatusModel ? await tripStatusModel.findMany({
     where: { isActive: true },
     select: { key: true, label: true, color: true },
-  })) as Array<{ key: string; label: string; color: string }> | undefined;
+  }) : undefined;
   const statusMap = new Map(allStatuses?.map((s) => [s.key, s]) ?? []);
 
   if (useAssignmentPeriod) {
