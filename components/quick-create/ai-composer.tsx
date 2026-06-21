@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Send, Mic, X, Loader2 } from "lucide-react";
+import { Send, Mic, X, Trash2, Loader2 } from "lucide-react";
 import type { ComposerState } from "@/lib/quick-create/types";
 import { COMPOSER_STATE_LABELS, PROMPT_SUGGESTIONS } from "@/lib/quick-create/constants";
 import { PromptSuggestions } from "./prompt-suggestions";
@@ -120,7 +120,7 @@ export function AIComposer({
             readOnly={isLoading}
             rows={1}
             className={[
-              "w-full px-4 py-3 text-sm outline-none resize-none bg-transparent transition-all",
+              "w-full px-4 py-3 pr-10 text-sm outline-none resize-none bg-transparent transition-all",
               "focus:bg-slate-50 rounded-lg",
               "placeholder:text-slate-400",
               state === "error"
@@ -134,6 +134,19 @@ export function AIComposer({
               .join(" ")}
             style={{ minHeight: "44px" }}
           />
+          {text && !isLoading && (
+            <button
+              type="button"
+              onClick={() => {
+                onTextChange("");
+                textareaRef.current?.focus();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              title="Xoa noi dung"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Send / Cancel button */}
