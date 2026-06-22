@@ -9,6 +9,7 @@ import {
   inferExpectedDraftCount,
   isIsoDateTimeString,
 } from "../lib/quick-create/draft-helpers";
+import { generateAutoNote } from "../lib/quick-create/auto-note";
 import type { DraftItem } from "../lib/quick-create/types";
 
 function buildDraft(overrides: Partial<DraftItem> = {}): DraftItem {
@@ -152,5 +153,134 @@ const savedDraft = buildDraft({
   createdTripId: 99,
 });
 assert.equal(getSaveResultError(savedDraft), null);
+
+// ============================================================
+// generateAutoNote — extract từ trip-form.tsx, share giữa 2 form
+// ============================================================
+
+// Test case 1: Bao xe — output có chứa "bx" ở timePart
+const baoNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "500000",
+  phone: "0912345678",
+  seats: 1,
+  tripType: "bao",
+  tripDirection: "oneway",
+});
+assert.ok(baoNote.includes("bx"), `Bao note phải chứa "bx", got: ${baoNote}`);
+assert.ok(baoNote.endsWith("0912345678"), `Bao note phải kết thúc bằng phone`);
+assert.ok(baoNote.includes("HN - HP"), `Bao note phải có route "HN - HP"`);
+assert.ok(baoNote.includes("500k"), `Bao note phải format price thành "500k"`);
+
+// Test case 2: 2 chiều — output có hậu tố " 2C" trong timePart
+const roundtripNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "300000",
+  phone: "0987654321",
+  seats: 2,
+  tripType: "ghep",
+  tripDirection: "roundtrip",
+});
+assert.ok(roundtripNote.includes(" 2C"), `Roundtrip note phải chứa " 2C", got: ${roundtripNote}`);
+assert.ok(roundtripNote.includes("2k"), `Roundtrip note với 2 ghế phải có "2k"`);
+
+// Test case 3: Có vị trí đón/trả — output có 3 dòng (split \n)
+const locationNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "150000",
+  phone: "0912345678",
+  seats: 1,
+  tripType: "ghep",
+  tripDirection: "oneway",
+  pickupLocation: "123 Cầu Giấy",
+  dropoffLocation: "456 Lê Chân",
+});
+const lines = locationNote.split("\n");
+assert.equal(lines.length, 3, `Có vị trí đón/trả → 3 dòng, got: ${locationNote}`);
+assert.ok(lines[1].includes("Vị trí đón: 123 Cầu Giấy"));
+assert.ok(lines[2].includes("Vị trí trả: 456 Lê Chân"));
+
+// Test case 4: Có vị trí đón nhưng KHÔNG có vị trí trả → 2 dòng
+const pickupOnlyNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "150000",
+  phone: "0912345678",
+  seats: 1,
+  tripType: "ghep",
+  tripDirection: "oneway",
+  pickupLocation: "123 Cầu Giấy",
+});
+const pickupLines = pickupOnlyNote.split("\n");
+assert.equal(pickupLines.length, 2, `Chỉ có pickup → 2 dòng, got: ${pickupOnlyNote}`);
+
+// Test case 5: 2 ghế trở lên — seatType = "2k"
+const twoSeatNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "200000",
+  phone: "0912345678",
+  seats: 3,
+  tripType: "ghep",
+  tripDirection: "oneway",
+});
+assert.ok(twoSeatNote.includes("2k"), `3 ghế phải có "2k", got: ${twoSeatNote}`);
+assert.ok(twoSeatNote.includes("200k"), `Price 200000 phải format "200k", got: ${twoSeatNote}`);
+
+// Test case 6: Format time phụ thuộc vào diffMinutes từ hiện tại.
+// Trên 60 phút: format HHhMM. Dưới 60 phút: format 0-Xp.
+// Test bằng cách inject departureTime rất xa trong tương lai (>60 phút).
+// Để đảm bảo test deterministic, dùng now() tham chiếu: thời gian "14:30" hôm nay
+// có thể < 60p hoặc > 60p tùy giờ hiện tại. Test bằng regex cả 2 pattern.
+const futureNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "150000",
+  phone: "0912345678",
+  seats: 1,
+  tripType: "ghep",
+  tripDirection: "oneway",
+});
+const hasZeroXFormat = /^0-\d+p 1k /.test(futureNote);
+const hasHHMMFormat = /^\d{2}h\d{2} 1k /.test(futureNote);
+assert.ok(
+  hasZeroXFormat || hasHHMMFormat,
+  `Note phải bắt đầu bằng "0-Xp 1k" hoặc "HHhMM 1k", got: ${futureNote}`,
+);
+
+// Test case 7: Price dưới 1000 → giữ nguyên số (không format "k")
+const cheapNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: "500",
+  phone: "0912345678",
+  seats: 1,
+  tripType: "ghep",
+  tripDirection: "oneway",
+});
+assert.ok(cheapNote.includes(" 500 "), `Price 500 phải giữ nguyên "500", got: ${cheapNote}`);
+
+// Test case 8: Price là number (không phải string) — phải hoạt động
+const numberPriceNote = generateAutoNote({
+  departureTime: "14:30",
+  departure: "HN",
+  destination: "HP",
+  price: 150000,
+  phone: "0912345678",
+  seats: 1,
+  tripType: "ghep",
+  tripDirection: "oneway",
+});
+assert.ok(numberPriceNote.includes("150k"), `Price là number phải format "150k", got: ${numberPriceNote}`);
 
 console.log("quick-create logic checks passed");

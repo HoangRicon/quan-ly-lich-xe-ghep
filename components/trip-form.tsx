@@ -4,82 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, User, MapPin, ArrowLeftRight } from "lucide-react";
 
-// Hàm tạo ghi chú tự động theo mẫu
-function generateAutoNote(
-  departureTime: string,
-  departure: string,
-  destination: string,
-  price: string,
-  phone: string,
-  seats: number,
-  tripType: string,
-  tripDirection?: string,
-  pickupLocation?: string,
-  dropoffLocation?: string
-): string {
-  // Tính thời gian chênh lệch
-  const now = new Date();
-  const currentHours = now.getHours();
-  const currentMinutes = now.getMinutes();
-  
-  const [hours, minutes] = departureTime.split(":").map(Number);
-  
-  // Tính số phút chênh lệch từ giờ hiện tại đến giờ đi
-  let diffMinutes = (hours * 60 + minutes) - (currentHours * 60 + currentMinutes);
-  
-  // Nếu giờ đi = giờ hiện tại, tính là 0 phút (khách đi ngay)
-  // Nếu giờ đi đã qua trong ngày, tính cho ngày mai
-  if (diffMinutes === 0) {
-    diffMinutes = 0;
-  } else if (diffMinutes < 0) {
-    diffMinutes += 24 * 60; // Cộng 24 giờ
-  }
-  
-  // Đảm bảo tối thiểu là 1 phút
-  const displayMinutes = Math.max(1, diffMinutes);
-  
-  // Xác định loại ghế
-  let seatType = "";
-  if (tripType === "bao") {
-    seatType = "bx";
-  } else if (seats === 1) {
-    seatType = "1k";
-  } else if (seats >= 2) {
-    seatType = "2k";
-  } else {
-    seatType = "1k";
-  }
-
-  // Thêm suffix cho 2 chiều
-  const directionSuffix = tripDirection === "roundtrip" ? " 2C" : "";
-  
-  // Format giá tiền (vd: 90000 -> 90k, 150000 -> 150k)
-  const priceNum = parseInt(price.replace(/\./g, "")) || 0;
-  const priceDisplay = priceNum >= 1000 ? `${Math.round(priceNum / 1000)}k` : priceNum.toString();
-  
-  // Tạo phần thời gian
-  let timePart = "";
-  if (diffMinutes <= 60) {
-    // Dưới hoặc bằng 60 phút: 0-Xp
-    timePart = `0-${displayMinutes}p ${seatType}`;
-  } else {
-    // Trên 60 phút: Giờ đi loại (không có ngoặc)
-    const departureHour = hours.toString().padStart(2, "0");
-    const departureMinute = minutes.toString().padStart(2, "0");
-    timePart = `${departureHour}h${departureMinute} ${seatType}`;
-  }
-  
-  // Ghép các phần thành ghi chú
-  const baseNote = `${timePart}${directionSuffix} ${departure} - ${destination} ${priceDisplay} ${phone}`.trim();
-  
-  // Thêm vị trí đón/trả nếu có
-  const safePickup = (pickupLocation || "").trim();
-  const safeDropoff = (dropoffLocation || "").trim();
-  const pickupLine = safePickup ? `\nVị trí đón: ${safePickup}` : "";
-  const dropoffLine = safeDropoff ? `\nVị trí trả: ${safeDropoff}` : "";
-  
-  return `${baseNote}${pickupLine}${dropoffLine}`;
-}
+import { generateAutoNote } from "@/lib/quick-create/auto-note";
 
 // Hàm định dạng số với dấu chấm phân cách
 function formatNumberWithDots(num: number): string {
@@ -436,18 +361,18 @@ export default function TripForm() {
     const direction = getDirection(formData.tripType);
     const rawType = formData.tripType.replace("_roundtrip", "") as "ghep" | "bao";
 
-    return generateAutoNote(
-      actualTime,
-      formData.departure,
-      formData.destination,
-      formData.price,
-      formData.customerPhone,
-      parseInt(formData.totalSeats) || 1,
-      rawType,
-      direction,
-      formData.pickupLocation,
-      formData.dropoffLocation
-    );
+    return generateAutoNote({
+      departureTime: actualTime,
+      departure: formData.departure,
+      destination: formData.destination,
+      price: formData.price,
+      phone: formData.customerPhone,
+      seats: parseInt(formData.totalSeats) || 1,
+      tripType: rawType,
+      tripDirection: direction,
+      pickupLocation: formData.pickupLocation,
+      dropoffLocation: formData.dropoffLocation,
+    });
   };
 
   const appendGeneratedNote = () => {
@@ -484,18 +409,18 @@ export default function TripForm() {
       const direction = getDirection(formData.tripType);
       let autoNotes = formData.notes;
       if (!autoNotes && formData.departureTime && formData.departure && formData.destination && formData.price) {
-        autoNotes = generateAutoNote(
-          actualDepartureTime,
-          formData.departure,
-          formData.destination,
-          formData.price,
-          formData.customerPhone || "",
-          parseInt(formData.totalSeats) || 1,
-          direction === "roundtrip" ? "ghep" : formData.tripType.replace("_roundtrip", ""),
-          direction,
-          formData.pickupLocation,
-          formData.dropoffLocation
-        );
+        autoNotes = generateAutoNote({
+          departureTime: actualDepartureTime,
+          departure: formData.departure,
+          destination: formData.destination,
+          price: formData.price,
+          phone: formData.customerPhone || "",
+          seats: parseInt(formData.totalSeats) || 1,
+          tripType: direction === "roundtrip" ? "ghep" : formData.tripType.replace("_roundtrip", "") as "ghep" | "bao",
+          tripDirection: direction,
+          pickupLocation: formData.pickupLocation,
+          dropoffLocation: formData.dropoffLocation,
+        });
       }
 
       if (isEditMode && editId) {
