@@ -24,6 +24,26 @@ async function main() {
     /warnings:\s*\[\]/,
     "Manual edits should clear stale warnings before validation recomputes them",
   );
+  assert.match(
+    serviceSource,
+    /export async function reparseQuickEntryItem/,
+    "Prompt edits must expose a reparse service for the existing draft item",
+  );
+  assert.match(
+    serviceSource,
+    /rawText:\s*text[\s\S]*parsedData:\s*toInputJsonValue\(candidate\)/,
+    "Reparse must update the edited prompt text and refreshed parsed data together",
+  );
+  assert.match(
+    serviceSource,
+    /function statusForValidation\(candidate: QuickTripCandidate\): string \{\s*return candidate\.missingFields\.length > 0\s*\?/,
+    "Draft status must not require review only because soft warnings exist",
+  );
+  assert.match(
+    serviceSource,
+    /function hasBlockingValidationIssue\(candidate: QuickTripCandidate\) \{\s*return candidate\.missingFields\.length > 0;\s*\}/,
+    "Saving a complete draft must not be blocked only because soft warnings exist",
+  );
 
   console.log("quick-trip manual edit checks passed");
 }

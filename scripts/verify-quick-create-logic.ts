@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   buildIsoDateTimeFromLocalParts,
   canCreateRideFromDraft,
+  getDraftFieldIssueCards,
+  getDraftUncertaintyNotes,
   getSaveResultError,
+  inferExpectedDraftCount,
   isIsoDateTimeString,
 } from "../lib/quick-create/draft-helpers";
 import type { DraftItem } from "../lib/quick-create/types";
@@ -64,9 +67,70 @@ const missingFieldDraft = buildDraft({
 assert.equal(canCreateRideFromDraft(missingFieldDraft), false);
 
 const warningDraft = buildDraft({
-  warnings: ["invalid_driver"],
+  status: "needs_review",
+  warnings: ["ai_parse_failed"],
 });
-assert.equal(canCreateRideFromDraft(warningDraft), false);
+assert.equal(
+  canCreateRideFromDraft(warningDraft),
+  true,
+  "Warnings without missing required data should not block creating a trip",
+);
+
+assert.deepEqual(
+  getDraftFieldIssueCards(
+    buildDraft({
+      missingFields: ["customerPhone", "departureTime"],
+      warnings: ["invalid_price", "ai_parse_failed"],
+    }),
+  ),
+  [
+    {
+      key: "missing:customerPhone",
+      label: "Thiếu SĐT",
+      description: "Bổ sung số điện thoại khách để có thể tạo cuốc xe.",
+      tone: "missing",
+    },
+    {
+      key: "missing:departureTime",
+      label: "Thiếu giờ đi",
+      description: "Bổ sung ngày giờ khởi hành rõ ràng.",
+      tone: "missing",
+    },
+  ],
+);
+
+assert.deepEqual(
+  getDraftUncertaintyNotes(
+    buildDraft({
+      warnings: ["invalid_price", "ai_parse_failed", "unknown_warning"],
+    }),
+  ),
+  [
+    {
+      key: "warning:invalid_price",
+      title: "Giá chưa chắc chắn",
+      description: "AI không đọc được giá hợp lệ, hãy kiểm tra lại giá tiền.",
+    },
+    {
+      key: "warning:ai_parse_failed",
+      title: "AI chưa đọc được hết",
+      description: "Hệ thống đã dùng bộ tách cơ bản, nên có thể cần bổ sung lại prompt.",
+    },
+    {
+      key: "warning:unknown_warning",
+      title: "Thông tin chưa rõ",
+      description: "Cần xem lại chi tiết unknown_warning trong prompt hoặc dữ liệu draft.",
+    },
+  ],
+);
+
+assert.equal(inferExpectedDraftCount("Tao 2 cuoc xe HN HP"), 2);
+assert.equal(inferExpectedDraftCount("tao 3 ban nhap giup anh"), 3);
+assert.equal(inferExpectedDraftCount("hai cuoc xe ngay mai"), 2);
+assert.equal(inferExpectedDraftCount("tao 3 cuoc xe HN - HP, 2 cuoc ND - TB"), 5);
+assert.equal(inferExpectedDraftCount("tạo 3 cuốc xe HN - HP và 2 cuốc ND - TB"), 5);
+assert.equal(inferExpectedDraftCount("hom nay co 1 khach di HP"), undefined);
+assert.equal(inferExpectedDraftCount("0988123456 di 2 ghe"), undefined);
 
 const reviewDraft = buildDraft({
   status: "needs_review",
@@ -74,7 +138,7 @@ const reviewDraft = buildDraft({
 });
 assert.equal(
   getSaveResultError(reviewDraft),
-  "Bản nháp vẫn cần chỉnh sửa trước khi tạo cuốc xe",
+  "Bản nháp vẫn cần bổ sung thông tin trước khi tạo cuốc xe",
 );
 
 const failedDraft = buildDraft({

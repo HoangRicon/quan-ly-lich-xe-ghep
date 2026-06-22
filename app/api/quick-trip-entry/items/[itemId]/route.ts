@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  reparseQuickEntryItem,
   updateQuickEntryItem,
   type QuickEntryContext,
 } from "@/lib/quick-trip-entry/service";
@@ -42,6 +43,9 @@ function serviceError(error: unknown, label: string) {
     if (error.message === "Item not found") {
       return jsonError(error.message, 404);
     }
+    if (error.message === "Input text is required") {
+      return jsonError(error.message, 400);
+    }
     if (error.message === "Saved item cannot be edited") {
       return jsonError(error.message, 409);
     }
@@ -70,6 +74,11 @@ export async function PATCH(
       string,
       unknown
     >;
+
+    if (body.reparse === true && typeof body.rawText === "string") {
+      const data = await reparseQuickEntryItem(prisma, context, id, body.rawText);
+      return jsonSuccess(data);
+    }
 
     if (!isRecord(body.parsedData)) {
       return jsonError("Parsed data is required", 400);

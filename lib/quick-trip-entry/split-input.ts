@@ -1,3 +1,5 @@
+import { expandGroupedDraftRequests } from "./grouped-draft-request";
+
 const PHONE_PATTERN = /(?:^|[^\d])(?:0\d{9,10}|84\d{9,10})(?!\d)/;
 const TIME_PATTERN = /(?:^|[^\d])(?:[01]?\d|2[0-3])(?:\s*h(?:\s*[0-5]\d)?|:[0-5]\d)\b/i;
 const PRICE_K_PATTERN = /(?:^|[\s,;])\d{2,4}(?:[.,]\d+)?\s*k\b/i;
@@ -22,6 +24,11 @@ export function splitQuickTripInput(rawText: string): string[] {
 
   if (!normalized) {
     return [];
+  }
+
+  const groupedDrafts = expandGroupedDraftRequests(normalized);
+  if (groupedDrafts.length > 0) {
+    return groupedDrafts;
   }
 
   const lines = normalized

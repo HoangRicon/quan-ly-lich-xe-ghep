@@ -7,6 +7,7 @@ import {
   parseQuickTripChunk,
   parseQuickTripInput,
 } from "./parser";
+import { inferGroupedDraftCount } from "./grouped-draft-request";
 import type { ParsedQuickTripChunk, QuickTripCandidate } from "./types";
 
 export type QuickEntryParseMode = "rule" | "smart";
@@ -130,6 +131,15 @@ export async function parseQuickEntryDrafts(input: {
     const normalizedAiChunks = aiChunks
       .map(normalizeParsedChunk)
       .filter((chunk) => chunk.rawText.trim());
+    const groupedDraftCount = inferGroupedDraftCount(input.rawText);
+
+    if (
+      groupedDraftCount &&
+      normalizedAiChunks.length < groupedDraftCount &&
+      ruleChunks.length >= groupedDraftCount
+    ) {
+      return ruleChunks;
+    }
 
     return normalizedAiChunks.length > 0 ? normalizedAiChunks : ruleChunks;
   } catch {

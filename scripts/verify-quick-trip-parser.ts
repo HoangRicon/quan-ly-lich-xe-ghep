@@ -16,6 +16,25 @@ const twoLinePaste = [
 ].join("\n");
 assert.equal(splitQuickTripInput(twoLinePaste).length, 2);
 
+const groupedMultiDrafts = splitQuickTripInput(
+  "tao 3 cuoc xe HN - HP, 2 cuoc ND - TB",
+);
+assert.equal(groupedMultiDrafts.length, 5);
+assert.deepEqual(groupedMultiDrafts.slice(0, 3), [
+  "HN - HP",
+  "HN - HP",
+  "HN - HP",
+]);
+assert.deepEqual(groupedMultiDrafts.slice(3), ["ND - TB", "ND - TB"]);
+assert.equal(
+  splitQuickTripInput("tao 3 cuoc xe HN - HP va 2 cuoc ND - TB").length,
+  5,
+);
+assert.equal(
+  splitQuickTripInput("tạo 3 cuốc xe HN - HP và 2 cuốc ND - TB").length,
+  5,
+);
+
 const completeCandidate = parseQuickTripChunk(oneLine, now);
 assert.equal(completeCandidate.customerPhone, "0912345678");
 assert.equal(completeCandidate.departure, "HN");

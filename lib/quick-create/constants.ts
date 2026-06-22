@@ -15,7 +15,7 @@ export const DRAFT_STATUS_CONFIG: Record<
 > = {
   pending:     { label: "Chờ",      bg: "bg-slate-100", text: "text-slate-600" },
   parsed:     { label: "Đã phân tích", bg: "bg-green-100", text: "text-green-700" },
-  needs_review: { label: "Cần chỉnh", bg: "bg-amber-100", text: "text-amber-700" },
+  needs_review: { label: "Cần bổ sung", bg: "bg-amber-100", text: "text-amber-700" },
   auto_saved: { label: "Đã lưu tự động", bg: "bg-blue-100", text: "text-blue-700" },
   saved:      { label: "Đã tạo",   bg: "bg-green-100", text: "text-green-700" },
   failed:     { label: "Lỗi",      bg: "bg-red-100",   text: "text-red-600" },

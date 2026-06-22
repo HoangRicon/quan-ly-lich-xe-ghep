@@ -49,6 +49,16 @@ async function main() {
     /parseStatus:\s*QUICK_ENTRY_ITEM_STATUSES\.PENDING/,
     "Async quick-entry submissions must create a pending placeholder item",
   );
+  assert.match(
+    serviceSource,
+    /createPendingQuickEntryPlaceholderItems/,
+    "Async quick-entry submissions must create one pending placeholder per expected draft",
+  );
+  assert.match(
+    serviceSource,
+    /placeholderItemIds:\s*number\[\]/,
+    "Background quick-entry processing must accept multiple placeholder item ids",
+  );
 
   const hookSource = await readFile("hooks/use-quick-create-drafts.ts", "utf8");
   assert.match(
@@ -58,8 +68,28 @@ async function main() {
   );
   assert.match(
     hookSource,
+    /expectedDraftCount:\s*inferExpectedDraftCount\(rawText\)/,
+    "Quick-create draft submission must pass inferred expected draft count",
+  );
+  assert.match(
+    hookSource,
     /normalizeCreatedDraftItems/,
     "Quick-create draft hook must normalize async response items",
+  );
+
+  const duplicateRouteSource = await readFile(
+    "app/api/quick-trip-entry/items/[itemId]/duplicate/route.ts",
+    "utf8",
+  );
+  assert.doesNotMatch(
+    duplicateRouteSource,
+    /parseStatus:\s*"pending"/,
+    "Duplicating a parsed draft must not force the copy back to pending",
+  );
+  assert.match(
+    duplicateRouteSource,
+    /parseStatus:\s*original\.parseStatus/,
+    "Duplicating a draft must preserve the original status",
   );
 
   console.log("quick-trip async contract checks passed");

@@ -424,6 +424,7 @@ function createQuickEntryItemFallbackModel(db: any) {
       const rows = await db.$queryRaw<any[]>`
         UPDATE quick_trip_entry_items
         SET
+          raw_text = ${data.rawText ?? current.rawText},
           parse_status = ${data.parseStatus ?? current.parseStatus},
           parsed_data = ${toJsonString(data.parsedData ?? current.parsedData)}::jsonb,
           missing_fields = ${toJsonString(data.missingFields ?? current.missingFields)}::jsonb,

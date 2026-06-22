@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Send, X, Trash2, Loader2 } from "lucide-react";
+import { Send, X, Trash2 } from "lucide-react";
 import type { ComposerState } from "@/lib/quick-create/types";
-import { COMPOSER_STATE_LABELS, PROMPT_SUGGESTIONS } from "@/lib/quick-create/constants";
+import { COMPOSER_STATE_LABELS } from "@/lib/quick-create/constants";
 import { PromptSuggestions } from "./prompt-suggestions";
 
 interface AIComposerProps {
@@ -42,13 +42,6 @@ export function AIComposer({
     adjustHeight();
   }, [text, adjustHeight]);
 
-  // Show suggestions when idle + empty
-  useEffect(() => {
-    if (state === "idle" && !text) {
-      setShowSuggestions(true);
-    }
-  }, [state, text]);
-
   const handleSubmit = () => {
     if (!text.trim() || isLoading) return;
     onSubmit(text.trim());
@@ -71,7 +64,12 @@ export function AIComposer({
     <div className="bg-white border-t border-slate-200 px-4 pt-3 pb-4 safe-area-inset-bottom">
       {/* Suggestions */}
       {showSuggestions && !text && state === "idle" && (
-        <PromptSuggestions onSuggestionClick={onTextChange} />
+        <PromptSuggestions
+          onSuggestionClick={(suggestion) => {
+            (onSuggestionClick ?? onTextChange)(suggestion);
+            setShowSuggestions(false);
+          }}
+        />
       )}
 
       {/* Error message */}
@@ -81,13 +79,6 @@ export function AIComposer({
           <button onClick={onCancel} className="text-red-400 hover:text-red-600">
             <X className="w-4 h-4" />
           </button>
-        </div>
-      )}
-
-      {/* Success flash */}
-      {state === "done" && (
-        <div className="mb-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium">
-          ✓ Đã tạo bản nháp!
         </div>
       )}
 

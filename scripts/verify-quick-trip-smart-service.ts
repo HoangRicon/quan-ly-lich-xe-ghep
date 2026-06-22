@@ -56,6 +56,60 @@ async function main() {
   assert.equal(smartDrafts[0].candidate.confidence, 0.95);
   assert.deepEqual(smartDrafts[0].candidate.warnings, []);
 
+  const groupedFallbackDrafts = await parseQuickEntryDrafts({
+    rawText: "tao 3 cuoc xe HN - HP, 2 cuoc ND - TB",
+    parseMode: "smart",
+    provider: null,
+  });
+
+  assert.equal(groupedFallbackDrafts.length, 5);
+  assert.deepEqual(
+    groupedFallbackDrafts.map((draft) => [
+      draft.candidate.departure,
+      draft.candidate.destination,
+    ]),
+    [
+      ["HN", "HP"],
+      ["HN", "HP"],
+      ["HN", "HP"],
+      ["ND", "TB"],
+      ["ND", "TB"],
+    ],
+  );
+
+  const underCountingProvider: QuickTripAiProvider = {
+    async parse() {
+      return {};
+    },
+    async parseMany() {
+      return [
+        {
+          rawText: "HN - HP",
+          candidate: {
+            departure: "HN",
+            destination: "HP",
+            confidence: 0.7,
+            missingFields: [],
+            warnings: [],
+          },
+        },
+      ];
+    },
+  };
+
+  const protectedGroupedDrafts = await parseQuickEntryDrafts({
+    rawText: "tao 3 cuoc xe HN - HP, 2 cuoc ND - TB",
+    parseMode: "smart",
+    expectedDraftCount: 5,
+    provider: underCountingProvider,
+  });
+
+  assert.equal(
+    protectedGroupedDrafts.length,
+    5,
+    "Smart parser should not accept fewer AI drafts than an explicit grouped request",
+  );
+
   const failingProvider: QuickTripAiProvider = {
     async parse() {
       return {};

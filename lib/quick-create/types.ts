@@ -69,3 +69,8 @@ export interface DraftUpsertPayload {
   tripDirection?: "oneway" | "roundtrip";
   notes?: string;
 }
+
+export interface DraftPromptUpdatePayload {
+  rawText: string;
+  reparse?: boolean;
+}

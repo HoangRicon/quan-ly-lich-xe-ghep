@@ -5,9 +5,13 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { DRAFT_REFRESH_INTERVAL } from "@/lib/quick-create/constants";
-import { getSaveResultError } from "@/lib/quick-create/draft-helpers";
+import {
+  getSaveResultError,
+  inferExpectedDraftCount,
+} from "@/lib/quick-create/draft-helpers";
 import type {
   DraftItem,
+  DraftPromptUpdatePayload,
   DraftUpsertPayload,
   SaveResult,
 } from "@/lib/quick-create/types";
@@ -89,6 +93,7 @@ export function useDrafts(sessionId: number | null) {
           rawText,
           source,
           autoSave: false,
+          expectedDraftCount: inferExpectedDraftCount(rawText),
           processingMode: "async",
         }),
       });
@@ -110,6 +115,27 @@ export function useDrafts(sessionId: number | null) {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Cap nhat that bai");
+      const item = json.data as DraftItem;
+      setDrafts((prev) => prev.map((d) => (d.id === itemId ? item : d)));
+      return item;
+    },
+    [],
+  );
+
+  const updateDraftPrompt = useCallback(
+    async (
+      itemId: number,
+      payload: DraftPromptUpdatePayload,
+    ): Promise<DraftItem> => {
+      const res = await fetch(`/api/quick-trip-entry/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error ?? "Cap nhat prompt that bai");
+      }
       const item = json.data as DraftItem;
       setDrafts((prev) => prev.map((d) => (d.id === itemId ? item : d)));
       return item;
@@ -168,6 +194,20 @@ export function useDrafts(sessionId: number | null) {
     setDrafts((prev) => prev.filter((d) => d.id !== itemId));
   }, []);
 
+  const duplicateDraft = useCallback(
+    async (itemId: number): Promise<DraftItem> => {
+      const res = await fetch(`/api/quick-trip-entry/items/${itemId}/duplicate`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Nhan doi ban nhap that bai");
+      const item = json.data as DraftItem;
+      setDrafts((prev) => [...prev, item]);
+      return item;
+    },
+    [],
+  );
+
   const saveAllValid = useCallback(async (): Promise<SaveResult[]> => {
     if (sessionId === null) throw new Error("No session selected");
     const res = await fetch(`/api/quick-trip-entry/sessions/${sessionId}/save-valid`, {
@@ -187,9 +227,11 @@ export function useDrafts(sessionId: number | null) {
     mutate: fetchDrafts,
     createDrafts,
     updateDraft,
+    updateDraftPrompt,
     saveDraft,
     saveDraftWithParsedData,
     discardDraft,
+    duplicateDraft,
     saveAllValid,
   };
 }

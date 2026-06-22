@@ -11,7 +11,9 @@ interface DraftListProps {
   deletingItemId?: number | null;
   onCreateRide?: (item: DraftItem) => void;
   onEdit?: (item: DraftItem) => void;
+  onUpdatePrompt?: (item: DraftItem, rawText: string) => Promise<void>;
   onDelete?: (item: DraftItem) => void;
+  onDuplicate?: (item: DraftItem) => void;
 }
 
 export const DraftList = memo(function DraftList({
@@ -21,7 +23,9 @@ export const DraftList = memo(function DraftList({
   deletingItemId = null,
   onCreateRide,
   onEdit,
+  onUpdatePrompt,
   onDelete,
+  onDuplicate,
 }: DraftListProps) {
   return (
     <div className="px-3 py-2 space-y-1">
@@ -38,7 +42,9 @@ export const DraftList = memo(function DraftList({
             isDeleting={deletingItemId === item.id}
             onCreateRide={onCreateRide}
             onEdit={onEdit}
+            onUpdatePrompt={onUpdatePrompt}
             onDelete={onDelete}
+            onDuplicate={onDuplicate}
           />
         ))
       )}

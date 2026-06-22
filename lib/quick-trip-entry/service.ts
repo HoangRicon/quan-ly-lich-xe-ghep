@@ -124,9 +124,7 @@ function extractCandidate(item: QuickEntryItemPayload): QuickTripCandidate {
 }
 
 function statusForValidation(candidate: QuickTripCandidate): string {
-  return candidate.missingFields.length > 0 ||
-    candidate.warnings.length > 0 ||
-    candidate.confidence < QUICK_ENTRY_AUTO_SAVE_THRESHOLD
+  return candidate.missingFields.length > 0
     ? QUICK_ENTRY_ITEM_STATUSES.NEEDS_REVIEW
     : QUICK_ENTRY_ITEM_STATUSES.PARSED;
 }
@@ -197,7 +195,7 @@ function normalizeManualEditedCandidate(
 }
 
 function hasBlockingValidationIssue(candidate: QuickTripCandidate) {
-  return candidate.missingFields.length > 0 || candidate.warnings.length > 0;
+  return candidate.missingFields.length > 0;
 }
 
 function getQuickEntryProcessingQueueKey(
@@ -385,7 +383,7 @@ async function processQuickEntryItemsNow(
   parentDb: ParentDb,
   context: QuickEntryContext,
   input: CreateQuickEntryItemsInput,
-  placeholderItemId?: number,
+  placeholderItemIds: number[] = [],
 ) {
   const parsedChunks = await parseQuickEntryDrafts({
     rawText: input.rawText,
@@ -394,14 +392,20 @@ async function processQuickEntryItemsNow(
   });
 
   if (parsedChunks.length === 0) {
-    if (placeholderItemId) {
-      const failedItem = await markQuickEntryItemFailed(
-        parentDb,
-        context,
-        placeholderItemId,
-        "No draft created from input",
+    if (placeholderItemIds.length > 0) {
+      const failedItems = await Promise.all(
+        placeholderItemIds.map((placeholderItemId) =>
+          markQuickEntryItemFailed(
+            parentDb,
+            context,
+            placeholderItemId,
+            "No draft created from input",
+          ),
+        ),
       );
-      return failedItem ? [failedItem] : [];
+      return failedItems.filter(
+        (item): item is SerializedQuickEntryItem => item !== null,
+      );
     }
 
     return [];
@@ -416,8 +420,17 @@ async function processQuickEntryItemsNow(
         context,
         input,
         chunk,
-        index === 0 ? placeholderItemId : undefined,
+        placeholderItemIds[index],
       ),
+    );
+  }
+
+  for (const unusedPlaceholderId of placeholderItemIds.slice(parsedChunks.length)) {
+    await markQuickEntryItemFailed(
+      parentDb,
+      context,
+      unusedPlaceholderId,
+      "No draft created for this placeholder",
     );
   }
 
@@ -428,7 +441,7 @@ export function enqueueQuickEntryItemsProcessing(
   parentDb: ParentDb,
   context: QuickEntryContext,
   input: CreateQuickEntryItemsInput,
-  placeholderItemId: number,
+  placeholderItemIds: number[],
 ) {
   const queueKey = getQuickEntryProcessingQueueKey(context, input);
   const previousJob = quickEntryProcessingQueues.get(queueKey) ?? Promise.resolve();
@@ -436,14 +449,18 @@ export function enqueueQuickEntryItemsProcessing(
     .catch(() => undefined)
     .then(async () => {
       try {
-        await processQuickEntryItemsNow(parentDb, context, input, placeholderItemId);
+        await processQuickEntryItemsNow(parentDb, context, input, placeholderItemIds);
       } catch (error) {
         console.error("Quick entry background processing error:", error);
-        await markQuickEntryItemFailed(
-          parentDb,
-          context,
-          placeholderItemId,
-          "Background processing failed",
+        await Promise.all(
+          placeholderItemIds.map((placeholderItemId) =>
+            markQuickEntryItemFailed(
+              parentDb,
+              context,
+              placeholderItemId,
+              "Background processing failed",
+            ),
+          ),
         );
       }
     });
@@ -454,6 +471,36 @@ export function enqueueQuickEntryItemsProcessing(
       quickEntryProcessingQueues.delete(queueKey);
     }
   });
+}
+
+async function createPendingQuickEntryPlaceholderItems(
+  db: TenantDb,
+  input: CreateQuickEntryItemsInput,
+) {
+  const count = input.expectedDraftCount ?? 1;
+  const safeCount = Number.isInteger(count) && count > 0 ? Math.min(count, 100) : 1;
+  const placeholderItems: QuickEntryItemPayload[] = [];
+
+  for (let index = 0; index < safeCount; index += 1) {
+    const placeholderItem = (await db.quickTripEntryItem.create({
+      data: {
+        sessionId: input.sessionId,
+        rawText:
+          safeCount === 1 ? input.rawText : `${input.rawText}\n#${index + 1}`,
+        source: input.source,
+        parseStatus: QUICK_ENTRY_ITEM_STATUSES.PENDING,
+        parsedData: null,
+        missingFields: toInputJsonValue([]),
+        warnings: toInputJsonValue([]),
+        confidence: null,
+        errorMessage: null,
+      },
+    })) as QuickEntryItemPayload;
+
+    placeholderItems.push(placeholderItem);
+  }
+
+  return placeholderItems;
 }
 
 export async function listQuickEntrySessions(
@@ -569,26 +616,19 @@ export async function createQuickEntryItems(
   await touchQuickEntrySession(db, input.sessionId, now);
 
   if (processingMode === QUICK_ENTRY_PROCESSING_MODES.ASYNC) {
-    const placeholderItem = (await db.quickTripEntryItem.create({
-      data: {
-        sessionId: input.sessionId,
-        rawText: input.rawText,
-        source: input.source,
-        parseStatus: QUICK_ENTRY_ITEM_STATUSES.PENDING,
-        parsedData: null,
-        missingFields: toInputJsonValue([]),
-        warnings: toInputJsonValue([]),
-        confidence: null,
-        errorMessage: null,
-      },
-    })) as QuickEntryItemPayload;
-    enqueueQuickEntryItemsProcessing(parentDb, context, input, placeholderItem.id);
+    const placeholderItems = await createPendingQuickEntryPlaceholderItems(db, input);
+    enqueueQuickEntryItemsProcessing(
+      parentDb,
+      context,
+      input,
+      placeholderItems.map((item) => item.id),
+    );
 
     return {
       processingMode: QUICK_ENTRY_PROCESSING_MODES.ASYNC,
       accepted: true,
       queuedAt: now.toISOString(),
-      items: [serializeQuickEntryItem(placeholderItem)],
+      items: placeholderItems.map(serializeQuickEntryItem),
     };
   }
 
@@ -643,6 +683,91 @@ export async function updateQuickEntryItem(
     const item = (await txDb.quickTripEntryItem.update({
       where: { id: itemId },
       data: {
+        parsedData: toInputJsonValue(candidate),
+        missingFields: toInputJsonValue(candidate.missingFields),
+        warnings: toInputJsonValue(candidate.warnings),
+        confidence: candidate.confidence,
+        parseStatus: statusForValidation(candidate),
+        errorMessage: null,
+      },
+    })) as QuickEntryItemPayload;
+
+    return serializeQuickEntryItem(item);
+  });
+}
+
+export async function reparseQuickEntryItem(
+  parentDb: ParentDb,
+  context: QuickEntryContext,
+  itemId: number,
+  rawText: string,
+) {
+  const text = rawText.trim();
+
+  if (!text) {
+    throw new Error("Input text is required");
+  }
+
+  const parsedChunks = await parseQuickEntryDrafts({
+    rawText: text,
+    parseMode: "smart",
+  });
+  const firstChunk = parsedChunks[0];
+
+  return parentDb.$transaction(async (tx) => {
+    const txDb = createTenantPrisma(tx, context.accountId);
+    const lockedRows = await tx.$queryRaw<{ id: number }[]>`
+      SELECT id
+      FROM quick_trip_entry_items
+      WHERE id = ${itemId} AND account_id = ${context.accountId}
+      FOR UPDATE
+    `;
+
+    if (lockedRows.length === 0) {
+      throw new Error("Item not found");
+    }
+
+    const existingItem = await findItem(txDb, itemId);
+
+    if (!existingItem) {
+      throw new Error("Item not found");
+    }
+
+    if (
+      existingItem.createdTripId ||
+      SAVED_STATUSES.includes(
+        existingItem.parseStatus as (typeof SAVED_STATUSES)[number],
+      )
+    ) {
+      throw new Error("Saved item cannot be edited");
+    }
+
+    if (!firstChunk) {
+      const item = (await txDb.quickTripEntryItem.update({
+        where: { id: itemId },
+        data: {
+          rawText: text,
+          parseStatus: QUICK_ENTRY_ITEM_STATUSES.FAILED,
+          parsedData: null,
+          missingFields: toInputJsonValue([]),
+          warnings: toInputJsonValue([]),
+          confidence: null,
+          errorMessage: "No draft created from input",
+        },
+      })) as QuickEntryItemPayload;
+
+      return serializeQuickEntryItem(item);
+    }
+
+    const validation = await validateQuickTripCandidateForAccount(
+      txDb,
+      firstChunk.candidate,
+    );
+    const candidate = validation.candidate;
+    const item = (await txDb.quickTripEntryItem.update({
+      where: { id: itemId },
+      data: {
+        rawText: text,
         parsedData: toInputJsonValue(candidate),
         missingFields: toInputJsonValue(candidate.missingFields),
         warnings: toInputJsonValue(candidate.warnings),

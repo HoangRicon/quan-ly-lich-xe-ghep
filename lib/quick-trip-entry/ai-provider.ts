@@ -1,4 +1,5 @@
 import type { ParsedQuickTripChunk, QuickTripCandidate } from "./types";
+import { getGroupedDraftRequests } from "./grouped-draft-request";
 
 export interface QuickTripAiProvider {
   parse(rawText: string): Promise<Partial<QuickTripCandidate>>;
@@ -61,6 +62,7 @@ const MANY_SYSTEM_PROMPT = [
   "Moi phan tu la mot draft rieng, dang { rawText, candidate } hoac object candidate co rawText.",
   COMMON_FIELD_PROMPT,
   "Hay tach theo y nghia cuoc xe, ke ca khi nhieu cuoc nam chung mot doan van.",
+  "Neu text noi '3 cuoc HN - HP, 2 cuoc ND - TB' thi tao 5 draft: 3 draft HN - HP va 2 draft ND - TB.",
   "Khong ep du so luong neu text khong du cuoc. Khong tu tao thong tin neu khong co trong text.",
   "Neu mo ho, bo trong field va them warning ngan gon.",
 ].join(" ");
@@ -86,9 +88,16 @@ export function buildQuickTripAiRequest(
 ): QuickTripAiRequest {
   const systemPrompt =
     options.mode === "many" ? MANY_SYSTEM_PROMPT : SINGLE_SYSTEM_PROMPT;
+  const groupedRequests = getGroupedDraftRequests(rawText);
+  const groupedHint =
+    options.mode === "many" && groupedRequests.length > 0
+      ? `Nhom so luong: ${groupedRequests
+          .map((group) => `${group.count} draft cho "${group.detail}"`)
+          .join("; ")}\n`
+      : "";
   const userContent =
     options.mode === "many" && options.expectedDraftCount
-      ? `So draft du kien: ${options.expectedDraftCount}\nNoi dung:\n${rawText}`
+      ? `So draft du kien: ${options.expectedDraftCount}\n${groupedHint}Noi dung:\n${rawText}`
       : rawText;
 
   return {

@@ -20,6 +20,7 @@ import type {
   DraftUpsertPayload,
   QuickEntrySession,
 } from "@/lib/quick-create/types";
+import { inferExpectedDraftCount } from "@/lib/quick-create/draft-helpers";
 
 export default function QuickCreateShell() {
   const router = useRouter();
@@ -45,9 +46,11 @@ export default function QuickCreateShell() {
     mutate: mutateDrafts,
     createDrafts,
     updateDraft,
+    updateDraftPrompt,
     saveDraft,
     saveDraftWithParsedData,
     discardDraft,
+    duplicateDraft,
   } = useDrafts(selectedSessionId);
   const composer = useAIComposer();
   const { addPrompt } = useRecentPrompts();
@@ -112,7 +115,13 @@ export default function QuickCreateShell() {
         if (items.length === 0) {
           showToast("Khong nhan dien duoc cuoc xe nao", "error");
         } else {
-          showToast(`Da tao ${items.length} ban nhap`, "success");
+          const expectedDraftCount = inferExpectedDraftCount(text);
+          showToast(
+            expectedDraftCount
+              ? `Dang tao ${expectedDraftCount} ban nhap`
+              : "Dang tao ban nhap",
+            "success",
+          );
         }
       } catch (error) {
         composer.setError(error instanceof Error ? error.message : "Loi khi tao ban nhap");
@@ -161,6 +170,31 @@ export default function QuickCreateShell() {
       setDeletingItemId(null);
     }
   }, [deleteConfirm, discardDraft, mutateDrafts, mutateSessions, showToast]);
+
+  const handleDuplicateDraft = useCallback(
+    async (item: DraftItem) => {
+      try {
+        await duplicateDraft(item.id);
+        showToast("Da nhan doi ban nhap", "success");
+      } catch {
+        showToast("Nhan doi ban nhap that bai", "error");
+      }
+    },
+    [duplicateDraft, showToast],
+  );
+
+  const handleUpdateDraftPrompt = useCallback(
+    async (item: DraftItem, rawText: string) => {
+      try {
+        await updateDraftPrompt(item.id, { rawText, reparse: true });
+        await Promise.all([mutateDrafts(), mutateSessions()]);
+        showToast("Da phan tich lai ban nhap", "success");
+      } catch {
+        showToast("Phan tich lai that bai", "error");
+      }
+    },
+    [mutateDrafts, mutateSessions, showToast, updateDraftPrompt],
+  );
 
   const handleSaveDraft = useCallback(
     async (itemId: number, parsedData: DraftUpsertPayload) => {
@@ -335,7 +369,9 @@ export default function QuickCreateShell() {
             deletingItemId={deletingItemId}
             onCreateRide={handleCreateRide}
             onEdit={(item) => setEditingItem(item)}
+            onUpdatePrompt={handleUpdateDraftPrompt}
             onDelete={handleDeleteDraft}
+            onDuplicate={handleDuplicateDraft}
           />
         )}
       </main>
