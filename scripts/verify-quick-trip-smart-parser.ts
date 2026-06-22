@@ -42,4 +42,50 @@ assert.equal(fullNumberPrice.destination, "Cat Ba");
 assert.equal(fullNumberPrice.price, 1800000);
 assert.equal(fullNumberPrice.departureTime, "2026-06-22T14:00:00.000Z");
 
+const quickNoteSpeech = parseQuickTripChunk(
+  "Khong den bon nam phut, mot khach Kim Van, Kim Lu ve Le Chan, Hai Phong bon tram ca",
+  now,
+);
+
+assert.equal(quickNoteSpeech.departure, "Kim Van, Kim Lu");
+assert.equal(quickNoteSpeech.destination, "Le Chan, Hai Phong");
+assert.equal(quickNoteSpeech.price, 400000);
+assert.equal(quickNoteSpeech.totalSeats, 1);
+assert.equal(
+  quickNoteSpeech.departureTime,
+  new Date(now.getTime() + 45 * 60 * 1000).toISOString(),
+);
+assert.ok(!quickNoteSpeech.missingFields.includes("departure"));
+assert.ok(!quickNoteSpeech.missingFields.includes("destination"));
+assert.ok(!quickNoteSpeech.missingFields.includes("price"));
+assert.ok(!quickNoteSpeech.missingFields.includes("departureTime"));
+
+const accentedQuickNoteSpeech = parseQuickTripChunk(
+  "Không đến bốn năm phút, một khách Kim Văn, Kim Lũ về Lê Chân, Hải Phòng bốn trăm ca",
+  now,
+);
+
+assert.equal(accentedQuickNoteSpeech.departure, "Kim Van, Kim Lu");
+assert.equal(accentedQuickNoteSpeech.destination, "Le Chan, Hai Phong");
+assert.equal(accentedQuickNoteSpeech.price, 400000);
+assert.equal(accentedQuickNoteSpeech.totalSeats, 1);
+assert.equal(
+  accentedQuickNoteSpeech.departureTime,
+  new Date(now.getTime() + 45 * 60 * 1000).toISOString(),
+);
+
+const quickNoteCompact = parseQuickTripChunk(
+  "0-45p 1k Kim Van, Kim Lu - Le Chan, Hai Phong 400 ca",
+  now,
+);
+
+assert.equal(quickNoteCompact.departure, "Kim Van, Kim Lu");
+assert.equal(quickNoteCompact.destination, "Le Chan, Hai Phong");
+assert.equal(quickNoteCompact.price, 400000);
+assert.equal(quickNoteCompact.totalSeats, 1);
+assert.equal(
+  quickNoteCompact.departureTime,
+  new Date(now.getTime() + 45 * 60 * 1000).toISOString(),
+);
+
 console.log("quick-trip smart parser checks passed");

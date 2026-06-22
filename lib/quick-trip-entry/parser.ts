@@ -10,12 +10,31 @@ const PRICE_MILLION_PATTERN =
   /(?:^|[\s,;])(\d{1,3}(?:[.,]\d+)?)\s*(?:tr|trieu)\b/i;
 const PRICE_CONTEXT_NUMBER_PATTERN =
   /\b(?:gia|cuoc|phi|tra|tien)\s*(?:la|khoang|tam)?\s*(\d{5,9})\b/i;
+const VIETNAMESE_NUMBER_WORD_PATTERN =
+  "mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi|tram|linh|le";
+const VIETNAMESE_NUMBER_PHRASE_PATTERN = `(?:${VIETNAMESE_NUMBER_WORD_PATTERN})(?:\\s+(?:${VIETNAMESE_NUMBER_WORD_PATTERN}))*`;
+const PRICE_WORD_THOUSAND_PATTERN = new RegExp(
+  `(?:^|[\\s,;])(${VIETNAMESE_NUMBER_PHRASE_PATTERN})\\s*(?:ca|k|nghin|ngan)\\b`,
+  "i",
+);
 const TIME_COLON_PATTERN = /(?:^|[^\d])([01]?\d|2[0-3]):([0-5]\d)\b/;
 const TIME_H_PATTERN = /(?:^|[^\d])([01]?\d|2[0-3])\s*h(?:\s*([0-5]\d))?\b/i;
 const TIME_WORD_PATTERN =
   /(?:^|[^\d])([01]?\d|2[0-3])\s*(?:gio|g)(?:\s*([0-5]\d))?(?:\s*(sang|trua|chieu|toi|dem))?\b/i;
+const RELATIVE_DURATION_COMPACT_PATTERN =
+  /(?:^|[^\d])0\s*-\s*(\d{1,3})\s*p\b/i;
+const RELATIVE_DURATION_NUMERIC_PATTERN =
+  /(?:^|[^\d])(?:khong\s+(?:den|toi)|duoi|trong|tam|khoang)?\s*(\d{1,3})\s*(?:p|phut)\b/i;
+const RELATIVE_DURATION_WORD_PATTERN = new RegExp(
+  `(?:^|\\s)(?:khong\\s+(?:den|toi)|duoi|trong|tam|khoang)?\\s*(${VIETNAMESE_NUMBER_PHRASE_PATTERN})\\s+phut\\b`,
+  "i",
+);
 const SEAT_PATTERN = /(?:^|[^\d])([1-9]\d?)\s*(?:khach|ghe)(?:\b|$)/i;
 const SEAT_K_PATTERN = /(?:^|[^\d])([1-9])\s*k\b/i;
+const WORD_SEAT_PATTERN = new RegExp(
+  `(?:^|[\\s,;])(${VIETNAMESE_NUMBER_PHRASE_PATTERN})\\s*(?:khach|ghe)\\b`,
+  "i",
+);
 const RELATIVE_DATE_QUANTITY_PATTERN =
   "\\d+|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi";
 const RELATIVE_DATE_QUANTITY_TOKEN_PATTERN = new RegExp(
@@ -57,6 +76,73 @@ function parsePhone(text: string): string | undefined {
   return text.match(PHONE_PATTERN)?.[1];
 }
 
+function vietnameseNumberWordValue(token: string) {
+  const values: Record<string, number> = {
+    mot: 1,
+    hai: 2,
+    ba: 3,
+    bon: 4,
+    tu: 4,
+    nam: 5,
+    lam: 5,
+    sau: 6,
+    bay: 7,
+    tam: 8,
+    chin: 9,
+  };
+
+  return values[token];
+}
+
+function parseVietnameseTens(tokens: string[], compactTens = false) {
+  const usefulTokens = tokens.filter((token) => token !== "linh" && token !== "le");
+  if (usefulTokens.length === 0) return 0;
+
+  if (usefulTokens[0] === "muoi") {
+    return 10 + (vietnameseNumberWordValue(usefulTokens[1]) ?? 0);
+  }
+
+  const first = vietnameseNumberWordValue(usefulTokens[0]);
+  if (!first) return undefined;
+
+  if (usefulTokens[1] === "muoi") {
+    return first * 10 + (vietnameseNumberWordValue(usefulTokens[2]) ?? 0);
+  }
+
+  if (compactTens && usefulTokens.length === 2) {
+    const second = vietnameseNumberWordValue(usefulTokens[1]);
+    if (second) return first * 10 + second;
+  }
+
+  return usefulTokens.length === 1 ? first : undefined;
+}
+
+function parseVietnameseNumberPhrase(
+  phrase: string | undefined,
+  options: { compactTens?: boolean } = {},
+) {
+  if (!phrase) return undefined;
+
+  const tokens = toSearchableText(phrase).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return undefined;
+
+  const hundredIndex = tokens.indexOf("tram");
+  if (hundredIndex >= 0) {
+    const hundredValue =
+      vietnameseNumberWordValue(tokens[hundredIndex - 1]) ??
+      (hundredIndex === 0 ? 1 : undefined);
+    if (!hundredValue) return undefined;
+
+    const remainder = parseVietnameseTens(
+      tokens.slice(hundredIndex + 1),
+      options.compactTens,
+    );
+    return hundredValue * 100 + (remainder ?? 0);
+  }
+
+  return parseVietnameseTens(tokens, options.compactTens);
+}
+
 function parsePrice(text: string): number | undefined {
   const searchableText = toAsciiText(text);
   const thousandMatch =
@@ -76,6 +162,16 @@ function parsePrice(text: string): number | undefined {
     const amount = Number.parseFloat(millionMatch[1].replace(",", "."));
     if (Number.isFinite(amount)) {
       return Math.round(amount * 1_000_000);
+    }
+  }
+
+  const wordThousandMatch = searchableText.match(PRICE_WORD_THOUSAND_PATTERN);
+  if (wordThousandMatch) {
+    const amount = parseVietnameseNumberPhrase(wordThousandMatch[1], {
+      compactTens: true,
+    });
+    if (amount) {
+      return amount * 1000;
     }
   }
 
@@ -199,6 +295,42 @@ export function hasRelativeDateExpression(text: string) {
   );
 }
 
+export function hasRelativeTimeOffsetExpression(text: string) {
+  const searchableText = toSearchableText(text);
+  return (
+    RELATIVE_DURATION_COMPACT_PATTERN.test(searchableText) ||
+    RELATIVE_DURATION_NUMERIC_PATTERN.test(searchableText) ||
+    RELATIVE_DURATION_WORD_PATTERN.test(searchableText)
+  );
+}
+
+function parseRelativeDurationMinutes(text: string): number | undefined {
+  const searchableText = toSearchableText(text);
+  const compactMatch = searchableText.match(RELATIVE_DURATION_COMPACT_PATTERN);
+  const numericMatch = compactMatch
+    ? null
+    : searchableText.match(RELATIVE_DURATION_NUMERIC_PATTERN);
+  const wordMatch =
+    compactMatch || numericMatch
+      ? null
+      : searchableText.match(RELATIVE_DURATION_WORD_PATTERN);
+  const rawMinutes = compactMatch?.[1] ?? numericMatch?.[1];
+
+  if (rawMinutes) {
+    const minutes = Number.parseInt(rawMinutes, 10);
+    return Number.isInteger(minutes) && minutes > 0 && minutes <= 24 * 60
+      ? minutes
+      : undefined;
+  }
+
+  const wordMinutes = parseVietnameseNumberPhrase(wordMatch?.[1], {
+    compactTens: true,
+  });
+  return wordMinutes && wordMinutes > 0 && wordMinutes <= 24 * 60
+    ? wordMinutes
+    : undefined;
+}
+
 function parseDepartureTime(text: string, now: Date): string | undefined {
   const searchableText = toAsciiText(text);
   const timeMatch =
@@ -207,7 +339,12 @@ function parseDepartureTime(text: string, now: Date): string | undefined {
     searchableText.match(TIME_WORD_PATTERN);
 
   if (!timeMatch) {
-    return undefined;
+    const durationMinutes = parseRelativeDurationMinutes(text);
+    if (!durationMinutes) {
+      return undefined;
+    }
+
+    return new Date(now.getTime() + durationMinutes * 60 * 1000).toISOString();
   }
 
   const hour = normalizeHourForPeriod(
@@ -231,6 +368,14 @@ function parseSeats(text: string): number | undefined {
   const shorthandSeatMatch = searchableText.match(SEAT_K_PATTERN);
   if (shorthandSeatMatch) {
     return Number.parseInt(shorthandSeatMatch[1], 10);
+  }
+
+  const wordSeatMatch = searchableText.match(WORD_SEAT_PATTERN);
+  const wordSeats = parseVietnameseNumberPhrase(wordSeatMatch?.[1], {
+    compactTens: true,
+  });
+  if (wordSeats && wordSeats > 0) {
+    return wordSeats;
   }
 
   return undefined;
@@ -267,16 +412,21 @@ function removeKnownTokens(text: string): string {
     toAsciiText(text),
   )
     .replace(PHONE_PATTERN, " ")
+    .replace(RELATIVE_DURATION_COMPACT_PATTERN, " ")
+    .replace(RELATIVE_DURATION_NUMERIC_PATTERN, " ")
+    .replace(RELATIVE_DURATION_WORD_PATTERN, " ")
     .replace(PRICE_K_PATTERN, " ")
     .replace(PRICE_THOUSAND_PATTERN, " ")
     .replace(PRICE_CA_PATTERN, " ")
     .replace(PRICE_MILLION_PATTERN, " ")
+    .replace(PRICE_WORD_THOUSAND_PATTERN, " ")
     .replace(PRICE_CONTEXT_NUMBER_PATTERN, " ")
     .replace(TIME_COLON_PATTERN, " ")
     .replace(TIME_H_PATTERN, " ")
     .replace(TIME_WORD_PATTERN, " ")
     .replace(SEAT_PATTERN, " ")
     .replace(SEAT_K_PATTERN, " ")
+    .replace(WORD_SEAT_PATTERN, " ")
     .replace(/\b(?:bao|bx|ghep|2\s*c|2\s*chieu)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();

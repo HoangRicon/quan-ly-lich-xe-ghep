@@ -4,6 +4,7 @@ import {
 } from "./ai-provider";
 import {
   hasRelativeDateExpression,
+  hasRelativeTimeOffsetExpression,
   parseQuickTripChunk,
   parseQuickTripInput,
 } from "./parser";
@@ -59,7 +60,11 @@ function chooseMergedDepartureTime(
   ruleDepartureTime: string | undefined,
   aiDepartureTime: string | undefined,
 ) {
-  if (hasRelativeDateExpression(rawText) && ruleDepartureTime) {
+  if (
+    (hasRelativeDateExpression(rawText) ||
+      hasRelativeTimeOffsetExpression(rawText)) &&
+    ruleDepartureTime
+  ) {
     return ruleDepartureTime;
   }
 

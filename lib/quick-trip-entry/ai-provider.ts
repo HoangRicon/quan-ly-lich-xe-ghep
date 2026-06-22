@@ -53,6 +53,7 @@ const SINGLE_SYSTEM_PROMPT = [
   "Ban tach thong tin cuoc xe ghep tu tieng Viet ngan gon.",
   "Chi tra ve JSON object, khong markdown neu co the.",
   COMMON_FIELD_PROMPT,
+  "Hieu note nhanh: 0-45p hoac khong den 45 phut nghia la gio di cach hien tai 45 phut; 1k/mot khach la 1 ghe; bon tram ca la 400000 VND.",
   "Khong tu tao thong tin neu khong co trong text. Neu mo ho, bo trong field va them warning ngan gon.",
 ].join(" ");
 
@@ -63,6 +64,7 @@ const MANY_SYSTEM_PROMPT = [
   COMMON_FIELD_PROMPT,
   "Hay tach theo y nghia cuoc xe, ke ca khi nhieu cuoc nam chung mot doan van.",
   "Neu text noi '3 cuoc HN - HP, 2 cuoc ND - TB' thi tao 5 draft: 3 draft HN - HP va 2 draft ND - TB.",
+  "Hieu note nhanh: 0-45p hoac khong den 45 phut nghia la gio di cach hien tai 45 phut; 1k/mot khach la 1 ghe; bon tram ca la 400000 VND.",
   "Khong ep du so luong neu text khong du cuoc. Khong tu tao thong tin neu khong co trong text.",
   "Neu mo ho, bo trong field va them warning ngan gon.",
 ].join(" ");
