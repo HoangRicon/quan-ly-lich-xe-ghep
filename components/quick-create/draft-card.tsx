@@ -120,12 +120,12 @@ export const DraftCard = memo(function DraftCard({
 
         <div className="flex flex-shrink-0 items-center gap-2">
           {isIncomplete ? (
-            <span className="whitespace-nowrap text-[10px] text-slate-500">
-              {filledFields.length}/{EXPECTED_FIELDS.length} — {filledPercent}%
+            <span className="whitespace-nowrap text-[10px] text-amber-600">
+              {filledPercent}%
             </span>
           ) : (
             <span className="whitespace-nowrap text-[10px] font-medium text-green-600">
-              ✓ Đủ {filledPercent}%
+              {filledPercent}%
             </span>
           )}
           <span

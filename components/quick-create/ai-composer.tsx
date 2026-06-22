@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Send, Mic, X, Trash2, Loader2 } from "lucide-react";
+import { Send, X, Trash2, Loader2 } from "lucide-react";
 import type { ComposerState } from "@/lib/quick-create/types";
 import { COMPOSER_STATE_LABELS, PROMPT_SUGGESTIONS } from "@/lib/quick-create/constants";
 import { PromptSuggestions } from "./prompt-suggestions";
@@ -93,16 +93,6 @@ export function AIComposer({
 
       {/* Input row */}
       <div className="flex items-end gap-2">
-        {/* Voice button */}
-        <button
-          type="button"
-          className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 hover:bg-blue-100 transition-colors"
-          title="Nhập bằng giọng nói"
-          onClick={() => textareaRef.current?.focus()}
-        >
-          <Mic className="w-5 h-5" />
-        </button>
-
         {/* Textarea */}
         <div className="flex-1 relative">
           <textarea
@@ -121,7 +111,8 @@ export function AIComposer({
             rows={1}
             className={[
               "w-full px-4 py-3 pr-10 text-sm outline-none resize-none bg-transparent transition-all",
-              "focus:bg-slate-50 rounded-lg",
+              "border border-slate-200 rounded-lg",
+              "focus:border-blue-500 focus:ring-1 focus:ring-blue-200",
               "placeholder:text-slate-400",
               state === "error"
                 ? "bg-red-50 text-red-700"

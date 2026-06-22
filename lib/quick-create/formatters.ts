@@ -67,6 +67,7 @@ export function formatFullDate(departureTime: string | null | undefined): string
   return parsed.toLocaleDateString("vi-VN", {
     day: "2-digit",
     month: "2-digit",
+    year: "numeric",
   });
 }
 
