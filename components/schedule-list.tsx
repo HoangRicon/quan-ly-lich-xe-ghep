@@ -1271,17 +1271,6 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                 )}
 
                 {/* Pickup/Dropoff */}
-                {(trip.pickupLocation || trip.dropoffLocation) && (
-                  <div className="space-y-0.5 mb-1">
-                    {trip.pickupLocation && (
-                      <div className="text-[11px] text-slate-500 truncate">Đón: {trip.pickupLocation}</div>
-                    )}
-                    {trip.dropoffLocation && (
-                      <div className="text-[11px] text-slate-500 truncate">Trả: {trip.dropoffLocation}</div>
-                    )}
-                  </div>
-                )}
-
                 {/* Customer Phone - Below pickup/dropoff */}
                 {trip.customer?.phone && (
                   <div className="flex items-center gap-2 mb-0.5">
