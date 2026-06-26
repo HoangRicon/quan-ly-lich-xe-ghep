@@ -20,6 +20,8 @@ interface CustomerStats {
 interface CustomerReportTabProps {
   startDate: string;
   endDate: string;
+  startTime: string;
+  endTime: string;
 }
 
 function formatVND(amount: number): string {
@@ -51,7 +53,7 @@ function CustomerAvatar() {
   );
 }
 
-export function CustomerReportTab({ startDate, endDate }: CustomerReportTabProps) {
+export function CustomerReportTab({ startDate, endDate, startTime, endTime }: CustomerReportTabProps) {
   const [data, setData] = useState<CustomerStats[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -72,6 +74,8 @@ export function CustomerReportTab({ startDate, endDate }: CustomerReportTabProps
         const params = new URLSearchParams();
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
+        if (startTime) params.set("startTime", startTime);
+        if (endTime) params.set("endTime", endTime);
         if (search) params.set("search", search);
         params.set("sortBy", sortBy);
         params.set("sortOrder", sortOrder);
@@ -90,7 +94,7 @@ export function CustomerReportTab({ startDate, endDate }: CustomerReportTabProps
         setLoading(false);
       }
     },
-    [startDate, endDate, sortBy, sortOrder, pagination.limit]
+    [startDate, endDate, startTime, endTime, sortBy, sortOrder, pagination.limit]
   );
 
   useEffect(() => {

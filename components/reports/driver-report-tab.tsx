@@ -50,6 +50,8 @@ interface DriverTripHistoryRow {
 interface DriverReportTabProps {
   startDate: string;
   endDate: string;
+  startTime: string;
+  endTime: string;
   selectedDriver: string;
 }
 
@@ -103,6 +105,8 @@ function DriverAvatar() {
 export function DriverReportTab({
   startDate,
   endDate,
+  startTime,
+  endTime,
   selectedDriver,
 }: DriverReportTabProps) {
   const [data, setData] = useState<DriverStats[]>([]);
@@ -130,6 +134,8 @@ export function DriverReportTab({
         const params = new URLSearchParams();
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
+        if (startTime) params.set("startTime", startTime);
+        if (endTime) params.set("endTime", endTime);
         if (selectedDriver) params.set("driverId", selectedDriver);
         if (search) params.set("search", search);
         params.set("sortBy", sortBy);
@@ -149,7 +155,7 @@ export function DriverReportTab({
         setLoading(false);
       }
     },
-    [startDate, endDate, selectedDriver, sortBy, sortOrder, pagination.limit]
+    [startDate, endDate, startTime, endTime, selectedDriver, sortBy, sortOrder, pagination.limit]
   );
 
   useEffect(() => {
@@ -209,6 +215,8 @@ export function DriverReportTab({
       const params = new URLSearchParams();
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
+      if (startTime) params.set("startTime", startTime);
+      if (endTime) params.set("endTime", endTime);
       params.set("limit", "100");
       const res = await fetch(`/api/reports/drivers/${driver.id}/trips?${params.toString()}`);
       const json = await res.json();

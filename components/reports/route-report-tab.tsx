@@ -24,6 +24,8 @@ interface RouteStats {
 interface RouteReportTabProps {
   startDate: string;
   endDate: string;
+  startTime: string;
+  endTime: string;
 }
 
 function formatVND(amount: number): string {
@@ -41,7 +43,7 @@ function RouteAvatar() {
   );
 }
 
-export function RouteReportTab({ startDate, endDate }: RouteReportTabProps) {
+export function RouteReportTab({ startDate, endDate, startTime, endTime }: RouteReportTabProps) {
   const [data, setData] = useState<RouteStats[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -62,6 +64,8 @@ export function RouteReportTab({ startDate, endDate }: RouteReportTabProps) {
         const params = new URLSearchParams();
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
+        if (startTime) params.set("startTime", startTime);
+        if (endTime) params.set("endTime", endTime);
         if (search) params.set("search", search);
         params.set("sortBy", sortBy);
         params.set("sortOrder", sortOrder);
@@ -80,7 +84,7 @@ export function RouteReportTab({ startDate, endDate }: RouteReportTabProps) {
         setLoading(false);
       }
     },
-    [startDate, endDate, sortBy, sortOrder, pagination.limit]
+    [startDate, endDate, startTime, endTime, sortBy, sortOrder, pagination.limit]
   );
 
   useEffect(() => {

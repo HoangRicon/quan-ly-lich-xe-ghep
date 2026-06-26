@@ -127,6 +127,11 @@ const SORT_KEYS: DriverReportSortKey[] = [
   "name",
 ];
 
+const DRIVER_ASSIGNMENT_EVENT_TYPES = [
+  TRIP_EVENT_TYPES.DRIVER_ASSIGNED,
+  TRIP_EVENT_TYPES.DRIVER_CHANGED,
+];
+
 function newAccumulator(): DriverAccumulator {
   return {
     totalTrips: 0,
@@ -204,6 +209,18 @@ function sortRows(
 
 function toIsoStringOrNull(value: Date | undefined): string | null {
   return value ? value.toISOString() : null;
+}
+
+function legacyAssignmentEventFromTrip(trip: DriverTrip): DriverTripEvent | null {
+  if (trip.driverId == null) return null;
+
+  return {
+    tripId: trip.id,
+    toDriverId: trip.driverId,
+    createdAt: trip.createdAt,
+    pointsEarned: trip.pointsEarned,
+    profit: trip.profit,
+  };
 }
 
 function addBadges(rows: DriverReportRow[]): DriverReportRow[] {
@@ -403,10 +420,7 @@ export async function getDriverReport(
       where: {
         accountId: input.accountId,
         type: {
-          in: [
-            TRIP_EVENT_TYPES.DRIVER_ASSIGNED,
-            TRIP_EVENT_TYPES.DRIVER_CHANGED,
-          ],
+          in: DRIVER_ASSIGNMENT_EVENT_TYPES,
         },
         toDriverId: { in: driverIds },
         createdAt: currentRange,
@@ -432,7 +446,7 @@ export async function getDriverReport(
       )
     );
 
-    trips =
+    const eventBackedTrips =
       candidateTripIds.length > 0
         ? ((await db.trip.findMany({
             where: {
@@ -452,18 +466,55 @@ export async function getDriverReport(
           })) as DriverTrip[])
         : [];
 
+    const legacyTrips = (await db.trip.findMany({
+      where: {
+        accountId: input.accountId,
+        driverId: { in: driverIds },
+        createdAt: currentRange,
+        ...(candidateTripIds.length > 0
+          ? { id: { notIn: candidateTripIds } }
+          : {}),
+        NOT: {
+          events: {
+            some: {
+              type: {
+                in: DRIVER_ASSIGNMENT_EVENT_TYPES,
+              },
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        driverId: true,
+        status: true,
+        price: true,
+        profit: true,
+        pointsEarned: true,
+        createdAt: true,
+      },
+    })) as DriverTrip[];
+
+    trips = [...eventBackedTrips, ...legacyTrips];
+
     const currentDriverByTripId = new Map(
       trips
         .filter((trip) => trip.driverId != null)
         .map((trip) => [trip.id, trip.driverId as number])
     );
 
-    assignmentEvents = eventsInPeriod.filter(
-      (event) =>
-        event.tripId != null &&
-        event.toDriverId != null &&
-        currentDriverByTripId.get(event.tripId) === event.toDriverId
-    );
+    assignmentEvents = [
+      ...eventsInPeriod.filter(
+        (event) =>
+          event.tripId != null &&
+          event.toDriverId != null &&
+          currentDriverByTripId.get(event.tripId) === event.toDriverId
+      ),
+      ...legacyTrips.flatMap((trip) => {
+        const event = legacyAssignmentEventFromTrip(trip);
+        return event ? [event] : [];
+      }),
+    ];
   } else {
     trips = (await db.trip.findMany({
       where: {
@@ -489,10 +540,7 @@ export async function getDriverReport(
             where: {
               accountId: input.accountId,
               type: {
-                in: [
-                  TRIP_EVENT_TYPES.DRIVER_ASSIGNED,
-                  TRIP_EVENT_TYPES.DRIVER_CHANGED,
-                ],
+                in: DRIVER_ASSIGNMENT_EVENT_TYPES,
               },
               toDriverId: { in: driverIds },
               tripId: { in: tripIds },

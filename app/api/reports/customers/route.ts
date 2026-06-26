@@ -33,13 +33,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const startTime = searchParams.get("startTime");
+    const endTime = searchParams.get("endTime");
     const search = searchParams.get("search") || "";
     const sortBy = searchParams.get("sortBy") || "totalTrips";
     const sortOrder = searchParams.get("sortOrder") || "desc";
     const page = parsePositiveInt(searchParams.get("page"), 1);
     const limit = parsePositiveInt(searchParams.get("limit"), 20);
 
-    const { current: dateRange } = parseReportDateRange(startDate, endDate);
+    const { current: dateRange } = parseReportDateRange(startDate, endDate, startTime, endTime);
 
     // Get all customers (account-scoped)
     const customerWhere: Prisma.CustomerWhereInput = {

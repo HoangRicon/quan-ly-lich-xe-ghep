@@ -38,7 +38,9 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const { current } = parseReportDateRange(
       searchParams.get("startDate"),
-      searchParams.get("endDate")
+      searchParams.get("endDate"),
+      searchParams.get("startTime"),
+      searchParams.get("endTime")
     );
 
     const result = await getDriverTripHistory(db, {

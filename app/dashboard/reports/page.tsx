@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, SlidersHorizontal, X } from "lucide-react";
+import { RefreshCw, SlidersHorizontal, X, Clock } from "lucide-react";
 import { Sidebar, Header, BottomNav } from "@/components/dashboard";
 import { KpiCards } from "@/components/reports/kpi-cards";
 import { RevenueChart } from "@/components/reports/revenue-chart";
@@ -77,6 +77,8 @@ export default function ReportsPage() {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [selectedDriver, setSelectedDriver] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [driverDropdownOpen, setDriverDropdownOpen] = useState(false);
@@ -92,6 +94,8 @@ export default function ReportsPage() {
       const params = new URLSearchParams();
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
+      if (startTime) params.set("startTime", startTime);
+      if (endTime) params.set("endTime", endTime);
       if (selectedDriver) params.set("driverId", selectedDriver);
 
       const res = await fetch(`/api/reports/stats?${params.toString()}`);
@@ -102,7 +106,7 @@ export default function ReportsPage() {
     } finally {
       setStatsLoading(false);
     }
-  }, [startDate, endDate, selectedDriver]);
+  }, [startDate, endDate, startTime, endTime, selectedDriver]);
 
   const fetchDrivers = useCallback(async () => {
     setDriversLoading(true);
@@ -157,6 +161,8 @@ export default function ReportsPage() {
   const handleClearFilters = () => {
     setStartDate("");
     setEndDate("");
+    setStartTime("");
+    setEndTime("");
     setDateFilter("all");
     setSelectedDriver("");
     setFiltersOpen(false);
@@ -168,6 +174,8 @@ export default function ReportsPage() {
     dateFilter !== "all" ||
     startDate !== "" ||
     endDate !== "" ||
+    startTime !== "" ||
+    endTime !== "" ||
     selectedDriver !== "";
 
   const tabs = [
@@ -272,6 +280,38 @@ export default function ReportsPage() {
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     />
                     <p className="text-[10px] text-slate-400 mt-1 px-1">Đến ngày</p>
+                  </div>
+                </div>
+
+                {/* Time range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => {
+                        setStartTime(e.target.value);
+                        setDateFilter("custom");
+                      }}
+                      className="w-full pl-7 pr-2 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      placeholder="Từ giờ"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1 px-1">Từ giờ</p>
+                  </div>
+                  <div className="relative">
+                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => {
+                        setEndTime(e.target.value);
+                        setDateFilter("custom");
+                      }}
+                      className="w-full pl-7 pr-2 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      placeholder="Đến giờ"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1 px-1">Đến giờ</p>
                   </div>
                 </div>
               </div>
@@ -407,14 +447,16 @@ export default function ReportsPage() {
                 <DriverReportTab
                   startDate={startDate}
                   endDate={endDate}
+                  startTime={startTime}
+                  endTime={endTime}
                   selectedDriver={selectedDriver}
                 />
               )}
               {activeTab === "customers" && (
-                <CustomerReportTab startDate={startDate} endDate={endDate} />
+                <CustomerReportTab startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} />
               )}
               {activeTab === "routes" && (
-                <RouteReportTab startDate={startDate} endDate={endDate} />
+                <RouteReportTab startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} />
               )}
             </div>
           </div>

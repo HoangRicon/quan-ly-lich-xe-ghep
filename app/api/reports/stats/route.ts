@@ -16,8 +16,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const startTime = searchParams.get("startTime");
+    const endTime = searchParams.get("endTime");
     const driverId = searchParams.get("driverId");
-    const { current, previousRange } = parseReportDateRange(startDate, endDate);
+    const { current, previousRange } = parseReportDateRange(startDate, endDate, startTime, endTime);
     const parsedDriverId =
       driverId && driverId.trim() ? Number(driverId) : undefined;
 

@@ -29,12 +29,6 @@ function parseSortOrder(value: string | null): "asc" | "desc" | undefined {
   return value === "asc" || value === "desc" ? value : undefined;
 }
 
-function parseDriverId(value: string | null): number | undefined {
-  if (!value || !value.trim()) return undefined;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : Number.NaN;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const user = await getSession();
@@ -46,20 +40,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const driverId = parseDriverId(searchParams.get("driverId"));
+    const startTime = searchParams.get("startTime");
+    const endTime = searchParams.get("endTime");
+    const driverIdParam = searchParams.get("driverId");
+    let driverId: number | undefined;
+
+    if (driverIdParam && driverIdParam.trim()) {
+      const parsed = Number(driverIdParam);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        driverId = parsed;
+      }
+      // If invalid, treat as undefined (show all) instead of throwing error
+    }
     const search = searchParams.get("search") || "";
     const sortBy = parseSortBy(searchParams.get("sortBy"));
     const sortOrder = parseSortOrder(searchParams.get("sortOrder"));
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "20", 10);
-    const { current } = parseReportDateRange(startDate, endDate);
-
-    if (Number.isNaN(driverId)) {
-      return NextResponse.json(
-        { error: "Invalid driverId" },
-        { status: 400 }
-      );
-    }
+    const { current } = parseReportDateRange(startDate, endDate, startTime, endTime);
 
     const { data, pagination } = await getDriverReport(db, {
       accountId: user.accountId,

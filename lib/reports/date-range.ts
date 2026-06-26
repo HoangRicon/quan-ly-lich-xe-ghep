@@ -15,34 +15,40 @@ function parseHoChiMinhDateParts(value: string) {
   return { year, month, day };
 }
 
-function parseHoChiMinhDayStart(value: string): Date {
+function parseHoChiMinhDayStart(value: string, hours = 0, minutes = 0): Date {
   const { year, month, day } = parseHoChiMinhDateParts(value);
   return new Date(
-    Date.UTC(year, month - 1, day, 0, 0, 0, 0) -
+    Date.UTC(year, month - 1, day, hours, minutes, 0, 0) -
       HO_CHI_MINH_UTC_OFFSET_MS
   );
 }
 
-function parseHoChiMinhDayEnd(value: string): Date {
+function parseHoChiMinhDayEnd(value: string, hours = 23, minutes = 59, seconds = 59): Date {
   const { year, month, day } = parseHoChiMinhDateParts(value);
   return new Date(
-    Date.UTC(year, month - 1, day, 23, 59, 59, 999) -
+    Date.UTC(year, month - 1, day, hours, minutes, seconds, 999) -
       HO_CHI_MINH_UTC_OFFSET_MS
   );
 }
 
 export function parseReportDateRange(
   startDate?: string | null,
-  endDate?: string | null
+  endDate?: string | null,
+  startTime?: string | null,
+  endTime?: string | null
 ): ReportDateRange {
   const current: ReportRangeFilter = {};
 
   if (startDate) {
-    current.gte = parseHoChiMinhDayStart(startDate);
+    const sH = startTime ? parseInt(startTime.split(":")[0]) : 0;
+    const sMin = startTime ? parseInt(startTime.split(":")[1]) : 0;
+    current.gte = parseHoChiMinhDayStart(startDate, sH, sMin);
   }
 
   if (endDate) {
-    current.lte = parseHoChiMinhDayEnd(endDate);
+    const eH = endTime ? parseInt(endTime.split(":")[0]) : 23;
+    const eMin = endTime ? parseInt(endTime.split(":")[1]) : 59;
+    current.lte = parseHoChiMinhDayEnd(endDate, eH, eMin);
   }
 
   if (!current.gte || !current.lte) {
