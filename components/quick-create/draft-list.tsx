@@ -98,7 +98,7 @@ function EmptyDraftList() {
         />
       </svg>
       <p className="text-slate-500 text-sm font-medium mb-1">Chưa có bản nháp nào</p>
-      <p className="text-slate-400 text-xs">Trò chuyện với AI bên dưới để tạo bản nháp đầu tiên</p>
+      <p className="text-slate-400 text-xs">Nhập nội dung cuốc xe bên dưới để tạo bản nháp đầu tiên</p>
     </div>
   );
 }

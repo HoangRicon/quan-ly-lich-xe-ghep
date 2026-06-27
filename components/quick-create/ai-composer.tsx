@@ -124,7 +124,7 @@ export function AIComposer({
                 textareaRef.current?.focus();
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              title="Xoa noi dung"
+              title="Xóa nội dung"
             >
               <Trash2 className="w-4 h-4" />
             </button>

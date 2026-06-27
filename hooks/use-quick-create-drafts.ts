@@ -85,7 +85,7 @@ export function useDrafts(sessionId: number | null) {
       rawText: string,
       source: "text" | "voice" | "paste" = "text",
     ): Promise<DraftItem[]> => {
-      if (sessionId === null) throw new Error("No session selected");
+      if (sessionId === null) throw new Error("Chưa chọn phiên làm việc");
       const res = await fetch(`/api/quick-trip-entry/sessions/${sessionId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,7 +98,7 @@ export function useDrafts(sessionId: number | null) {
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error ?? "Tao ban nhap that bai");
+      if (!json.success) throw new Error(json.error ?? "Tạo bản nháp thất bại");
       const items = normalizeCreatedDraftItems(json.data);
       setDrafts((prev) => [...prev, ...items]);
       return items;
@@ -114,7 +114,7 @@ export function useDrafts(sessionId: number | null) {
         body: JSON.stringify({ parsedData }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error ?? "Cap nhat that bai");
+      if (!json.success) throw new Error(json.error ?? "Cập nhật thất bại");
       const item = json.data as DraftItem;
       setDrafts((prev) => prev.map((d) => (d.id === itemId ? item : d)));
       return item;
@@ -134,7 +134,7 @@ export function useDrafts(sessionId: number | null) {
       });
       const json = await res.json();
       if (!json.success) {
-        throw new Error(json.error ?? "Cap nhat prompt that bai");
+        throw new Error(json.error ?? "Cập nhật prompt thất bại");
       }
       const item = json.data as DraftItem;
       setDrafts((prev) => prev.map((d) => (d.id === itemId ? item : d)));
@@ -150,7 +150,7 @@ export function useDrafts(sessionId: number | null) {
       });
       const json = await res.json();
       if (!json.success) {
-        return { success: false, error: json.error ?? "Luu that bai" };
+        return { success: false, error: json.error ?? "Lưu thất bại" };
       }
 
       const item = json.data as DraftItem;
@@ -165,7 +165,7 @@ export function useDrafts(sessionId: number | null) {
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : "Loi khong xac dinh",
+        error: err instanceof Error ? err.message : "Lỗi không xác định",
       };
     }
   }, []);
@@ -178,7 +178,7 @@ export function useDrafts(sessionId: number | null) {
       } catch (err) {
         return {
           success: false,
-          error: err instanceof Error ? err.message : "Loi khong xac dinh",
+          error: err instanceof Error ? err.message : "Lỗi không xác định",
         };
       }
     },
@@ -190,7 +190,7 @@ export function useDrafts(sessionId: number | null) {
       method: "POST",
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error ?? "Huy ban nhap that bai");
+    if (!json.success) throw new Error(json.error ?? "Hủy bản nháp thất bại");
     setDrafts((prev) => prev.filter((d) => d.id !== itemId));
   }, []);
 
@@ -200,7 +200,7 @@ export function useDrafts(sessionId: number | null) {
         method: "POST",
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error ?? "Nhan doi ban nhap that bai");
+      if (!json.success) throw new Error(json.error ?? "Nhân đôi bản nháp thất bại");
       const item = json.data as DraftItem;
       setDrafts((prev) => [...prev, item]);
       return item;
@@ -209,12 +209,12 @@ export function useDrafts(sessionId: number | null) {
   );
 
   const saveAllValid = useCallback(async (): Promise<SaveResult[]> => {
-    if (sessionId === null) throw new Error("No session selected");
+    if (sessionId === null) throw new Error("Chưa chọn phiên làm việc");
     const res = await fetch(`/api/quick-trip-entry/sessions/${sessionId}/save-valid`, {
       method: "POST",
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error ?? "Luu hang loat that bai");
+    if (!json.success) throw new Error(json.error ?? "Lưu hàng loạt thất bại");
     const results = (json.data ?? []) as SaveResult[];
     await fetchDrafts();
     return results;

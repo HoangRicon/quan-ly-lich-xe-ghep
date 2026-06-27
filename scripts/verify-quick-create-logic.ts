@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildIsoDateTimeFromLocalParts,
   canCreateRideFromDraft,
+  getDraftAnalysisBadge,
   getDraftFieldIssueCards,
   getDraftUncertaintyNotes,
   getSaveResultError,
@@ -78,6 +79,59 @@ assert.equal(
 );
 
 assert.deepEqual(
+  getDraftAnalysisBadge(
+    buildDraft({
+      parsedData: {
+        ...buildDraft().parsedData!,
+        analysisSource: "ai",
+      },
+    }),
+  ),
+  {
+    label: "AI phân tích",
+    title: "Bản nháp được AI phân tích.",
+    className: "bg-indigo-50 text-indigo-700 border-indigo-100",
+  },
+);
+
+assert.deepEqual(
+  getDraftAnalysisBadge(
+    buildDraft({
+      parsedData: {
+        ...buildDraft().parsedData!,
+        analysisSource: "rule",
+        analysisMessage:
+          "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.",
+      },
+    }),
+  ),
+  {
+    label: "Quy tắc thường",
+    title:
+      "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.",
+    className: "bg-slate-50 text-slate-700 border-slate-200",
+  },
+);
+
+assert.deepEqual(
+  getDraftAnalysisBadge(
+    buildDraft({
+      warnings: ["ai_parse_failed"],
+      parsedData: {
+        ...buildDraft().parsedData!,
+        warnings: ["ai_parse_failed"],
+      },
+    }),
+  ),
+  {
+    label: "Quy tắc thường",
+    title:
+      "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.",
+    className: "bg-slate-50 text-slate-700 border-slate-200",
+  },
+);
+
+assert.deepEqual(
   getDraftFieldIssueCards(
     buildDraft({
       missingFields: ["customerPhone", "departureTime"],
@@ -114,8 +168,8 @@ assert.deepEqual(
     },
     {
       key: "warning:ai_parse_failed",
-      title: "AI chưa đọc được hết",
-      description: "Hệ thống đã dùng bộ tách cơ bản, nên có thể cần bổ sung lại prompt.",
+      title: "AI không kết nối được",
+      description: "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.",
     },
     {
       key: "warning:unknown_warning",

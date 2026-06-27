@@ -20,6 +20,7 @@ interface QuickTripAiEnv {
   QUICK_TRIP_AI_BASE_URL?: string;
   QUICK_TRIP_AI_API_KEY?: string;
   QUICK_TRIP_AI_MODEL?: string;
+  QUICK_TRIP_AI_TIMEOUT_MS?: string;
 }
 
 interface QuickTripAiRequest {
@@ -68,6 +69,13 @@ const MANY_SYSTEM_PROMPT = [
   "Khong ep du so luong neu text khong du cuoc. Khong tu tao thong tin neu khong co trong text.",
   "Neu mo ho, bo trong field va them warning ngan gon.",
 ].join(" ");
+
+const DEFAULT_AI_FETCH_TIMEOUT_MS = 5000;
+
+export function getQuickTripAiFetchTimeoutMs(env: QuickTripAiEnv = process.env) {
+  const value = Number(env.QUICK_TRIP_AI_TIMEOUT_MS);
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_AI_FETCH_TIMEOUT_MS;
+}
 
 export function getQuickTripAiConfigFromEnv(
   env: QuickTripAiEnv = process.env,
@@ -186,21 +194,36 @@ export function parseQuickTripAiJsonMany(content: string): ParsedQuickTripChunk[
 class OpenAiCompatibleQuickTripProvider implements QuickTripAiProvider {
   constructor(private readonly config: QuickTripAiConfig) {}
 
+  private async fetchJson(request: QuickTripAiRequest) {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      getQuickTripAiFetchTimeoutMs(),
+    );
+
+    try {
+      const response = await fetch(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: JSON.stringify(request.body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI parser request failed: ${response.status}`);
+      }
+
+      return (await response.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async parse(rawText: string): Promise<Partial<QuickTripCandidate>> {
     const request = buildQuickTripAiRequest(rawText, this.config);
-    const response = await fetch(request.url, {
-      method: "POST",
-      headers: request.headers,
-      body: JSON.stringify(request.body),
-    });
-
-    if (!response.ok) {
-      throw new Error(`AI parser request failed: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
+    const data = await this.fetchJson(request);
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -218,19 +241,7 @@ class OpenAiCompatibleQuickTripProvider implements QuickTripAiProvider {
       mode: "many",
       ...options,
     });
-    const response = await fetch(request.url, {
-      method: "POST",
-      headers: request.headers,
-      body: JSON.stringify(request.body),
-    });
-
-    if (!response.ok) {
-      throw new Error(`AI parser request failed: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
+    const data = await this.fetchJson(request);
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {

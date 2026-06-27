@@ -71,10 +71,14 @@ function buildParsedDataFromForm(form: {
   totalSeats: string;
   tripType: TripType;
   notes: string;
+  analysisSource?: "ai" | "rule";
+  analysisMessage?: string;
 }): DraftUpsertPayload {
   const priceNum = parseInt(form.price.replace(/\./g, ""), 10) || 0;
 
   return {
+    analysisSource: form.analysisSource,
+    analysisMessage: form.analysisMessage || undefined,
     customerPhone: form.customerPhone || undefined,
     customerName: form.customerName || undefined,
     departure: form.departure || undefined,
@@ -112,6 +116,8 @@ export function DraftEditorSheet({
     totalSeats: "1",
     tripType: "ghep" as TripType,
     notes: "",
+    analysisSource: undefined as "ai" | "rule" | undefined,
+    analysisMessage: "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isCreatingRide, setIsCreatingRide] = useState(false);
@@ -138,6 +144,8 @@ export function DraftEditorSheet({
       totalSeats: String(parsed.totalSeats ?? 1),
       tripType: toEditorTripType(item),
       notes: parsed.notes ?? "",
+      analysisSource: parsed.analysisSource,
+      analysisMessage: parsed.analysisMessage ?? "",
     });
   }, [item]);
 

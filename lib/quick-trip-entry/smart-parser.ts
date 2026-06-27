@@ -13,6 +13,9 @@ import type { ParsedQuickTripChunk, QuickTripCandidate } from "./types";
 
 export type QuickEntryParseMode = "rule" | "smart";
 
+export const RULE_FALLBACK_ANALYSIS_MESSAGE =
+  "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.";
+
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -91,6 +94,7 @@ function normalizeParsedChunk(chunk: ParsedQuickTripChunk): ParsedQuickTripChunk
     candidate: normalizeCandidate({
       ...ruleCandidate,
       ...pickUsefulCandidateFields(aiCandidate),
+      analysisSource: "ai",
       departureTime: chooseMergedDepartureTime(
         chunk.rawText,
         ruleCandidate.departureTime,
@@ -110,6 +114,23 @@ function normalizeParsedChunk(chunk: ParsedQuickTripChunk): ParsedQuickTripChunk
   };
 }
 
+function markRuleChunk(
+  chunk: ParsedQuickTripChunk,
+  options: { aiFailed?: boolean } = {},
+): ParsedQuickTripChunk {
+  return {
+    ...chunk,
+    candidate: normalizeCandidate({
+      ...chunk.candidate,
+      analysisSource: "rule",
+      ...(options.aiFailed ? { analysisMessage: RULE_FALLBACK_ANALYSIS_MESSAGE } : {}),
+      warnings: options.aiFailed
+        ? uniqueWarnings([...chunk.candidate.warnings, "ai_parse_failed"])
+        : chunk.candidate.warnings,
+    }),
+  };
+}
+
 export async function parseQuickEntryDrafts(input: {
   rawText: string;
   parseMode?: QuickEntryParseMode;
@@ -119,14 +140,14 @@ export async function parseQuickEntryDrafts(input: {
   const ruleChunks = parseQuickTripInput(input.rawText);
 
   if (input.parseMode === "rule") {
-    return ruleChunks;
+    return ruleChunks.map((chunk) => markRuleChunk(chunk));
   }
 
   const provider =
     input.provider === undefined ? getQuickTripAiProvider() : input.provider;
 
   if (!provider) {
-    return ruleChunks;
+    return ruleChunks.map((chunk) => markRuleChunk(chunk));
   }
 
   try {
@@ -143,17 +164,13 @@ export async function parseQuickEntryDrafts(input: {
       normalizedAiChunks.length < groupedDraftCount &&
       ruleChunks.length >= groupedDraftCount
     ) {
-      return ruleChunks;
+      return ruleChunks.map((chunk) => markRuleChunk(chunk));
     }
 
-    return normalizedAiChunks.length > 0 ? normalizedAiChunks : ruleChunks;
+    return normalizedAiChunks.length > 0
+      ? normalizedAiChunks
+      : ruleChunks.map((chunk) => markRuleChunk(chunk));
   } catch {
-    return ruleChunks.map((chunk) => ({
-      ...chunk,
-      candidate: {
-        ...chunk.candidate,
-        warnings: uniqueWarnings([...chunk.candidate.warnings, "ai_parse_failed"]),
-      },
-    }));
+    return ruleChunks.map((chunk) => markRuleChunk(chunk, { aiFailed: true }));
   }
 }

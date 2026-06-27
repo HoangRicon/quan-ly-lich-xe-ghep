@@ -15,6 +15,7 @@ import {
 import { DRAFT_STATUS_CONFIG } from "@/lib/quick-create/constants";
 import {
   canCreateRideFromDraft,
+  getDraftAnalysisBadge,
   getDraftFieldIssueCards,
   getDraftUncertaintyNotes,
 } from "@/lib/quick-create/draft-helpers";
@@ -54,6 +55,7 @@ export const DraftCard = memo(function DraftCard({
 
   const parsed = item.parsedData;
   const statusCfg = DRAFT_STATUS_CONFIG[item.status] ?? DRAFT_STATUS_CONFIG.pending;
+  const analysisBadge = getDraftAnalysisBadge(item);
   const issueCards = getDraftFieldIssueCards(item);
   const uncertaintyNotes = getDraftUncertaintyNotes(item);
   const isRoundtrip = parsed?.tripDirection === "roundtrip";
@@ -128,7 +130,15 @@ export const DraftCard = memo(function DraftCard({
           </span>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5">
+          {analysisBadge && (
+            <span
+              className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${analysisBadge.className}`}
+              title={analysisBadge.title}
+            >
+              {analysisBadge.label}
+            </span>
+          )}
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusCfg.bg} ${statusCfg.text}`}
           >

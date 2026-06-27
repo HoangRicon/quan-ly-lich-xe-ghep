@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildQuickTripAiRequest,
   getQuickTripAiConfigFromEnv,
+  getQuickTripAiFetchTimeoutMs,
+  getQuickTripAiProvider,
   parseQuickTripAiJson,
   parseQuickTripAiJsonMany,
 } from "../lib/quick-trip-entry/ai-provider";
@@ -52,4 +54,49 @@ assert.ok(smartRequest.body.messages[1].content.includes("So draft du kien: 2"))
 
 assert.equal(getQuickTripAiConfigFromEnv({}), null);
 
-console.log("quick-trip AI provider checks passed");
+async function main() {
+  const originalFetch = globalThis.fetch;
+  let receivedSignal: AbortSignal | undefined;
+  globalThis.fetch = (async (_url, init) => {
+    receivedSignal = init?.signal as AbortSignal | undefined;
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"price":150000,"confidence":0.9}' } }],
+      }),
+    } as Response;
+  }) as typeof fetch;
+
+  const originalEnv = {
+    QUICK_TRIP_AI_BASE_URL: process.env.QUICK_TRIP_AI_BASE_URL,
+    QUICK_TRIP_AI_API_KEY: process.env.QUICK_TRIP_AI_API_KEY,
+    QUICK_TRIP_AI_MODEL: process.env.QUICK_TRIP_AI_MODEL,
+    QUICK_TRIP_AI_TIMEOUT_MS: process.env.QUICK_TRIP_AI_TIMEOUT_MS,
+  };
+
+  process.env.QUICK_TRIP_AI_BASE_URL = "http://localhost:20128/v1";
+  process.env.QUICK_TRIP_AI_API_KEY = "test-key";
+  process.env.QUICK_TRIP_AI_MODEL = "cx/gpt-5.4-mini";
+  process.env.QUICK_TRIP_AI_TIMEOUT_MS = "1500";
+
+  try {
+    const timeoutProvider = getQuickTripAiProvider();
+    assert.ok(timeoutProvider);
+    await timeoutProvider.parse("8h HN - HP 150k");
+    assert.ok(receivedSignal instanceof AbortSignal);
+    assert.equal(getQuickTripAiFetchTimeoutMs(), 1500);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+
+  console.log("quick-trip AI provider checks passed");
+}
+
+void main();

@@ -56,6 +56,8 @@ export interface SaveResult {
 }
 
 export interface DraftUpsertPayload {
+  analysisSource?: "ai" | "rule";
+  analysisMessage?: string;
   customerPhone?: string;
   customerName?: string;
   departure?: string;
