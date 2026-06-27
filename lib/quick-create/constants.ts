@@ -58,9 +58,19 @@ export const SWIPE_THRESHOLD_ACTION = 80;
 
 /** Prompt suggestions shown in composer when empty */
 export const PROMPT_SUGGESTIONS = [
-  "Mai có 2 khách đi HP → HN lúc 8h",
-  "2 cuốc HP – HN 150k, 1 cuốc HN – HP 160k",
+  {
+    mode: "smart",
+    label: "AI",
+    text: "2 cuốc HP – HN 150k, 1 cuốc HN – HP 160k",
+  },
+  {
+    mode: "rule",
+    label: "TH",
+    text: "8h sáng mai bx HP - HN 900k 0912345678",
+  },
 ] as const;
+
+export type PromptSuggestion = (typeof PROMPT_SUGGESTIONS)[number];
 
 /** localStorage key for recent prompts */
 export const RECENT_PROMPTS_KEY = "quick-create-recent-prompts";

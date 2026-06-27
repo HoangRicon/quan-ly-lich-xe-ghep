@@ -2,8 +2,11 @@
  * AI Composer state machine hook.
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useSyncExternalStore } from "react";
 import type { ComposerState, ParseMode } from "@/lib/quick-create/types";
+
+const PARSE_MODE_STORAGE_KEY = "quick-create-parse-mode";
+const PARSE_MODE_STORAGE_EVENT = "quick-create-parse-mode-change";
 
 export interface UseAIComposerReturn {
   state: ComposerState;
@@ -20,18 +23,53 @@ export interface UseAIComposerReturn {
   reset: () => void;
 }
 
-function getDefaultParseMode(): ParseMode {
+function normalizeParseMode(value: string | null): ParseMode {
+  return value === "rule" ? "rule" : "smart";
+}
+
+function getStoredParseModeSnapshot(): ParseMode {
   if (typeof window === "undefined") return "smart";
-  const stored = localStorage.getItem("quick-create-parse-mode");
-  if (stored === "smart" || stored === "rule") return stored;
+
+  return normalizeParseMode(localStorage.getItem(PARSE_MODE_STORAGE_KEY));
+}
+
+function getServerParseModeSnapshot(): ParseMode {
   return "smart";
+}
+
+function subscribeToParseMode(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  const handleStorageChange = (event: Event) => {
+    if (
+      event instanceof StorageEvent &&
+      event.key !== PARSE_MODE_STORAGE_KEY &&
+      event.key !== null
+    ) {
+      return;
+    }
+
+    onStoreChange();
+  };
+
+  window.addEventListener("storage", handleStorageChange);
+  window.addEventListener(PARSE_MODE_STORAGE_EVENT, handleStorageChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorageChange);
+    window.removeEventListener(PARSE_MODE_STORAGE_EVENT, handleStorageChange);
+  };
 }
 
 export function useAIComposer(): UseAIComposerReturn {
   const [state, setState] = useState<ComposerState>("idle");
   const [text, setTextState] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [parseMode, setParseModeState] = useState<ParseMode>(getDefaultParseMode);
+  const parseMode = useSyncExternalStore(
+    subscribeToParseMode,
+    getStoredParseModeSnapshot,
+    getServerParseModeSnapshot,
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = () => {
@@ -50,8 +88,10 @@ export function useAIComposer(): UseAIComposerReturn {
   }, []);
 
   const setParseMode = useCallback((mode: ParseMode) => {
-    setParseModeState(mode);
-    localStorage.setItem("quick-create-parse-mode", mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PARSE_MODE_STORAGE_KEY, mode);
+      window.dispatchEvent(new Event(PARSE_MODE_STORAGE_EVENT));
+    }
   }, []);
 
   const setAnalyzing = useCallback(() => {

@@ -11,6 +11,7 @@ import {
 } from "../lib/quick-create/draft-helpers";
 import { PROMPT_SUGGESTIONS } from "../lib/quick-create/constants";
 import { generateAutoNote } from "../lib/quick-create/auto-note";
+import { parseQuickTripChunk } from "../lib/quick-trip-entry/parser";
 import type { DraftItem } from "../lib/quick-create/types";
 
 function buildDraft(overrides: Partial<DraftItem> = {}): DraftItem {
@@ -134,6 +135,28 @@ assert.equal(inferExpectedDraftCount("tạo 3 cuốc xe HN - HP và 2 cuốc ND 
 assert.equal(inferExpectedDraftCount("hom nay co 1 khach di HP"), undefined);
 assert.equal(inferExpectedDraftCount("0988123456 di 2 ghe"), undefined);
 assert.equal(PROMPT_SUGGESTIONS.length, 2, "Quick-create should show exactly 2 prompt suggestions");
+assert.deepEqual(
+  PROMPT_SUGGESTIONS.map((suggestion) => suggestion.mode),
+  ["smart", "rule"],
+  "Quick suggestions should include one AI example and one rule example",
+);
+assert.equal(
+  PROMPT_SUGGESTIONS[0].text,
+  "2 cuốc HP – HN 150k, 1 cuốc HN – HP 160k",
+);
+assert.equal(
+  PROMPT_SUGGESTIONS[1].text,
+  "8h sáng mai bx HP - HN 900k 0912345678",
+);
+const ruleSuggestionCandidate = parseQuickTripChunk(
+  PROMPT_SUGGESTIONS[1].text,
+  new Date("2026-06-27T00:00:00+07:00"),
+);
+assert.equal(ruleSuggestionCandidate.customerPhone, "0912345678");
+assert.equal(ruleSuggestionCandidate.departure, "HP");
+assert.equal(ruleSuggestionCandidate.destination, "HN");
+assert.equal(ruleSuggestionCandidate.price, 150000);
+assert.deepEqual(ruleSuggestionCandidate.missingFields, []);
 
 const reviewDraft = buildDraft({
   status: "needs_review",

@@ -80,7 +80,8 @@ export function AIComposer({
       {shouldShowSuggestions && (
         <PromptSuggestions
           onSuggestionClick={(suggestion) => {
-            (onSuggestionClick ?? onTextChange)(suggestion);
+            onParseModeChange?.(suggestion.mode);
+            (onSuggestionClick ?? onTextChange)(suggestion.text);
             setShowSuggestions(false);
           }}
         />
