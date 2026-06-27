@@ -98,7 +98,7 @@ export function AIComposer({
       )}
 
       {/* Input row */}
-      <div className="flex items-end gap-2">
+      <div className="flex items-center gap-2">
         {/* Textarea */}
         <div className="flex-1 relative">
           <textarea
@@ -116,7 +116,7 @@ export function AIComposer({
             readOnly={isLoading}
             rows={1}
             className={[
-              "w-full px-4 py-3 pr-10 text-sm outline-none resize-none bg-transparent transition-all",
+              "w-full px-4 py-3 pr-10 text-sm outline-none resize-none bg-transparent transition-all scroll-smooth",
               "border border-slate-200 rounded-lg",
               "focus:border-blue-500 focus:ring-1 focus:ring-blue-200",
               "placeholder:text-slate-400",
@@ -129,7 +129,7 @@ export function AIComposer({
             ]
               .filter(Boolean)
               .join(" ")}
-            style={{ minHeight: "44px" }}
+            style={{ minHeight: "48px", scrollbarGutter: "stable" }}
           />
           {text && !isLoading && (
             <button
@@ -139,7 +139,7 @@ export function AIComposer({
                 textareaRef.current?.focus();
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              title="Xoa noi dung"
+              title="Xóa nội dung"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -152,7 +152,7 @@ export function AIComposer({
           onClick={isLoading && onCancel ? onCancel : handleSubmit}
           disabled={isLoading ? false : !text.trim()}
           className={[
-            "w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-colors",
+            "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors",
             "disabled:opacity-40 disabled:cursor-not-allowed",
             isLoading
               ? "bg-slate-200 text-slate-500 hover:bg-slate-300"
