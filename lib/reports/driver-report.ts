@@ -85,6 +85,7 @@ export type DriverReportRow = {
   cancelRate: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedProfit: number;
   totalPoints: number;
   assignedPointProfit: number;
   avgTripValue: number;
@@ -112,6 +113,7 @@ type DriverAccumulator = {
   cancelledTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedProfit: number;
   totalPoints: number;
   assignedPointProfit: number;
 };
@@ -141,6 +143,7 @@ function newAccumulator(): DriverAccumulator {
     cancelledTrips: 0,
     totalRevenue: 0,
     totalProfit: 0,
+    projectedProfit: 0,
     totalPoints: 0,
     assignedPointProfit: 0,
   };
@@ -305,6 +308,11 @@ export function buildDriverReportRows(input: {
     stats.totalPoints += assignedPoints;
     stats.assignedPointProfit += assignedProfit;
 
+    // projectedProfit: tính cả assigned + completed
+    if (trip.status === "completed" || trip.status === "assigned") {
+      stats.projectedProfit += assignedProfit;
+    }
+
     if (trip.status === "completed") {
       stats.totalRevenue += toMoneyNumber(trip.price);
       stats.totalProfit += toMoneyNumber(trip.profit);
@@ -336,6 +344,7 @@ export function buildDriverReportRows(input: {
       cancelRate: percent(stats.cancelledTrips, stats.totalTrips),
       totalRevenue: stats.totalRevenue,
       totalProfit: stats.totalProfit,
+      projectedProfit: stats.projectedProfit,
       totalPoints: stats.totalPoints,
       assignedPointProfit: stats.assignedPointProfit,
       avgTripValue:

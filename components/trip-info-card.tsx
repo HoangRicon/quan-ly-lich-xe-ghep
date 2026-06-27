@@ -77,14 +77,10 @@ export function TripInfoCard({ trip, className }: TripInfoCardProps) {
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left p-3 flex items-start gap-3"
       >
-        {/* Left: Trip ID & Route */}
+        {/* Left: Trip Route */}
         <div className="flex-1 min-w-0">
-          {/* Trip ID */}
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-              #{trip.id}
-            </span>
-            {/* Status badge */}
+          {/* Status badge */}
+          <div className="mb-1.5">
             <Badge
               variant="outline"
               className={cn(
@@ -139,8 +135,8 @@ export function TripInfoCard({ trip, className }: TripInfoCardProps) {
 
       {/* Expanded details */}
       {expanded && (
-        <div className="px-3 pb-3 pt-0 border-t border-slate-100 mt-0">
-          <div className="pt-2.5 space-y-2">
+        <div className="px-3 pb-3 pt-2.5 border-t border-slate-100 mt-0">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {/* Departure time */}
             {trip.departureTime && (
               <div className="flex items-center gap-2 text-xs">
@@ -162,30 +158,34 @@ export function TripInfoCard({ trip, className }: TripInfoCardProps) {
             </div>
 
             {/* Assigned date */}
-            <div className="flex items-center gap-2 text-xs">
-              <UserCheck className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-              <span className="text-slate-500">Gán tài xế:</span>
-              <span className="text-slate-700 font-medium ml-auto">
-                {formatDate(trip.assignedAt)}
-              </span>
-            </div>
+            {trip.assignedAt && (
+              <div className="flex items-center gap-2 text-xs">
+                <UserCheck className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                <span className="text-slate-500">Gán tài xế:</span>
+                <span className="text-slate-700 font-medium ml-auto">
+                  {formatDate(trip.assignedAt)}
+                </span>
+              </div>
+            )}
 
             {/* Formula */}
-            <div className="flex items-center gap-2 text-xs">
-              <Calculator className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-              <span className="text-slate-500">Công thức:</span>
-              <span className="text-slate-700 font-medium ml-auto truncate max-w-[160px]">
-                {trip.matchedFormulaName || `ID #${trip.matchedFormulaId}` || "—"}
-              </span>
-            </div>
+            {trip.matchedFormulaName && (
+              <div className="flex items-center gap-2 text-xs col-span-2">
+                <Calculator className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                <span className="text-slate-500">Công thức tính công:</span>
+                <span className="text-slate-700 font-medium ml-auto truncate">
+                  {trip.matchedFormulaName}
+                </span>
+              </div>
+            )}
 
             {/* Profit rate (if available) */}
-            {trip.profitRate != null && (
-              <div className="flex items-center gap-2 text-xs">
+            {trip.profitRate != null && trip.profitRate > 0 && (
+              <div className="flex items-center gap-2 text-xs col-span-2">
                 <div className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="text-slate-500">Tỷ lệ công:</span>
+                <span className="text-slate-500">Đơn giá công:</span>
                 <span className="text-slate-700 font-medium ml-auto">
-                  {trip.profitRate.toLocaleString("vi-VN")}đ
+                  {trip.profitRate.toLocaleString("vi-VN")}đ / điểm
                 </span>
               </div>
             )}

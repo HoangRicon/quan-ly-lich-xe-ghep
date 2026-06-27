@@ -18,6 +18,7 @@ interface DriverStats {
   cancelledTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedProfit: number;
   totalPoints: number;
   assignedPointProfit: number;
   completionRate: number;
@@ -194,10 +195,9 @@ export function DriverReportTab({
         "Công theo gán (đ)": d.assignedPointProfit,
         "Doanh thu (đ)": d.totalRevenue,
         "Lợi nhuận HT (đ)": d.totalProfit,
+        "LN dự kiến (đ)": d.projectedProfit,
         "TB cuốc (đ)": Math.round(d.avgTripValue),
         "TB lợi nhuận HT (đ)": Math.round(d.avgProfitPerCompletedTrip),
-        "Gán gần nhất": formatDateTime(d.lastAssignedAt),
-        "Hoàn thành gần nhất": formatDateTime(d.lastCompletedAt),
         "Hạng": d.badge,
       }))
     );
@@ -351,23 +351,11 @@ export function DriverReportTab({
       ),
     },
     {
-      key: "lastAssignedAt",
-      label: "Gán gần nhất",
-      sortable: true,
-      render: (item: DriverStats) => (
-        <span className="text-slate-500 whitespace-nowrap">
-          {formatDateTime(item.lastAssignedAt)}
-        </span>
-      ),
-    },
-    {
-      key: "lastCompletedAt",
-      label: "Hoàn thành gần nhất",
+      key: "projectedProfit",
+      label: "LN dự kiến",
       sortable: false,
       render: (item: DriverStats) => (
-        <span className="text-slate-500 whitespace-nowrap">
-          {formatDateTime(item.lastCompletedAt)}
-        </span>
+        <span className="font-semibold text-blue-600">{formatVND(item.projectedProfit)}</span>
       ),
     },
     {
@@ -382,7 +370,7 @@ export function DriverReportTab({
           className="inline-flex min-h-8 items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400"
         >
           <History className="w-3.5 h-3.5" />
-          Cuốc
+          Lịch sử cuốc
         </button>
       ),
     },
@@ -403,15 +391,12 @@ export function DriverReportTab({
     [
       { label: "Doanh thu", value: formatVND(item.totalRevenue), color: "text-slate-800" },
       { label: "LN HT", value: formatVND(item.totalProfit), color: "text-blue-600" },
-      { label: "Điểm", value: item.totalPoints.toLocaleString("vi-VN"), color: "text-amber-600" },
+      { label: "LN dự kiến", value: formatVND(item.projectedProfit), color: "text-indigo-600" },
     ],
     [
       { label: "Công theo gán", value: formatVND(item.assignedPointProfit), color: "text-amber-700" },
       { label: "Tỷ lệ HT", value: formatPercent(item.completionRate), color: "text-green-600" },
-      { label: "Tỷ lệ hủy", value: formatPercent(item.cancelRate), color: "text-rose-600" },
-    ],
-    [
-      { label: "Gán gần nhất", value: formatDateTime(item.lastAssignedAt), color: "text-slate-600" },
+      { label: "Điểm", value: item.totalPoints.toLocaleString("vi-VN"), color: "text-amber-600" },
     ],
   ];
 
@@ -468,7 +453,7 @@ export function DriverReportTab({
             className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
           >
             <History className="h-3.5 w-3.5" />
-            Cuốc
+            Lịch sử cuốc
           </button>
         )}
       />
