@@ -5,6 +5,13 @@ import { parseQuickEntryDrafts } from "../lib/quick-trip-entry/smart-parser";
 
 let receivedExpectedDraftCount: number | undefined;
 
+function expectedLocalTimeIso(dayOffset: number, hour: number, minute = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  date.setHours(hour, minute, 0, 0);
+  return date.toISOString();
+}
+
 const provider: QuickTripAiProvider = {
   async parse() {
     return {};
@@ -188,7 +195,7 @@ async function main() {
   });
 
   assert.equal(repairedDrafts.length, 1);
-  assert.equal(repairedDrafts[0].candidate.departureTime, "2026-06-22T02:00:00.000Z");
+  assert.equal(repairedDrafts[0].candidate.departureTime, expectedLocalTimeIso(0, 9));
   assert.equal(repairedDrafts[0].candidate.price, 300000);
 
   const wrongRelativeDateAiProvider: QuickTripAiProvider = {
@@ -220,7 +227,7 @@ async function main() {
   assert.equal(relativeDateDrafts.length, 1);
   assert.equal(
     relativeDateDrafts[0].candidate.departureTime,
-    "2026-06-23T02:00:00.000Z",
+    expectedLocalTimeIso(1, 9),
   );
 
   console.log("quick-trip smart service checks passed");

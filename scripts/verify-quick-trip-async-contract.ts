@@ -20,6 +20,11 @@ async function main() {
   );
   assert.match(
     routeSource,
+    /parseMode:\s*normalizeParseMode\(body\.parseMode\)/,
+    "Route must pass parseMode into quick-entry service",
+  );
+  assert.match(
+    routeSource,
     /data\.processingMode === "async"/,
     "Route must branch on async quick-entry processing mode",
   );
@@ -68,6 +73,11 @@ async function main() {
   );
   assert.match(
     hookSource,
+    /parseMode/,
+    "Quick-create draft submission must include the selected parseMode",
+  );
+  assert.match(
+    hookSource,
     /expectedDraftCount:\s*inferExpectedDraftCount\(rawText\)/,
     "Quick-create draft submission must pass inferred expected draft count",
   );
@@ -75,6 +85,11 @@ async function main() {
     hookSource,
     /normalizeCreatedDraftItems/,
     "Quick-create draft hook must normalize async response items",
+  );
+  assert.doesNotMatch(
+    serviceSource,
+    /parseMode\s*===\s*"rule"[\s\S]{0,160}enrichCandidateWithAi/,
+    "Rule/TH mode must not call AI enrichment behind the scenes",
   );
 
   const duplicateRouteSource = await readFile(

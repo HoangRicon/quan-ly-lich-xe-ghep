@@ -9,6 +9,7 @@ import {
   inferExpectedDraftCount,
   isIsoDateTimeString,
 } from "../lib/quick-create/draft-helpers";
+import { PROMPT_SUGGESTIONS } from "../lib/quick-create/constants";
 import { generateAutoNote } from "../lib/quick-create/auto-note";
 import type { DraftItem } from "../lib/quick-create/types";
 
@@ -132,6 +133,7 @@ assert.equal(inferExpectedDraftCount("tao 3 cuoc xe HN - HP, 2 cuoc ND - TB"), 5
 assert.equal(inferExpectedDraftCount("tạo 3 cuốc xe HN - HP và 2 cuốc ND - TB"), 5);
 assert.equal(inferExpectedDraftCount("hom nay co 1 khach di HP"), undefined);
 assert.equal(inferExpectedDraftCount("0988123456 di 2 ghe"), undefined);
+assert.equal(PROMPT_SUGGESTIONS.length, 2, "Quick-create should show exactly 2 prompt suggestions");
 
 const reviewDraft = buildDraft({
   status: "needs_review",

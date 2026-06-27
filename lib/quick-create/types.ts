@@ -7,12 +7,16 @@ import type { QuickEntryItemStatus, QuickTripCandidate } from "@/lib/quick-trip-
 
 export type { QuickEntryItemStatus, QuickTripCandidate };
 
+/** Parse mode for creating drafts */
+export type ParseMode = "smart" | "rule";
+
 /** Serialized item as returned from API */
 export interface DraftItem {
   id: number;
   sessionId: number;
   rawText: string;
   source: string;
+  parseMode?: ParseMode;
   status: QuickEntryItemStatus;
   parsedData: QuickTripCandidate | null;
   missingFields: string[];

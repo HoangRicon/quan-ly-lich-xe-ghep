@@ -60,7 +60,6 @@ export const SWIPE_THRESHOLD_ACTION = 80;
 export const PROMPT_SUGGESTIONS = [
   "Mai có 2 khách đi HP → HN lúc 8h",
   "2 cuốc HP – HN 150k, 1 cuốc HN – HP 160k",
-  "Chị Lan đi HN – HP sáng mai 9h",
 ] as const;
 
 /** localStorage key for recent prompts */

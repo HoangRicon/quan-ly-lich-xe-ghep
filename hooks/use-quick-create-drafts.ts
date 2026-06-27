@@ -13,6 +13,7 @@ import type {
   DraftItem,
   DraftPromptUpdatePayload,
   DraftUpsertPayload,
+  ParseMode,
   SaveResult,
 } from "@/lib/quick-create/types";
 
@@ -83,6 +84,7 @@ export function useDrafts(sessionId: number | null) {
   const createDrafts = useCallback(
     async (
       rawText: string,
+      parseMode: ParseMode = "smart",
       source: "text" | "voice" | "paste" = "text",
     ): Promise<DraftItem[]> => {
       if (sessionId === null) throw new Error("No session selected");
@@ -93,6 +95,7 @@ export function useDrafts(sessionId: number | null) {
           rawText,
           source,
           autoSave: false,
+          parseMode,
           expectedDraftCount: inferExpectedDraftCount(rawText),
           processingMode: "async",
         }),
@@ -100,8 +103,9 @@ export function useDrafts(sessionId: number | null) {
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Tao ban nhap that bai");
       const items = normalizeCreatedDraftItems(json.data);
-      setDrafts((prev) => [...prev, ...items]);
-      return items;
+      const itemsWithMode = items.map((item) => ({ ...item, parseMode }));
+      setDrafts((prev) => [...prev, ...itemsWithMode]);
+      return itemsWithMode;
     },
     [sessionId],
   );
@@ -126,17 +130,21 @@ export function useDrafts(sessionId: number | null) {
     async (
       itemId: number,
       payload: DraftPromptUpdatePayload,
+      forceAiMode: boolean = true,
     ): Promise<DraftItem> => {
+      // When re-parsing, always use AI mode for better results
+      const parseMode = forceAiMode ? "smart" : undefined;
+
       const res = await fetch(`/api/quick-trip-entry/items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, parseMode }),
       });
       const json = await res.json();
       if (!json.success) {
         throw new Error(json.error ?? "Cap nhat prompt that bai");
       }
-      const item = json.data as DraftItem;
+      const item = { ...(json.data as DraftItem), parseMode: "smart" as const };
       setDrafts((prev) => prev.map((d) => (d.id === itemId ? item : d)));
       return item;
     },

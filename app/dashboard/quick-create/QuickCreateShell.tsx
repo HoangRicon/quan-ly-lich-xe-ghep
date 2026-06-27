@@ -18,6 +18,7 @@ import { useSessions } from "@/hooks/use-quick-create-sessions";
 import type {
   DraftItem,
   DraftUpsertPayload,
+  ParseMode,
   QuickEntrySession,
 } from "@/lib/quick-create/types";
 import { inferExpectedDraftCount } from "@/lib/quick-create/draft-helpers";
@@ -104,11 +105,11 @@ export default function QuickCreateShell() {
   );
 
   const handleSubmitPrompt = useCallback(
-    async (text: string) => {
+    async (text: string, parseMode: ParseMode = "smart") => {
       composer.setAnalyzing();
       try {
         composer.setGenerating();
-        const items = await createDrafts(text);
+        const items = await createDrafts(text, parseMode);
         composer.setDone();
         addPrompt(text);
         await Promise.all([mutateDrafts(), mutateSessions()]);
@@ -381,9 +382,11 @@ export default function QuickCreateShell() {
           state={composer.state}
           text={composer.text}
           errorMessage={composer.errorMessage}
+          parseMode={composer.parseMode}
           onTextChange={composer.setText}
-          onSubmit={handleSubmitPrompt}
+          onSubmit={(text) => handleSubmitPrompt(text, composer.parseMode)}
           onCancel={composer.reset}
+          onParseModeChange={composer.setParseMode}
           onSuggestionClick={(text) => composer.setText(text)}
         />
       </div>

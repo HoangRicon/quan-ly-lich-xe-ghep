@@ -28,6 +28,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function normalizeParseMode(value: unknown): "smart" | "rule" {
+  return value === "rule" ? "rule" : "smart";
+}
+
 async function getContext(): Promise<QuickEntryContext | NextResponse> {
   const user = await getSession();
 
@@ -76,7 +80,8 @@ export async function PATCH(
     >;
 
     if (body.reparse === true && typeof body.rawText === "string") {
-      const data = await reparseQuickEntryItem(prisma, context, id, body.rawText);
+      const parseMode = normalizeParseMode(body.parseMode);
+      const data = await reparseQuickEntryItem(prisma, context, id, body.rawText, parseMode);
       return jsonSuccess(data);
     }
 

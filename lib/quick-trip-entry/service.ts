@@ -6,7 +6,6 @@ import {
   type ParentDb,
 } from "@/lib/trips/create-trip";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
-import { getQuickTripAiProvider } from "./ai-provider";
 import {
   serializeQuickEntryItem,
   serializeQuickEntrySession,
@@ -146,38 +145,6 @@ function uniqueWarnings(warnings: string[]): string[] {
   return [...new Set(warnings)];
 }
 
-function pickUsefulCandidateFields(
-  candidate: Partial<QuickTripCandidate>,
-): Partial<QuickTripCandidate> {
-  return Object.fromEntries(
-    Object.entries(candidate).filter(([, value]) => {
-      if (value === undefined || value === null) return false;
-      return typeof value !== "string" || value.trim() !== "";
-    }),
-  ) as Partial<QuickTripCandidate>;
-}
-
-function chooseMergedPrice(
-  basePrice: number | undefined,
-  aiPrice: number | undefined,
-) {
-  if (!Number.isFinite(aiPrice) || aiPrice == null || aiPrice <= 0) {
-    return basePrice;
-  }
-
-  if (
-    Number.isFinite(basePrice) &&
-    basePrice != null &&
-    basePrice > 0 &&
-    basePrice >= 10_000 &&
-    aiPrice < 10_000
-  ) {
-    return basePrice;
-  }
-
-  return aiPrice;
-}
-
 function normalizeManualEditedCandidate(
   candidate: QuickTripCandidate,
 ): QuickTripCandidate {
@@ -203,44 +170,6 @@ function getQuickEntryProcessingQueueKey(
   input: CreateQuickEntryItemsInput,
 ) {
   return `${context.accountId}:${input.sessionId}`;
-}
-
-function mergeAiCandidate(
-  baseCandidate: QuickTripCandidate,
-  aiCandidate: Partial<QuickTripCandidate>,
-): QuickTripCandidate {
-  return normalizeCandidate({
-    ...baseCandidate,
-    ...pickUsefulCandidateFields(aiCandidate),
-    price: chooseMergedPrice(baseCandidate.price, aiCandidate.price),
-    confidence: Math.max(
-      Number(baseCandidate.confidence) || 0,
-      Number(aiCandidate.confidence) || 0,
-    ),
-    missingFields: [],
-    warnings: uniqueWarnings([
-      ...toStringArray(baseCandidate.warnings),
-      ...toStringArray(aiCandidate.warnings),
-    ]),
-  });
-}
-
-async function enrichCandidateWithAi(
-  rawText: string,
-  candidate: QuickTripCandidate,
-) {
-  const provider = getQuickTripAiProvider();
-  if (!provider) return candidate;
-
-  try {
-    const aiCandidate = await provider.parse(rawText);
-    return mergeAiCandidate(candidate, aiCandidate);
-  } catch {
-    return {
-      ...candidate,
-      warnings: uniqueWarnings([...candidate.warnings, "ai_parse_failed"]),
-    };
-  }
 }
 
 async function validateQuickTripCandidateForAccount(
@@ -340,14 +269,9 @@ async function persistQuickEntryChunk(
   placeholderItemId?: number,
 ): Promise<SerializedQuickEntryItem> {
   const db = getTenantDb(parentDb, context);
-  const parseMode = input.parseMode ?? "smart";
-  const enrichedCandidate =
-    parseMode === "rule"
-      ? await enrichCandidateWithAi(chunk.rawText, chunk.candidate)
-      : chunk.candidate;
   const validation = await validateQuickTripCandidateForAccount(
     db,
-    enrichedCandidate,
+    chunk.candidate,
   );
   const candidate = validation.candidate;
   const itemData = {
@@ -701,6 +625,7 @@ export async function reparseQuickEntryItem(
   context: QuickEntryContext,
   itemId: number,
   rawText: string,
+  parseMode: QuickEntryParseMode = "smart",
 ) {
   const text = rawText.trim();
 
@@ -710,7 +635,7 @@ export async function reparseQuickEntryItem(
 
   const parsedChunks = await parseQuickEntryDrafts({
     rawText: text,
-    parseMode: "smart",
+    parseMode,
   });
   const firstChunk = parsedChunks[0];
 

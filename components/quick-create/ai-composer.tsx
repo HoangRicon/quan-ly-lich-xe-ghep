@@ -2,17 +2,20 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Send, X, Trash2 } from "lucide-react";
-import type { ComposerState } from "@/lib/quick-create/types";
+import type { ComposerState, ParseMode } from "@/lib/quick-create/types";
 import { COMPOSER_STATE_LABELS } from "@/lib/quick-create/constants";
 import { PromptSuggestions } from "./prompt-suggestions";
+import { ModeToggle } from "./mode-toggle";
 
 interface AIComposerProps {
   state: ComposerState;
   text: string;
   errorMessage: string | null;
+  parseMode: ParseMode;
   onTextChange: (text: string) => void;
   onSubmit: (text: string) => void;
   onCancel?: () => void;
+  onParseModeChange?: (mode: ParseMode) => void;
   /** Only fills text into the input — does NOT submit */
   onSuggestionClick?: (text: string) => void;
 }
@@ -21,14 +24,17 @@ export function AIComposer({
   state,
   text,
   errorMessage,
+  parseMode,
   onTextChange,
   onSubmit,
   onCancel,
+  onParseModeChange,
   onSuggestionClick,
 }: AIComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const isLoading = state === "analyzing" || state === "generating";
+  const shouldShowSuggestions = showSuggestions && !text && state === "idle";
 
   // Auto-grow textarea
   const adjustHeight = useCallback(() => {
@@ -62,8 +68,16 @@ export function AIComposer({
 
   return (
     <div className="bg-white border-t border-slate-200 px-4 pt-3 pb-4 safe-area-inset-bottom">
+      <div className="mb-2 flex flex-wrap items-center justify-start gap-2">
+        <ModeToggle
+          mode={parseMode}
+          onModeChange={onParseModeChange ?? (() => {})}
+          disabled={isLoading || !onParseModeChange}
+        />
+      </div>
+
       {/* Suggestions */}
-      {showSuggestions && !text && state === "idle" && (
+      {shouldShowSuggestions && (
         <PromptSuggestions
           onSuggestionClick={(suggestion) => {
             (onSuggestionClick ?? onTextChange)(suggestion);

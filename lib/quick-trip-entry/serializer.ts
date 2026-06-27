@@ -46,15 +46,21 @@ export function serializeQuickEntrySession(
 }
 
 export function serializeQuickEntryItem(item: QuickEntryItemPayload) {
+  // Infer parseMode from warnings: if ai_parse_failed exists, it's rule-based
+  const warnings = jsonArrayOrEmpty(item.warnings);
+  const hasAiFailedWarning = warnings.includes("ai_parse_failed");
+  const parseMode: "smart" | "rule" | undefined = hasAiFailedWarning ? "rule" : "smart";
+
   return {
     id: item.id,
     sessionId: item.sessionId,
     rawText: item.rawText,
     source: item.source,
+    parseMode,
     status: item.parseStatus,
     parsedData: item.parsedData,
     missingFields: jsonArrayOrEmpty(item.missingFields),
-    warnings: jsonArrayOrEmpty(item.warnings),
+    warnings,
     confidence: item.confidence == null ? null : Number(item.confidence),
     createdTripId: item.createdTripId,
     errorMessage: item.errorMessage,

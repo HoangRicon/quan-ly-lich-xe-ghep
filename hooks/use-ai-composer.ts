@@ -3,14 +3,16 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import type { ComposerState } from "@/lib/quick-create/types";
+import type { ComposerState, ParseMode } from "@/lib/quick-create/types";
 
 export interface UseAIComposerReturn {
   state: ComposerState;
   text: string;
   errorMessage: string | null;
+  parseMode: ParseMode;
   setText: (text: string) => void;
   appendText: (text: string) => void;
+  setParseMode: (mode: ParseMode) => void;
   setAnalyzing: () => void;
   setGenerating: () => void;
   setDone: () => void;
@@ -18,10 +20,18 @@ export interface UseAIComposerReturn {
   reset: () => void;
 }
 
+function getDefaultParseMode(): ParseMode {
+  if (typeof window === "undefined") return "smart";
+  const stored = localStorage.getItem("quick-create-parse-mode");
+  if (stored === "smart" || stored === "rule") return stored;
+  return "smart";
+}
+
 export function useAIComposer(): UseAIComposerReturn {
   const [state, setState] = useState<ComposerState>("idle");
   const [text, setTextState] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [parseMode, setParseModeState] = useState<ParseMode>(getDefaultParseMode);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = () => {
@@ -37,6 +47,11 @@ export function useAIComposer(): UseAIComposerReturn {
 
   const appendText = useCallback((t: string) => {
     setTextState((prev) => (prev ? `${prev} ${t}` : t));
+  }, []);
+
+  const setParseMode = useCallback((mode: ParseMode) => {
+    setParseModeState(mode);
+    localStorage.setItem("quick-create-parse-mode", mode);
   }, []);
 
   const setAnalyzing = useCallback(() => {
@@ -73,8 +88,10 @@ export function useAIComposer(): UseAIComposerReturn {
     state,
     text,
     errorMessage,
+    parseMode,
     setText,
     appendText,
+    setParseMode,
     setAnalyzing,
     setGenerating,
     setDone,
