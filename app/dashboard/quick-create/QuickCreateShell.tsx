@@ -98,7 +98,7 @@ export default function QuickCreateShell() {
         setSelectedSessionId(session.id);
         await mutateSessions();
       } catch {
-        showToast("Tao phien that bai", "error");
+        showToast("Tạo phiên thất bại", "error");
       }
     },
     [createSession, mutateSessions, showToast],
@@ -114,19 +114,19 @@ export default function QuickCreateShell() {
         addPrompt(text);
         await Promise.all([mutateDrafts(), mutateSessions()]);
         if (items.length === 0) {
-          showToast("Khong nhan dien duoc cuoc xe nao", "error");
+          showToast("Không nhận diện được cuốc xe nào", "error");
         } else {
           const expectedDraftCount = inferExpectedDraftCount(text);
           showToast(
             expectedDraftCount
-              ? `Dang tao ${expectedDraftCount} ban nhap`
-              : "Dang tao ban nhap",
+              ? `Đang tạo ${expectedDraftCount} bản nháp`
+              : "Đang tạo bản nháp",
             "success",
           );
         }
       } catch (error) {
-        composer.setError(error instanceof Error ? error.message : "Loi khi tao ban nhap");
-        showToast("Tao ban nhap that bai", "error");
+        composer.setError(error instanceof Error ? error.message : "Lỗi khi tạo bản nháp");
+        showToast("Tạo bản nháp thất bại", "error");
       }
     },
     [addPrompt, composer, createDrafts, mutateDrafts, mutateSessions, showToast],
@@ -138,13 +138,13 @@ export default function QuickCreateShell() {
       try {
         const result = await saveDraft(item.id);
         if (result.success) {
-          showToast("Da tao cuoc xe!", "success");
+          showToast("Đã tạo cuốc xe!", "success");
           await Promise.all([mutateDrafts(), mutateSessions()]);
           return;
         }
-        showToast(result.error ?? "Tao cuoc xe that bai", "error");
+        showToast(result.error ?? "Tạo cuốc xe thất bại", "error");
       } catch {
-        showToast("Tao cuoc xe that bai", "error");
+        showToast("Tạo cuốc xe thất bại", "error");
       } finally {
         setCreatingItemId(null);
       }
@@ -164,9 +164,9 @@ export default function QuickCreateShell() {
     try {
       await discardDraft(item.id);
       await Promise.all([mutateDrafts(), mutateSessions()]);
-      showToast("Da xoa ban nhap", "success");
+      showToast("Đã xóa bản nháp", "success");
     } catch {
-      showToast("Xoa ban nhap that bai", "error");
+      showToast("Xóa bản nháp thất bại", "error");
     } finally {
       setDeletingItemId(null);
     }
@@ -176,9 +176,9 @@ export default function QuickCreateShell() {
     async (item: DraftItem) => {
       try {
         await duplicateDraft(item.id);
-        showToast("Da nhan doi ban nhap", "success");
+        showToast("Đã nhân đôi bản nháp", "success");
       } catch {
-        showToast("Nhan doi ban nhap that bai", "error");
+        showToast("Nhân đôi bản nháp thất bại", "error");
       }
     },
     [duplicateDraft, showToast],
@@ -191,15 +191,15 @@ export default function QuickCreateShell() {
         await Promise.all([mutateDrafts(), mutateSessions()]);
         showToast(
           parseMode === "smart"
-            ? "Da phan tich ban nhap bang AI"
-            : "Da phan tich ban nhap bang quy tac thuong",
+            ? "Đã phân tích bản nháp bằng AI"
+            : "Đã phân tích bản nháp bằng quy tắc thường",
           "success",
         );
       } catch {
         showToast(
           parseMode === "smart"
-            ? "Phan tich AI that bai"
-            : "Phan tich thuong that bai",
+            ? "Phân tích AI thất bại"
+            : "Phân tích thường thất bại",
           "error",
         );
       }
@@ -212,9 +212,9 @@ export default function QuickCreateShell() {
       try {
         await updateDraft(itemId, parsedData);
         await Promise.all([mutateDrafts(), mutateSessions()]);
-        showToast("Da luu ban nhap", "success");
+        showToast("Đã lưu bản nháp", "success");
       } catch {
-        showToast("Luu ban nhap that bai", "error");
+        showToast("Lưu bản nháp thất bại", "error");
       }
     },
     [mutateDrafts, mutateSessions, showToast, updateDraft],
@@ -226,13 +226,13 @@ export default function QuickCreateShell() {
       try {
         const result = await saveDraftWithParsedData(itemId, parsedData);
         if (result.success) {
-          showToast("Da tao cuoc xe!", "success");
+          showToast("Đã tạo cuốc xe!", "success");
           await Promise.all([mutateDrafts(), mutateSessions()]);
           return;
         }
-        showToast(result.error ?? "Tao cuoc xe that bai", "error");
+        showToast(result.error ?? "Tạo cuốc xe thất bại", "error");
       } catch {
-        showToast("Tao cuoc xe that bai", "error");
+        showToast("Tạo cuốc xe thất bại", "error");
       } finally {
         setCreatingItemId(null);
       }
@@ -283,7 +283,14 @@ export default function QuickCreateShell() {
           >
             <ArrowLeft className="h-5 w-5 text-slate-600" />
           </button>
-          <h1 className="text-lg font-semibold text-slate-800">Tao nhanh</h1>
+          <h1 className="text-lg font-semibold text-slate-800">
+            Tạo nhanh
+            {unsavedDrafts.length > 0 && (
+              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-xs font-bold text-white">
+                {unsavedDrafts.length}
+              </span>
+            )}
+          </h1>
         </div>
         <SessionSwitcher
           sessions={sessions}
@@ -360,16 +367,16 @@ export default function QuickCreateShell() {
               />
             </svg>
             <p className="mb-1 text-sm font-medium text-slate-500">
-              Chua co phien lam viec nao
+              Chưa có phiên làm việc nào
             </p>
             <p className="mb-4 text-xs text-slate-400">
-              Tao phien dau tien de bat dau
+              Tạo phiên đầu tiên để bắt đầu
             </p>
             <button
               onClick={() => void handleCreateSession()}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
             >
-              Tao phien moi
+              Tạo phiên mới
             </button>
           </div>
         ) : (
@@ -447,10 +454,10 @@ export default function QuickCreateShell() {
 
       <ConfirmDialog
         open={!!deleteConfirm}
-        title="Xoa ban nhap?"
-        message="Hanh dong nay khong the hoan tac. Ban nhap se bi xoa vinh vien."
-        confirmLabel="Xoa"
-        cancelLabel="Huy"
+        title="Xóa bản nháp?"
+        message="Hành động này không thể hoàn tác. Bản nháp sẽ bị xóa vĩnh viễn."
+        confirmLabel="Xóa"
+        cancelLabel="Hủy"
         variant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirm(null)}

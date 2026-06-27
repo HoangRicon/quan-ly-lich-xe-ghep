@@ -255,60 +255,52 @@ export const DraftCard = memo(function DraftCard({
               </div>
             )}
             {uncertaintyNotes.length > 0 && (
-              <div className="space-y-1 rounded-md border border-blue-100 bg-blue-50 px-2 py-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-                  Lưu ý thông tin chưa rõ
-                </p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
                 {uncertaintyNotes.map((note) => (
-                  <div key={note.key} className="text-[10px] text-blue-700">
-                    <span className="font-semibold">{note.title}:</span>{" "}
-                    <span className="text-blue-600">{note.description}</span>
-                  </div>
+                  <span key={note.key} className="text-[10px] text-amber-600">
+                    <span className="font-medium">{note.title}</span>: {note.description}
+                  </span>
                 ))}
               </div>
             )}
-            {hasPromptChanged && onUpdatePrompt && (
-              <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50 p-2">
-                <p className="text-[10px] text-slate-400">
-                  Prompt đã thay đổi. Chọn cách phân tích lại:
-                </p>
-                <div className="flex flex-wrap items-center gap-1.5">
+            {onUpdatePrompt && (
+              <>
+                <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => void handlePromptSave("rule")}
-                    disabled={!canUpdatePrompt || savingPromptMode !== null}
-                    className="flex min-h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Phân tích nhanh bằng quy tắc"
+                    disabled={!hasPromptChanged || savingPromptMode !== null}
+                    className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    title="Nhanh: rõ ràng, có cấu trúc"
                   >
                     {savingPromptMode === "rule" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <FileText className="h-3.5 w-3.5" />
+                      <FileText className="h-4 w-4" />
                     )}
                     Phân tích nhanh
                   </button>
-                  <span className="text-[10px] text-slate-400">hoặc</span>
                   <button
                     type="button"
                     onClick={() => void handlePromptSave("smart")}
-                    disabled={!canUpdatePrompt || savingPromptMode !== null}
-                    className="flex min-h-8 items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Phân tích sâu bằng AI"
+                    disabled={!hasPromptChanged || savingPromptMode !== null}
+                    className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title="Sâu: phức tạp, nhiều ý lạ"
                   >
                     {savingPromptMode === "smart" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Sparkles className="h-3.5 w-3.5" />
+                      <Sparkles className="h-4 w-4" />
                     )}
                     Phân tích sâu
                   </button>
                 </div>
-                <p className="text-[10px] text-slate-400 leading-relaxed">
-                  <span className="font-medium text-slate-600">Nhanh:</span> Dùng khi prompt rõ ràng, có cấu trúc.
-                  <span className="mx-1">|</span>
-                  <span className="font-medium text-blue-600">Sâu:</span> Dùng khi prompt phức tạp, nhiều ý lạ, thiếu thông tin.
-                </p>
-              </div>
+                {!hasPromptChanged && (
+                  <p className="text-center text-[10px] text-slate-400">
+                    Sửa prompt để phân tích lại
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
