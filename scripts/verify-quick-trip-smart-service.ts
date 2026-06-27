@@ -5,13 +5,6 @@ import { parseQuickEntryDrafts } from "../lib/quick-trip-entry/smart-parser";
 
 let receivedExpectedDraftCount: number | undefined;
 
-function buildLocalIsoForDayOffset(dayOffset: number, hour: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + dayOffset);
-  date.setHours(hour, 0, 0, 0);
-  return date.toISOString();
-}
-
 const provider: QuickTripAiProvider = {
   async parse() {
     return {};
@@ -61,7 +54,6 @@ async function main() {
   assert.equal(receivedExpectedDraftCount, 2);
   assert.equal(smartDrafts.length, 2);
   assert.equal(smartDrafts[0].candidate.confidence, 0.95);
-  assert.equal(smartDrafts[0].candidate.analysisSource, "ai");
   assert.deepEqual(smartDrafts[0].candidate.warnings, []);
 
   const groupedFallbackDrafts = await parseQuickEntryDrafts({
@@ -135,11 +127,6 @@ async function main() {
 
   assert.equal(fallbackDrafts.length, 1);
   assert.ok(fallbackDrafts[0].candidate.warnings.includes("ai_parse_failed"));
-  assert.equal(fallbackDrafts[0].candidate.analysisSource, "rule");
-  assert.equal(
-    fallbackDrafts[0].candidate.analysisMessage,
-    "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.",
-  );
   assert.equal(fallbackDrafts[0].candidate.price, 150000);
 
   const partialAiProvider: QuickTripAiProvider = {
@@ -201,10 +188,7 @@ async function main() {
   });
 
   assert.equal(repairedDrafts.length, 1);
-  assert.equal(
-    repairedDrafts[0].candidate.departureTime,
-    buildLocalIsoForDayOffset(0, 9),
-  );
+  assert.equal(repairedDrafts[0].candidate.departureTime, "2026-06-22T02:00:00.000Z");
   assert.equal(repairedDrafts[0].candidate.price, 300000);
 
   const wrongRelativeDateAiProvider: QuickTripAiProvider = {
@@ -236,7 +220,7 @@ async function main() {
   assert.equal(relativeDateDrafts.length, 1);
   assert.equal(
     relativeDateDrafts[0].candidate.departureTime,
-    buildLocalIsoForDayOffset(1, 9),
+    "2026-06-23T02:00:00.000Z",
   );
 
   console.log("quick-trip smart service checks passed");

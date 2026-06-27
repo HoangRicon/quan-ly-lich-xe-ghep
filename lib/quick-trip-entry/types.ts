@@ -22,8 +22,6 @@ export type QuickEntryProcessingMode =
   (typeof QUICK_ENTRY_PROCESSING_MODES)[keyof typeof QUICK_ENTRY_PROCESSING_MODES];
 
 export interface QuickTripCandidate {
-  analysisSource?: "ai" | "rule";
-  analysisMessage?: string;
   customerPhone?: string;
   customerName?: string;
   departure?: string;

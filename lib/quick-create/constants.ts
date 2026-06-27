@@ -40,7 +40,7 @@ export const WARNING_LABELS: Record<string, string> = {
   missing_destination: "Thiếu điểm trả",
   missing_time:    "Thiếu giờ đi",
   invalid_driver:  "Tài xế không hợp lệ",
-  ai_parse_failed: "AI không kết nối",
+  ai_parse_failed: "AI lỗi",
 };
 
 /** AI Composer state labels */

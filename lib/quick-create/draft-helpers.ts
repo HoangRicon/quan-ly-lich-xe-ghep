@@ -19,15 +19,6 @@ export interface DraftUncertaintyNote {
   description: string;
 }
 
-export interface DraftAnalysisBadge {
-  label: string;
-  title: string;
-  className: string;
-}
-
-export const RULE_FALLBACK_ANALYSIS_MESSAGE =
-  "AI không kết nối được, hệ thống đã tạo bản nháp bằng quy tắc thường. Vui lòng kiểm tra lại thông tin trước khi tạo cuốc.";
-
 const MISSING_FIELD_COPY: Record<string, { label: string; description: string }> = {
   customerPhone: {
     label: "Thiếu SĐT",
@@ -81,8 +72,8 @@ const WARNING_NOTE_COPY: Record<string, { title: string; description: string }> 
     description: "Tài xế AI gán vào không tồn tại hoặc không có vai trò tài xế.",
   },
   ai_parse_failed: {
-    title: "AI không kết nối được",
-    description: RULE_FALLBACK_ANALYSIS_MESSAGE,
+    title: "AI chưa đọc được hết",
+    description: "Hệ thống đã dùng bộ tách cơ bản, nên có thể cần bổ sung lại prompt.",
   },
   low_confidence: {
     title: "Độ tin cậy thấp",
@@ -178,34 +169,6 @@ export function getDraftUncertaintyNotes(item: DraftItem): DraftUncertaintyNote[
       description: copy.description,
     };
   });
-}
-
-export function getDraftAnalysisBadge(item: DraftItem): DraftAnalysisBadge | null {
-  const source = item.parsedData?.analysisSource;
-  const parsedWarnings = Array.isArray(item.parsedData?.warnings)
-    ? item.parsedData.warnings
-    : [];
-  const hasRuleFallbackWarning =
-    item.warnings.includes("ai_parse_failed") ||
-    parsedWarnings.includes("ai_parse_failed");
-
-  if (source === "ai") {
-    return {
-      label: "AI phân tích",
-      title: "Bản nháp được AI phân tích.",
-      className: "bg-indigo-50 text-indigo-700 border-indigo-100",
-    };
-  }
-
-  if (source === "rule" || hasRuleFallbackWarning) {
-    return {
-      label: "Quy tắc thường",
-      title: item.parsedData?.analysisMessage ?? RULE_FALLBACK_ANALYSIS_MESSAGE,
-      className: "bg-slate-50 text-slate-700 border-slate-200",
-    };
-  }
-
-  return null;
 }
 
 const VIETNAMESE_NUMBER_WORDS: Record<string, number> = {
