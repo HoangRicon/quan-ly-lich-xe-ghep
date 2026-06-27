@@ -12,16 +12,16 @@ interface ModeToggleProps {
 const MODE_OPTIONS = [
   {
     value: "rule",
-    label: "TH",
-    title: "Quy tắc thường",
-    description: "Nhanh, không gọi AI",
+    label: "Nhanh",
+    title: "Phân tích nhanh",
+    description: "Dùng khi prompt rõ ràng, có cấu trúc",
     Icon: FileText,
   },
   {
     value: "smart",
-    label: "AI",
-    title: "AI",
-    description: "Phân tích thông minh",
+    label: "Sâu",
+    title: "Phân tích sâu",
+    description: "Dùng khi prompt phức tạp, nhiều ý lạ, thiếu thông tin",
     Icon: Sparkles,
   },
 ] as const;

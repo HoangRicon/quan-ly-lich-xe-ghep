@@ -60,12 +60,12 @@ export const SWIPE_THRESHOLD_ACTION = 80;
 export const PROMPT_SUGGESTIONS = [
   {
     mode: "smart",
-    label: "AI",
-    text: "2 cuốc HP – HN 150k, 1 cuốc HN – HP 160k",
+    label: "Sâu",
+    text: "Mai 8h sáng có 2 bác Thắng và Minh đi từ bến xe Hải Phòng ra bến xe Nội Bài, ngồi ghế 3 và 5, trả 150k mỗi người",
   },
   {
     mode: "rule",
-    label: "TH",
+    label: "Nhanh",
     text: "8h ngày mai bx HP - HN 900k 0912345678",
   },
 ] as const;

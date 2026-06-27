@@ -9,12 +9,12 @@ async function main() {
 
   assert.match(
     draftCardSource,
-    /Phân tích thường/,
+    /Phân tích nhanh/,
     "Draft prompt tools must expose a rule-based reparse button",
   );
   assert.match(
     draftCardSource,
-    /Phân tích AI/,
+    /Phân tích sâu/,
     "Draft prompt tools must label the AI reparse action clearly",
   );
   assert.match(

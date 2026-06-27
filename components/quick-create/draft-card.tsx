@@ -70,6 +70,7 @@ export const DraftCard = memo(function DraftCard({
   const canCreateRide = canCreateRideFromDraft(item);
   const canUpdatePrompt =
     Boolean(onUpdatePrompt) && promptText.trim().length > 0;
+  const hasPromptChanged = promptText.trim() !== item.rawText.trim();
 
   useEffect(() => {
     setPromptText(item.rawText);
@@ -266,51 +267,49 @@ export const DraftCard = memo(function DraftCard({
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] text-slate-400">
-                Bổ sung thông tin còn thiếu rồi phân tích lại bản nháp này.
-              </span>
-              {onUpdatePrompt && (
-                <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
+            {hasPromptChanged && onUpdatePrompt && (
+              <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50 p-2">
+                <p className="text-[10px] text-slate-400">
+                  Prompt đã thay đổi. Chọn cách phân tích lại:
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => void handlePromptSave("rule")}
                     disabled={!canUpdatePrompt || savingPromptMode !== null}
                     className="flex min-h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                    title={
-                      canUpdatePrompt
-                        ? "Phân tích prompt bằng quy tắc thường"
-                        : "Sửa prompt trước khi phân tích lại"
-                    }
+                    title="Phân tích nhanh bằng quy tắc"
                   >
                     {savingPromptMode === "rule" ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <FileText className="h-3.5 w-3.5" />
                     )}
-                    Phân tích thường
+                    Phân tích nhanh
                   </button>
+                  <span className="text-[10px] text-slate-400">hoặc</span>
                   <button
                     type="button"
                     onClick={() => void handlePromptSave("smart")}
                     disabled={!canUpdatePrompt || savingPromptMode !== null}
                     className="flex min-h-8 items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-                    title={
-                      canUpdatePrompt
-                        ? "Phân tích prompt bằng AI"
-                        : "Sửa prompt trước khi phân tích lại"
-                    }
+                    title="Phân tích sâu bằng AI"
                   >
                     {savingPromptMode === "smart" ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Sparkles className="h-3.5 w-3.5" />
                     )}
-                    Phân tích AI
+                    Phân tích sâu
                   </button>
                 </div>
-              )}
-            </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  <span className="font-medium text-slate-600">Nhanh:</span> Dùng khi prompt rõ ràng, có cấu trúc.
+                  <span className="mx-1">|</span>
+                  <span className="font-medium text-blue-600">Sâu:</span> Dùng khi prompt phức tạp, nhiều ý lạ, thiếu thông tin.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
