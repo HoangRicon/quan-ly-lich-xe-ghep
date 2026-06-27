@@ -66,7 +66,7 @@ export const PROMPT_SUGGESTIONS = [
   {
     mode: "rule",
     label: "TH",
-    text: "8h sáng mai bx HP - HN 900k 0912345678",
+    text: "8h ngày mai bx HP - HN 900k 0912345678",
   },
 ] as const;
 

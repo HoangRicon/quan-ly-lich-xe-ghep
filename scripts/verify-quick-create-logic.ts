@@ -146,7 +146,7 @@ assert.equal(
 );
 assert.equal(
   PROMPT_SUGGESTIONS[1].text,
-  "8h sáng mai bx HP - HN 900k 0912345678",
+  "8h ngày mai bx HP - HN 900k 0912345678",
 );
 const ruleSuggestionCandidate = parseQuickTripChunk(
   PROMPT_SUGGESTIONS[1].text,

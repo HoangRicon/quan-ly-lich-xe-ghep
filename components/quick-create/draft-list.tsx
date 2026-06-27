@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import type { DraftItem } from "@/lib/quick-create/types";
+import type { DraftItem, ParseMode } from "@/lib/quick-create/types";
 import { DraftCard } from "./draft-card";
 
 interface DraftListProps {
@@ -11,7 +11,11 @@ interface DraftListProps {
   deletingItemId?: number | null;
   onCreateRide?: (item: DraftItem) => void;
   onEdit?: (item: DraftItem) => void;
-  onUpdatePrompt?: (item: DraftItem, rawText: string) => Promise<void>;
+  onUpdatePrompt?: (
+    item: DraftItem,
+    rawText: string,
+    parseMode: ParseMode,
+  ) => Promise<void>;
   onDelete?: (item: DraftItem) => void;
   onDuplicate?: (item: DraftItem) => void;
 }

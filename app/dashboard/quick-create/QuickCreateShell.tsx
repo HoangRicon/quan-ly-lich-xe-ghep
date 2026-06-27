@@ -185,13 +185,23 @@ export default function QuickCreateShell() {
   );
 
   const handleUpdateDraftPrompt = useCallback(
-    async (item: DraftItem, rawText: string) => {
+    async (item: DraftItem, rawText: string, parseMode: ParseMode) => {
       try {
-        await updateDraftPrompt(item.id, { rawText, reparse: true });
+        await updateDraftPrompt(item.id, { rawText, reparse: true }, parseMode);
         await Promise.all([mutateDrafts(), mutateSessions()]);
-        showToast("Da phan tich lai ban nhap", "success");
+        showToast(
+          parseMode === "smart"
+            ? "Da phan tich ban nhap bang AI"
+            : "Da phan tich ban nhap bang quy tac thuong",
+          "success",
+        );
       } catch {
-        showToast("Phan tich lai that bai", "error");
+        showToast(
+          parseMode === "smart"
+            ? "Phan tich AI that bai"
+            : "Phan tich thuong that bai",
+          "error",
+        );
       }
     },
     [mutateDrafts, mutateSessions, showToast, updateDraftPrompt],

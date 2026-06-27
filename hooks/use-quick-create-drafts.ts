@@ -130,11 +130,8 @@ export function useDrafts(sessionId: number | null) {
     async (
       itemId: number,
       payload: DraftPromptUpdatePayload,
-      forceAiMode: boolean = true,
+      parseMode: ParseMode = "smart",
     ): Promise<DraftItem> => {
-      // When re-parsing, always use AI mode for better results
-      const parseMode = forceAiMode ? "smart" : undefined;
-
       const res = await fetch(`/api/quick-trip-entry/items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -144,7 +141,7 @@ export function useDrafts(sessionId: number | null) {
       if (!json.success) {
         throw new Error(json.error ?? "Cap nhat prompt that bai");
       }
-      const item = { ...(json.data as DraftItem), parseMode: "smart" as const };
+      const item = { ...(json.data as DraftItem), parseMode } as const;
       setDrafts((prev) => prev.map((d) => (d.id === itemId ? item : d)));
       return item;
     },

@@ -6,6 +6,7 @@ import {
   Car,
   ChevronDown,
   Copy,
+  FileText,
   Loader2,
   MessageCircle,
   Sparkles,
@@ -25,13 +26,17 @@ import {
   formatTime,
   formatZaloLink,
 } from "@/lib/quick-create/formatters";
-import type { DraftItem } from "@/lib/quick-create/types";
+import type { DraftItem, ParseMode } from "@/lib/quick-create/types";
 
 interface DraftCardProps {
   item: DraftItem;
   onCreateRide?: (item: DraftItem) => void;
   onEdit?: (item: DraftItem) => void;
-  onUpdatePrompt?: (item: DraftItem, rawText: string) => Promise<void>;
+  onUpdatePrompt?: (
+    item: DraftItem,
+    rawText: string,
+    parseMode: ParseMode,
+  ) => Promise<void>;
   onDelete?: (item: DraftItem) => void;
   onDuplicate?: (item: DraftItem) => void;
   isCreating?: boolean;
@@ -50,7 +55,7 @@ export const DraftCard = memo(function DraftCard({
 }: DraftCardProps) {
   const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [promptText, setPromptText] = useState(item.rawText);
-  const [isPromptSaving, setIsPromptSaving] = useState(false);
+  const [savingPromptMode, setSavingPromptMode] = useState<ParseMode | null>(null);
 
   const parsed = item.parsedData;
   const statusCfg = DRAFT_STATUS_CONFIG[item.status] ?? DRAFT_STATUS_CONFIG.pending;
@@ -63,9 +68,8 @@ export const DraftCard = memo(function DraftCard({
   const isPending = item.status === "pending";
   const isIncomplete = issueCards.length > 0;
   const canCreateRide = canCreateRideFromDraft(item);
-  const promptChanged = promptText.trim() !== item.rawText.trim();
   const canUpdatePrompt =
-    Boolean(onUpdatePrompt) && promptText.trim().length > 0 && promptChanged;
+    Boolean(onUpdatePrompt) && promptText.trim().length > 0;
 
   useEffect(() => {
     setPromptText(item.rawText);
@@ -89,14 +93,14 @@ export const DraftCard = memo(function DraftCard({
     return Boolean(target.closest("button,a,textarea,input,select"));
   };
 
-  const handlePromptSave = async () => {
+  const handlePromptSave = async (parseMode: ParseMode) => {
     if (!onUpdatePrompt || !canUpdatePrompt) return;
 
-    setIsPromptSaving(true);
+    setSavingPromptMode(parseMode);
     try {
-      await onUpdatePrompt(item, promptText.trim());
+      await onUpdatePrompt(item, promptText.trim(), parseMode);
     } finally {
-      setIsPromptSaving(false);
+      setSavingPromptMode(null);
     }
   };
 
@@ -262,29 +266,49 @@ export const DraftCard = memo(function DraftCard({
                 ))}
               </div>
             )}
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[10px] text-slate-400">
                 Bổ sung thông tin còn thiếu rồi phân tích lại bản nháp này.
               </span>
               {onUpdatePrompt && (
-                <button
-                  type="button"
-                  onClick={() => void handlePromptSave()}
-                  disabled={!canUpdatePrompt || isPromptSaving}
-                  className="flex min-h-8 flex-shrink-0 items-center gap-1 rounded-md bg-slate-800 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  title={
-                    canUpdatePrompt
-                      ? "Phân tích lại prompt"
-                      : "Sửa prompt trước khi phân tích lại"
-                  }
-                >
-                  {isPromptSaving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  )}
-                  Phân tích lại
-                </button>
+                <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void handlePromptSave("rule")}
+                    disabled={!canUpdatePrompt || savingPromptMode !== null}
+                    className="flex min-h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      canUpdatePrompt
+                        ? "Phân tích prompt bằng quy tắc thường"
+                        : "Sửa prompt trước khi phân tích lại"
+                    }
+                  >
+                    {savingPromptMode === "rule" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileText className="h-3.5 w-3.5" />
+                    )}
+                    Phân tích thường
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handlePromptSave("smart")}
+                    disabled={!canUpdatePrompt || savingPromptMode !== null}
+                    className="flex min-h-8 items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      canUpdatePrompt
+                        ? "Phân tích prompt bằng AI"
+                        : "Sửa prompt trước khi phân tích lại"
+                    }
+                  >
+                    {savingPromptMode === "smart" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    Phân tích AI
+                  </button>
+                </div>
               )}
             </div>
           </div>
