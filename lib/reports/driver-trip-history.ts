@@ -1,5 +1,13 @@
-import { TRIP_EVENT_TYPES } from "@/lib/trip-events";
 import type { ReportRangeFilter } from "@/lib/reports/date-range";
+import {
+  buildTripDateWhere,
+  DEFAULT_REPORT_DATE_BASIS,
+  eventTripIds,
+  hasReportRange,
+  REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+  REPORT_TRIP_COMPLETION_EVENT_TYPES,
+  type ReportDateBasis,
+} from "@/lib/reports/date-basis";
 import { toMoneyNumber } from "@/lib/reports/trip-metrics";
 
 type DriverTripHistoryDb = {
@@ -42,6 +50,7 @@ export type DriverTripHistoryInput = {
   accountId: number;
   driverId: number;
   current?: ReportRangeFilter;
+  dateBasis?: ReportDateBasis;
   page?: number;
   limit?: number;
 };
@@ -80,15 +89,234 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
   return intValue > 0 ? intValue : fallback;
 }
 
-function hasRangeFilter(range: ReportRangeFilter | undefined): range is ReportRangeFilter {
-  return Boolean(range && Object.keys(range).length > 0);
-}
-
 function isNewerEvent(event: AssignmentEvent, current: AssignmentEvent): boolean {
   if (event.createdAt > current.createdAt) return true;
   if (event.createdAt < current.createdAt) return false;
 
   return (event.id ?? 0) > (current.id ?? 0);
+}
+
+function historyTripSelect() {
+  return {
+    id: true,
+    title: true,
+    departure: true,
+    destination: true,
+    createdAt: true,
+    departureTime: true,
+    status: true,
+    price: true,
+    profit: true,
+    profitRate: true,
+    pointsEarned: true,
+    matchedFormulaId: true,
+  };
+}
+
+function assignmentEventSelect() {
+  return {
+    id: true,
+    tripId: true,
+    toDriverId: true,
+    createdAt: true,
+    pointsEarned: true,
+    profit: true,
+    profitRate: true,
+    formulaId: true,
+    formulaName: true,
+  };
+}
+
+function legacyAssignmentEventFromTrip(
+  trip: HistoryTrip,
+  driverId: number,
+): AssignmentEvent {
+  return {
+    tripId: trip.id,
+    toDriverId: driverId,
+    createdAt: trip.createdAt,
+    pointsEarned: trip.pointsEarned,
+    profit: trip.profit,
+    profitRate: trip.profitRate,
+    formulaId: trip.matchedFormulaId,
+  };
+}
+
+async function fetchAssignmentEventsForTrips(
+  db: DriverTripHistoryDb,
+  input: DriverTripHistoryInput,
+  trips: HistoryTrip[],
+) {
+  const tripIds = trips.map((trip) => trip.id);
+  if (tripIds.length === 0) return [];
+
+  return (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      tripId: { in: tripIds },
+      toDriverId: input.driverId,
+      type: {
+        in: REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+      },
+    },
+    select: assignmentEventSelect(),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as AssignmentEvent[];
+}
+
+async function fetchTripsByDirectDateBasis(
+  db: DriverTripHistoryDb,
+  input: DriverTripHistoryInput,
+  dateBasis: ReportDateBasis,
+) {
+  const dateWhere = buildTripDateWhere(dateBasis, input.current);
+  const trips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      driverId: input.driverId,
+      ...(dateWhere ?? {}),
+    },
+    select: historyTripSelect(),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as HistoryTrip[];
+
+  return {
+    trips,
+    assignmentEvents: await fetchAssignmentEventsForTrips(db, input, trips),
+  };
+}
+
+async function fetchTripsByAssignedAt(
+  db: DriverTripHistoryDb,
+  input: DriverTripHistoryInput,
+  currentRange: ReportRangeFilter,
+) {
+  const eventsInPeriod = (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      toDriverId: input.driverId,
+      type: {
+        in: REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+      },
+      createdAt: currentRange,
+    },
+    select: assignmentEventSelect(),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as AssignmentEvent[];
+
+  const tripIds = eventTripIds(eventsInPeriod);
+  const eventBackedTrips =
+    tripIds.length > 0
+      ? ((await db.trip.findMany({
+          where: {
+            accountId: input.accountId,
+            id: { in: tripIds },
+            driverId: input.driverId,
+          },
+          select: historyTripSelect(),
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })) as HistoryTrip[])
+      : [];
+
+  const legacyTrips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      driverId: input.driverId,
+      createdAt: currentRange,
+      ...(tripIds.length > 0 ? { id: { notIn: tripIds } } : {}),
+      NOT: {
+        events: {
+          some: {
+            type: {
+              in: REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+            },
+          },
+        },
+      },
+    },
+    select: historyTripSelect(),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as HistoryTrip[];
+
+  const currentTripIds = new Set(
+    [...eventBackedTrips, ...legacyTrips].map((trip) => trip.id),
+  );
+
+  return {
+    trips: [...eventBackedTrips, ...legacyTrips],
+    assignmentEvents: [
+      ...eventsInPeriod.filter(
+        (event) => event.tripId != null && currentTripIds.has(event.tripId),
+      ),
+      ...legacyTrips.map((trip) =>
+        legacyAssignmentEventFromTrip(trip, input.driverId),
+      ),
+    ],
+  };
+}
+
+async function fetchTripsByCompletedAt(
+  db: DriverTripHistoryDb,
+  input: DriverTripHistoryInput,
+  currentRange: ReportRangeFilter,
+) {
+  const completionEvents = (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      type: {
+        in: REPORT_TRIP_COMPLETION_EVENT_TYPES,
+      },
+      createdAt: currentRange,
+    },
+    select: {
+      id: true,
+      tripId: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as AssignmentEvent[];
+
+  const tripIds = eventTripIds(completionEvents);
+  const eventBackedTrips =
+    tripIds.length > 0
+      ? ((await db.trip.findMany({
+          where: {
+            accountId: input.accountId,
+            id: { in: tripIds },
+            driverId: input.driverId,
+            status: "completed",
+          },
+          select: historyTripSelect(),
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })) as HistoryTrip[])
+      : [];
+
+  const legacyTrips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      driverId: input.driverId,
+      status: "completed",
+      createdAt: currentRange,
+      ...(tripIds.length > 0 ? { id: { notIn: tripIds } } : {}),
+      NOT: {
+        events: {
+          some: {
+            type: {
+              in: REPORT_TRIP_COMPLETION_EVENT_TYPES,
+            },
+          },
+        },
+      },
+    },
+    select: historyTripSelect(),
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as HistoryTrip[];
+
+  const trips = [...eventBackedTrips, ...legacyTrips];
+  return {
+    trips,
+    assignmentEvents: await fetchAssignmentEventsForTrips(db, input, trips),
+  };
 }
 
 function latestAssignmentByTrip(events: AssignmentEvent[]) {
@@ -109,9 +337,7 @@ export async function getDriverTripHistory(
 ): Promise<DriverTripHistoryResult> {
   const page = normalizePositiveInt(input.page, 1);
   const limit = normalizePositiveInt(input.limit, 20);
-  const useAssignmentPeriod = hasRangeFilter(input.current);
-  let trips: HistoryTrip[] = [];
-  let assignmentEvents: AssignmentEvent[] = [];
+  const dateBasis = input.dateBasis ?? DEFAULT_REPORT_DATE_BASIS;
 
   // Fetch all active trip statuses once
   const tripStatusModel = (db as unknown as { tripStatus?: { findMany: (opts: { where: { isActive: boolean }; select: { key: true; label: true; color: true } }) => Promise<Array<{ key: string; label: string; color: string }>> } }).tripStatus;
@@ -121,124 +347,16 @@ export async function getDriverTripHistory(
   }) : undefined;
   const statusMap = new Map(allStatuses?.map((s) => [s.key, s]) ?? []);
 
-  if (useAssignmentPeriod) {
-    const eventsInPeriod = (await db.tripEvent.findMany({
-      where: {
-        accountId: input.accountId,
-        toDriverId: input.driverId,
-        type: {
-          in: [
-            TRIP_EVENT_TYPES.DRIVER_ASSIGNED,
-            TRIP_EVENT_TYPES.DRIVER_CHANGED,
-          ],
-        },
-        createdAt: input.current,
-      },
-      select: {
-        id: true,
-        tripId: true,
-        toDriverId: true,
-        createdAt: true,
-        pointsEarned: true,
-        profit: true,
-        profitRate: true,
-        formulaId: true,
-        formulaName: true,
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    })) as AssignmentEvent[];
+  const dateRangeActive = hasReportRange(input.current);
+  const fetched = dateRangeActive
+    ? dateBasis === "assignedAt"
+      ? await fetchTripsByAssignedAt(db, input, input.current as ReportRangeFilter)
+      : dateBasis === "completedAt"
+        ? await fetchTripsByCompletedAt(db, input, input.current as ReportRangeFilter)
+        : await fetchTripsByDirectDateBasis(db, input, dateBasis)
+    : await fetchTripsByDirectDateBasis(db, input, dateBasis);
 
-    const tripIds = Array.from(
-      new Set(
-        eventsInPeriod
-          .map((event) => event.tripId)
-          .filter((tripId): tripId is number => tripId != null)
-      )
-    );
-
-    trips =
-      tripIds.length > 0
-        ? ((await db.trip.findMany({
-            where: {
-              accountId: input.accountId,
-              id: { in: tripIds },
-              driverId: input.driverId,
-            },
-            select: {
-              id: true,
-              title: true,
-              departure: true,
-              destination: true,
-              createdAt: true,
-              departureTime: true,
-              status: true,
-              price: true,
-              profit: true,
-              profitRate: true,
-              pointsEarned: true,
-              matchedFormulaId: true,
-            },
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          })) as HistoryTrip[])
-        : [];
-
-    const currentTripIds = new Set(trips.map((trip) => trip.id));
-    assignmentEvents = eventsInPeriod.filter(
-      (event) => event.tripId != null && currentTripIds.has(event.tripId)
-    );
-  } else {
-    trips = (await db.trip.findMany({
-      where: {
-        accountId: input.accountId,
-        driverId: input.driverId,
-      },
-      select: {
-        id: true,
-        title: true,
-        departure: true,
-        destination: true,
-        createdAt: true,
-        departureTime: true,
-        status: true,
-        price: true,
-        profit: true,
-        profitRate: true,
-        pointsEarned: true,
-        matchedFormulaId: true,
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    })) as HistoryTrip[];
-
-    const tripIds = trips.map((trip) => trip.id);
-    assignmentEvents =
-      tripIds.length > 0
-        ? ((await db.tripEvent.findMany({
-            where: {
-              accountId: input.accountId,
-              tripId: { in: tripIds },
-              toDriverId: input.driverId,
-              type: {
-                in: [
-                  TRIP_EVENT_TYPES.DRIVER_ASSIGNED,
-                  TRIP_EVENT_TYPES.DRIVER_CHANGED,
-                ],
-              },
-            },
-            select: {
-              id: true,
-              tripId: true,
-              toDriverId: true,
-              createdAt: true,
-              pointsEarned: true,
-              profit: true,
-              profitRate: true,
-              formulaId: true,
-              formulaName: true,
-            },
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          })) as AssignmentEvent[])
-        : [];
-  }
+  const { trips, assignmentEvents } = fetched;
 
   const latestByTrip = latestAssignmentByTrip(assignmentEvents);
   const rows = trips.map((trip) => {

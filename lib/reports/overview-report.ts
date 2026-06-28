@@ -1,5 +1,16 @@
 import type { ReportRangeFilter } from "@/lib/reports/date-range";
 import {
+  buildTripDateWhere,
+  DEFAULT_REPORT_DATE_BASIS,
+  eventTripIds,
+  hasReportRange,
+  isAssignedProjectionTrip,
+  isProjectedTrip,
+  REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+  REPORT_TRIP_COMPLETION_EVENT_TYPES,
+  type ReportDateBasis,
+} from "@/lib/reports/date-basis";
+import {
   changePercent,
   percent,
   reportStatusBucket,
@@ -14,6 +25,9 @@ type TripFindManyDb = {
   trip: {
     findMany: (args: unknown) => Promise<unknown[]>;
   };
+  tripEvent?: {
+    findMany: (args: unknown) => Promise<unknown[]>;
+  };
 };
 
 export type OverviewReportInput = {
@@ -21,6 +35,7 @@ export type OverviewReportInput = {
   current?: ReportRangeFilter;
   dateRange?: ReportRangeFilter;
   previousRange?: ReportRangeFilter;
+  dateBasis?: ReportDateBasis;
   driverId?: number | null;
 };
 
@@ -31,6 +46,14 @@ export type OverviewTrip = {
   price: unknown;
   profit?: unknown;
   pointsEarned?: unknown;
+  createdAt: Date;
+  departureTime?: Date;
+  reportDate?: Date;
+};
+
+type OverviewTripEvent = {
+  id?: number;
+  tripId?: number | null;
   createdAt: Date;
 };
 
@@ -44,6 +67,8 @@ export type OverviewReport = {
   totalTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  assignedRevenue: number;
+  assignedProfit: number;
   projectedRevenue: number;
   projectedProfit: number;
   completedTrips: number;
@@ -70,10 +95,10 @@ export type OverviewReport = {
 };
 
 const STATUS_LABELS: Record<ReportStatusBucket, string> = {
-  completed: "Hoan thanh",
-  cancelled: "Da huy",
-  assigned: "Da gan",
-  unassigned: "Chua gan",
+  completed: "Hoàn thành",
+  cancelled: "Đã hủy",
+  assigned: "Đã gán",
+  unassigned: "Chưa gán",
 };
 
 const BUCKETS: ReportStatusBucket[] = [
@@ -101,11 +126,6 @@ function emptyStatusMoney(): Record<ReportStatusBucket, number> {
   };
 }
 
-function buildCreatedAtWhere(range?: ReportRangeFilter) {
-  if (!range || Object.keys(range).length === 0) return undefined;
-  return range;
-}
-
 function addRevenuePoint(
   map: Map<string, RevenuePeriodPoint>,
   key: string,
@@ -119,15 +139,229 @@ function addRevenuePoint(
   });
 }
 
+function latestEventDateByTripId(events: OverviewTripEvent[]) {
+  const map = new Map<number, { date: Date; id: number }>();
+  for (const event of events) {
+    if (event.tripId == null) continue;
+    const current = map.get(event.tripId);
+    const eventId = event.id ?? 0;
+    if (
+      !current ||
+      event.createdAt > current.date ||
+      (event.createdAt.getTime() === current.date.getTime() && eventId > current.id)
+    ) {
+      map.set(event.tripId, { date: event.createdAt, id: eventId });
+    }
+  }
+
+  return new Map(Array.from(map.entries()).map(([tripId, value]) => [tripId, value.date]));
+}
+
+function reportDateForTrip(
+  trip: OverviewTrip,
+  dateBasis: ReportDateBasis,
+  eventDateByTripId?: Map<number, Date>,
+) {
+  if (trip.id != null) {
+    const eventDate = eventDateByTripId?.get(trip.id);
+    if (eventDate) return eventDate;
+  }
+  if (dateBasis === "departureTime" && trip.departureTime) return trip.departureTime;
+  return trip.createdAt;
+}
+
+function withReportDates(
+  trips: OverviewTrip[],
+  dateBasis: ReportDateBasis,
+  eventDateByTripId?: Map<number, Date>,
+) {
+  return trips.map((trip) => ({
+    ...trip,
+    reportDate: reportDateForTrip(trip, dateBasis, eventDateByTripId),
+  }));
+}
+
+function overviewTripSelect() {
+  return {
+    id: true,
+    status: true,
+    driverId: true,
+    price: true,
+    profit: true,
+    createdAt: true,
+    departureTime: true,
+    pointsEarned: true,
+  };
+}
+
+function buildDriverWhere(input: OverviewReportInput) {
+  return input.driverId ? { driverId: input.driverId } : {};
+}
+
+async function fetchEventsForTripIds(
+  db: TripFindManyDb,
+  input: OverviewReportInput,
+  dateBasis: ReportDateBasis,
+  tripIds: number[],
+) {
+  if (!db.tripEvent || tripIds.length === 0) return [];
+  if (dateBasis !== "assignedAt" && dateBasis !== "completedAt") return [];
+
+  return (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      tripId: { in: tripIds },
+      type: {
+        in:
+          dateBasis === "assignedAt"
+            ? REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES
+            : REPORT_TRIP_COMPLETION_EVENT_TYPES,
+      },
+      ...(dateBasis === "assignedAt" && input.driverId
+        ? { toDriverId: input.driverId }
+        : {}),
+    },
+    select: {
+      id: true,
+      tripId: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as OverviewTripEvent[];
+}
+
+async function fetchEventBackedTrips(
+  db: TripFindManyDb,
+  input: OverviewReportInput,
+  range: ReportRangeFilter,
+  dateBasis: ReportDateBasis,
+) {
+  if (!db.tripEvent) return { trips: [] as OverviewTrip[], eventDateByTripId: new Map<number, Date>() };
+
+  const events = (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      createdAt: range,
+      type: {
+        in:
+          dateBasis === "assignedAt"
+            ? REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES
+            : REPORT_TRIP_COMPLETION_EVENT_TYPES,
+      },
+      ...(dateBasis === "assignedAt" && input.driverId
+        ? { toDriverId: input.driverId }
+        : {}),
+    },
+    select: {
+      id: true,
+      tripId: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })) as OverviewTripEvent[];
+
+  const tripIds = eventTripIds(events);
+  const trips =
+    tripIds.length > 0
+      ? ((await db.trip.findMany({
+          where: {
+            accountId: input.accountId,
+            id: { in: tripIds },
+            ...buildDriverWhere(input),
+            ...(dateBasis === "completedAt" ? { status: "completed" } : {}),
+          },
+          select: overviewTripSelect(),
+        })) as OverviewTrip[])
+      : [];
+
+  return {
+    trips,
+    eventDateByTripId: latestEventDateByTripId(events),
+  };
+}
+
+async function fetchTripsForRange(
+  db: TripFindManyDb,
+  input: OverviewReportInput,
+  range: ReportRangeFilter | undefined,
+  dateBasis: ReportDateBasis,
+) {
+  const dateWhere = buildTripDateWhere(dateBasis, range);
+  const rangeActive = hasReportRange(range);
+
+  if (!rangeActive || dateWhere) {
+    const trips = (await db.trip.findMany({
+      where: {
+        accountId: input.accountId,
+        ...(dateWhere ?? {}),
+        ...buildDriverWhere(input),
+      },
+      select: overviewTripSelect(),
+    })) as OverviewTrip[];
+
+    const eventDateByTripId = latestEventDateByTripId(
+      await fetchEventsForTripIds(
+        db,
+        input,
+        dateBasis,
+        trips
+          .map((trip) => trip.id)
+          .filter((tripId): tripId is number => tripId != null),
+      ),
+    );
+
+    return withReportDates(trips, dateBasis, eventDateByTripId);
+  }
+
+  const { trips: eventBackedTrips, eventDateByTripId } =
+    await fetchEventBackedTrips(db, input, range, dateBasis);
+  const eventBackedTripIds = eventBackedTrips
+    .map((trip) => trip.id)
+    .filter((tripId): tripId is number => tripId != null);
+
+  const legacyTrips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      createdAt: range,
+      ...buildDriverWhere(input),
+      ...(eventBackedTripIds.length > 0 ? { id: { notIn: eventBackedTripIds } } : {}),
+      ...(dateBasis === "completedAt" ? { status: "completed" } : {}),
+      ...(dateBasis === "assignedAt" && !input.driverId ? { driverId: { not: null } } : {}),
+      NOT: {
+        events: {
+          some: {
+            type: {
+              in:
+                dateBasis === "assignedAt"
+                  ? REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES
+                  : REPORT_TRIP_COMPLETION_EVENT_TYPES,
+            },
+          },
+        },
+      },
+    },
+    select: overviewTripSelect(),
+  })) as OverviewTrip[];
+
+  return withReportDates(
+    [...eventBackedTrips, ...legacyTrips],
+    dateBasis,
+    eventDateByTripId,
+  );
+}
+
 export function calculateOverviewReport(
   trips: OverviewTrip[],
   previousTrips: OverviewTrip[] = []
 ): OverviewReport {
   const totalTrips = trips.length;
   const completedOnly = trips.filter((trip) => trip.status === "completed");
-  const revenueEarning = trips.filter((trip) => trip.status === "completed" || trip.status === "assigned");
+  const assignedOnly = trips.filter(isAssignedProjectionTrip);
+  const revenueEarning = trips.filter(isProjectedTrip);
   const totalRevenue = sumMoney(completedOnly, (trip) => trip.price);
   const totalProfit = sumMoney(completedOnly, (trip) => trip.profit);
+  const assignedRevenue = sumMoney(assignedOnly, (trip) => trip.price);
+  const assignedProfit = sumMoney(assignedOnly, (trip) => trip.profit);
   const projectedRevenue = sumMoney(revenueEarning, (trip) => trip.price);
   const projectedProfit = sumMoney(revenueEarning, (trip) => trip.profit);
 
@@ -145,21 +379,22 @@ export function calculateOverviewReport(
   const revenueByMonthMap = new Map<string, RevenuePeriodPoint>();
   const revenueByStatus = emptyStatusMoney();
   for (const trip of revenueEarning) {
-    addRevenuePoint(revenueByDayMap, toDayKey(trip.createdAt), trip);
-    addRevenuePoint(revenueByMonthMap, toMonthKey(trip.createdAt), trip);
+    const reportDate = trip.reportDate ?? trip.createdAt;
+    addRevenuePoint(revenueByDayMap, toDayKey(reportDate), trip);
+    addRevenuePoint(revenueByMonthMap, toMonthKey(reportDate), trip);
     revenueByStatus[reportStatusBucket(trip)] += toMoneyNumber(trip.price);
   }
 
-  const previousCompleted = previousTrips.filter(
-    (trip) => trip.status === "completed"
-  );
-  const previousRevenue = sumMoney(previousCompleted, (trip) => trip.price);
-  const previousProfit = sumMoney(previousCompleted, (trip) => trip.profit);
+  const previousRevenueEarning = previousTrips.filter(isProjectedTrip);
+  const previousRevenue = sumMoney(previousRevenueEarning, (trip) => trip.price);
+  const previousProfit = sumMoney(previousRevenueEarning, (trip) => trip.profit);
 
   return {
     totalTrips,
     totalRevenue,
     totalProfit,
+    assignedRevenue,
+    assignedProfit,
     projectedRevenue,
     projectedProfit,
     completedTrips,
@@ -197,43 +432,11 @@ export async function getOverviewReport(
   input: OverviewReportInput
 ): Promise<OverviewReport> {
   const currentRange = input.current ?? input.dateRange;
-  const createdAt = buildCreatedAtWhere(currentRange);
-  const where = {
-    accountId: input.accountId,
-    ...(createdAt ? { createdAt } : {}),
-    ...(input.driverId ? { driverId: input.driverId } : {}),
-  };
-
-  const trips = (await db.trip.findMany({
-    where,
-    select: {
-      id: true,
-      status: true,
-      driverId: true,
-      price: true,
-      profit: true,
-      createdAt: true,
-      pointsEarned: true,
-    },
-  })) as OverviewTrip[];
+  const dateBasis = input.dateBasis ?? DEFAULT_REPORT_DATE_BASIS;
+  const trips = await fetchTripsForRange(db, input, currentRange, dateBasis);
 
   const previousTrips = input.previousRange
-    ? ((await db.trip.findMany({
-        where: {
-          accountId: input.accountId,
-          createdAt: input.previousRange,
-          ...(input.driverId ? { driverId: input.driverId } : {}),
-        },
-        select: {
-          id: true,
-          status: true,
-          driverId: true,
-          price: true,
-          profit: true,
-          createdAt: true,
-          pointsEarned: true,
-        },
-      })) as OverviewTrip[])
+    ? await fetchTripsForRange(db, input, input.previousRange, dateBasis)
     : [];
 
   return calculateOverviewReport(trips, previousTrips);

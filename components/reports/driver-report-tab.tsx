@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { ReportTable } from "./report-table";
 import { TripInfoCardList } from "@/components/trip-info-card";
 import { statusColorClasses } from "@/lib/useTripStatuses";
+import type { ReportDateBasis } from "@/lib/reports/date-basis";
 
 interface DriverStats {
   id: number;
@@ -18,6 +19,7 @@ interface DriverStats {
   cancelledTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedRevenue: number;
   projectedProfit: number;
   totalPoints: number;
   assignedPointProfit: number;
@@ -53,6 +55,7 @@ interface DriverReportTabProps {
   endDate: string;
   startTime: string;
   endTime: string;
+  dateBasis: ReportDateBasis;
   selectedDriver: string;
 }
 
@@ -108,6 +111,7 @@ export function DriverReportTab({
   endDate,
   startTime,
   endTime,
+  dateBasis,
   selectedDriver,
 }: DriverReportTabProps) {
   const [data, setData] = useState<DriverStats[]>([]);
@@ -137,6 +141,7 @@ export function DriverReportTab({
         if (endDate) params.set("endDate", endDate);
         if (startTime) params.set("startTime", startTime);
         if (endTime) params.set("endTime", endTime);
+        params.set("dateBasis", dateBasis);
         if (selectedDriver) params.set("driverId", selectedDriver);
         if (search) params.set("search", search);
         params.set("sortBy", sortBy);
@@ -156,7 +161,7 @@ export function DriverReportTab({
         setLoading(false);
       }
     },
-    [startDate, endDate, startTime, endTime, selectedDriver, sortBy, sortOrder, pagination.limit]
+    [startDate, endDate, startTime, endTime, dateBasis, selectedDriver, sortBy, sortOrder, pagination.limit]
   );
 
   useEffect(() => {
@@ -194,6 +199,7 @@ export function DriverReportTab({
         "Điểm": d.totalPoints,
         "Công theo gán (đ)": d.assignedPointProfit,
         "Doanh thu (đ)": d.totalRevenue,
+        "DT dự kiến (đ)": d.projectedRevenue,
         "Lợi nhuận HT (đ)": d.totalProfit,
         "LN dự kiến (đ)": d.projectedProfit,
         "TB cuốc (đ)": Math.round(d.avgTripValue),
@@ -217,6 +223,7 @@ export function DriverReportTab({
       if (endDate) params.set("endDate", endDate);
       if (startTime) params.set("startTime", startTime);
       if (endTime) params.set("endTime", endTime);
+      params.set("dateBasis", dateBasis);
       params.set("limit", "100");
       const res = await fetch(`/api/reports/drivers/${driver.id}/trips?${params.toString()}`);
       const json = await res.json();
@@ -316,10 +323,20 @@ export function DriverReportTab({
     },
     {
       key: "totalRevenue",
-      label: "Doanh thu",
+      label: "DT HT",
       sortable: true,
       render: (item: DriverStats) => (
         <span className="font-semibold text-slate-800">{formatVND(item.totalRevenue)}</span>
+      ),
+    },
+    {
+      key: "projectedRevenue",
+      label: "DT dự kiến",
+      sortable: true,
+      render: (item: DriverStats) => (
+        <span className="font-semibold text-emerald-600">
+          {formatVND(item.projectedRevenue)}
+        </span>
       ),
     },
     {
@@ -386,16 +403,21 @@ export function DriverReportTab({
     [
       { label: "Tổng cuốc", value: String(item.totalTrips), color: "text-slate-800" },
       { label: "Hoàn thành", value: String(item.completedTrips), color: "text-green-600" },
-      { label: "Đã hủy", value: String(item.cancelledTrips), color: "text-rose-600" },
+      { label: "Đã gán", value: String(item.assignedTrips), color: "text-sky-600" },
     ],
     [
-      { label: "Doanh thu", value: formatVND(item.totalRevenue), color: "text-slate-800" },
+      { label: "DT HT", value: formatVND(item.totalRevenue), color: "text-slate-800" },
+      { label: "DT dự kiến", value: formatVND(item.projectedRevenue), color: "text-emerald-600" },
       { label: "LN HT", value: formatVND(item.totalProfit), color: "text-blue-600" },
-      { label: "LN dự kiến", value: formatVND(item.projectedProfit), color: "text-indigo-600" },
     ],
     [
+      { label: "LN dự kiến", value: formatVND(item.projectedProfit), color: "text-indigo-600" },
       { label: "Công theo gán", value: formatVND(item.assignedPointProfit), color: "text-amber-700" },
+      { label: "TB LN HT", value: formatVND(item.avgProfitPerCompletedTrip), color: "text-blue-600" },
+    ],
+    [
       { label: "Tỷ lệ HT", value: formatPercent(item.completionRate), color: "text-green-600" },
+      { label: "Đã hủy", value: String(item.cancelledTrips), color: "text-rose-600" },
       { label: "Điểm", value: item.totalPoints.toLocaleString("vi-VN"), color: "text-amber-600" },
     ],
   ];

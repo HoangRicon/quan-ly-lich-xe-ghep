@@ -22,6 +22,7 @@ interface RevenueChartProps {
   data: RevenueDayData[];
   loading: boolean;
   dateFilter?: string;
+  dateBasisLabel?: string;
 }
 
 function formatVNDShort(value: number): string {
@@ -46,11 +47,11 @@ function formatMonthLabel(dateStr: string): string {
 }
 
 const CHART_TITLE_MAP: Record<string, string> = {
-  today: "Doanh thu theo ngày tạo cuốc",
-  week: "Doanh thu theo ngày tạo cuốc",
-  month: "Doanh thu theo ngày tạo cuốc",
-  year: "Doanh thu theo tháng tạo cuốc",
-  all: "Doanh thu theo tháng tạo cuốc",
+  today: "Doanh thu dự kiến theo ngày",
+  week: "Doanh thu dự kiến theo ngày",
+  month: "Doanh thu dự kiến theo ngày",
+  year: "Doanh thu dự kiến theo tháng",
+  all: "Doanh thu dự kiến theo tháng",
 };
 
 function CustomTooltip({
@@ -87,13 +88,21 @@ function CustomTooltip({
   );
 }
 
-function ChartHeader({ title, showLegend = false }: { title: string; showLegend?: boolean }) {
+function ChartHeader({
+  title,
+  helper,
+  showLegend = false,
+}: {
+  title: string;
+  helper: string;
+  showLegend?: boolean;
+}) {
   return (
     <div className="flex items-start gap-2 mb-4">
       <TrendingUp className="w-4 h-4 text-slate-500 mt-0.5" />
       <div>
         <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>
-        <p className="text-[11px] text-slate-400">Chỉ tính cuốc hoàn thành</p>
+        <p className="text-[11px] text-slate-400">{helper}</p>
       </div>
       {showLegend && (
         <div className="ml-auto flex items-center gap-4 text-xs">
@@ -111,15 +120,21 @@ function ChartHeader({ title, showLegend = false }: { title: string; showLegend?
   );
 }
 
-export function RevenueChart({ data, loading, dateFilter = "month" }: RevenueChartProps) {
-  const chartTitle = CHART_TITLE_MAP[dateFilter] || "Doanh thu theo ngày tạo cuốc";
+export function RevenueChart({
+  data,
+  loading,
+  dateFilter = "month",
+  dateBasisLabel = "Ngày gán tài xế",
+}: RevenueChartProps) {
+  const chartTitle = `${CHART_TITLE_MAP[dateFilter] || "Doanh thu dự kiến theo ngày"} - ${dateBasisLabel.toLowerCase()}`;
+  const chartHelper = "Gồm cuốc hoàn thành và cuốc đã gán tài xế";
   const useMonthLabels = dateFilter === "year" || dateFilter === "all";
   const hasData = data.length > 0;
 
   if (loading) {
     return (
       <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-        <ChartHeader title={chartTitle} />
+        <ChartHeader title={chartTitle} helper={chartHelper} />
         <div className="h-64 bg-slate-100 rounded-lg animate-pulse" />
       </div>
     );
@@ -128,7 +143,7 @@ export function RevenueChart({ data, loading, dateFilter = "month" }: RevenueCha
   if (!hasData) {
     return (
       <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-        <ChartHeader title={chartTitle} />
+        <ChartHeader title={chartTitle} helper={chartHelper} />
         <div className="h-64 flex items-center justify-center text-slate-400 text-sm">
           Chưa có dữ liệu trong khoảng thời gian này
         </div>
@@ -149,7 +164,7 @@ export function RevenueChart({ data, loading, dateFilter = "month" }: RevenueCha
 
   return (
     <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
-      <ChartHeader title={chartTitle} showLegend />
+      <ChartHeader title={chartTitle} helper={chartHelper} showLegend />
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />

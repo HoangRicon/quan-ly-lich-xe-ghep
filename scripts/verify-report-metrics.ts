@@ -73,12 +73,17 @@ const overview = calculateOverviewReport([
 assert.equal(overview.totalTrips, 2);
 assert.equal(overview.completedTrips, 1);
 assert.equal(overview.totalRevenue, 500000);
+assert.equal(overview.totalProfit, 150000);
+assert.equal(overview.assignedRevenue, 999999);
+assert.equal(overview.assignedProfit, 999999);
+assert.equal(overview.projectedRevenue, 1499999);
+assert.equal(overview.projectedProfit, 1149999);
 assert.deepEqual(overview.revenueByDay, [
-  { date: "2026-06-19", revenue: 500000, profit: 150000, trips: 1 },
+  { date: "2026-06-19", revenue: 1499999, profit: 1149999, trips: 2 },
 ]);
 assert.equal(overview.statusCounts.assigned, 1);
 assert.equal(overview.revenueByStatus.completed, 500000);
-assert.equal(overview.revenueByStatus.assigned, 0);
+assert.equal(overview.revenueByStatus.assigned, 999999);
 
 const driverRows = buildDriverReportRows({
   drivers: [
@@ -174,6 +179,8 @@ const assignmentPointRows = buildDriverReportRows({
 assert.equal(assignmentPointRows[0].totalTrips, 1);
 assert.equal(assignmentPointRows[0].totalPoints, 2.5);
 assert.equal(assignmentPointRows[0].assignedPointProfit, 2500);
+assert.equal(assignmentPointRows[0].projectedRevenue, 900);
+assert.equal(assignmentPointRows[0].projectedProfit, 2500);
 assert.equal(assignmentPointRows[0].lastAssignedAt, "2026-06-19T06:15:00.000Z");
 
 const driverSpecificSnapshotRows = buildDriverReportRows({

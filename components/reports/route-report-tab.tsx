@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Download, Search, Route } from "lucide-react";
 import { ReportTable } from "./report-table";
 import * as XLSX from "xlsx";
+import type { ReportDateBasis } from "@/lib/reports/date-basis";
 
 interface RouteStats {
   route: string;
@@ -26,6 +27,7 @@ interface RouteReportTabProps {
   endDate: string;
   startTime: string;
   endTime: string;
+  dateBasis: ReportDateBasis;
 }
 
 function formatVND(amount: number): string {
@@ -43,7 +45,13 @@ function RouteAvatar() {
   );
 }
 
-export function RouteReportTab({ startDate, endDate, startTime, endTime }: RouteReportTabProps) {
+export function RouteReportTab({
+  startDate,
+  endDate,
+  startTime,
+  endTime,
+  dateBasis,
+}: RouteReportTabProps) {
   const [data, setData] = useState<RouteStats[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -66,6 +74,7 @@ export function RouteReportTab({ startDate, endDate, startTime, endTime }: Route
         if (endDate) params.set("endDate", endDate);
         if (startTime) params.set("startTime", startTime);
         if (endTime) params.set("endTime", endTime);
+        params.set("dateBasis", dateBasis);
         if (search) params.set("search", search);
         params.set("sortBy", sortBy);
         params.set("sortOrder", sortOrder);
@@ -84,7 +93,7 @@ export function RouteReportTab({ startDate, endDate, startTime, endTime }: Route
         setLoading(false);
       }
     },
-    [startDate, endDate, startTime, endTime, sortBy, sortOrder, pagination.limit]
+    [startDate, endDate, startTime, endTime, dateBasis, sortBy, sortOrder, pagination.limit]
   );
 
   useEffect(() => {

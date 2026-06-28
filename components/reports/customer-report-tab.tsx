@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Download, Search, User } from "lucide-react";
 import { ReportTable } from "./report-table";
 import * as XLSX from "xlsx";
+import type { ReportDateBasis } from "@/lib/reports/date-basis";
 
 interface CustomerStats {
   id: number;
@@ -22,6 +23,7 @@ interface CustomerReportTabProps {
   endDate: string;
   startTime: string;
   endTime: string;
+  dateBasis: ReportDateBasis;
 }
 
 function formatVND(amount: number): string {
@@ -53,7 +55,13 @@ function CustomerAvatar() {
   );
 }
 
-export function CustomerReportTab({ startDate, endDate, startTime, endTime }: CustomerReportTabProps) {
+export function CustomerReportTab({
+  startDate,
+  endDate,
+  startTime,
+  endTime,
+  dateBasis,
+}: CustomerReportTabProps) {
   const [data, setData] = useState<CustomerStats[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -76,6 +84,7 @@ export function CustomerReportTab({ startDate, endDate, startTime, endTime }: Cu
         if (endDate) params.set("endDate", endDate);
         if (startTime) params.set("startTime", startTime);
         if (endTime) params.set("endTime", endTime);
+        params.set("dateBasis", dateBasis);
         if (search) params.set("search", search);
         params.set("sortBy", sortBy);
         params.set("sortOrder", sortOrder);
@@ -94,7 +103,7 @@ export function CustomerReportTab({ startDate, endDate, startTime, endTime }: Cu
         setLoading(false);
       }
     },
-    [startDate, endDate, startTime, endTime, sortBy, sortOrder, pagination.limit]
+    [startDate, endDate, startTime, endTime, dateBasis, sortBy, sortOrder, pagination.limit]
   );
 
   useEffect(() => {

@@ -5,6 +5,10 @@ import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
 import { tripStatusBucket } from "@/lib/trip-status-buckets";
 import { parseReportDateRange } from "@/lib/reports/date-range";
+import {
+  buildTripDateBasisRelationWhere,
+  parseReportDateBasis,
+} from "@/lib/reports/date-basis";
 
 function parsePositiveInt(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -41,6 +45,7 @@ export async function GET(request: NextRequest) {
     const startTime = searchParams.get("startTime");
     const endTime = searchParams.get("endTime");
     const search = searchParams.get("search") || "";
+    const dateBasis = parseReportDateBasis(searchParams.get("dateBasis"));
     const sortBy = searchParams.get("sortBy") || "totalTrips";
     const sortOrder = searchParams.get("sortOrder") || "desc";
     const page = parsePositiveInt(searchParams.get("page"), 1);
@@ -52,9 +57,7 @@ export async function GET(request: NextRequest) {
     const tripWhere: Prisma.TripWhereInput = {
       accountId: user.accountId,
     };
-    if (Object.keys(dateRange).length > 0) {
-      tripWhere.createdAt = dateRange;
-    }
+    Object.assign(tripWhere, buildTripDateBasisRelationWhere(dateBasis, dateRange));
 
     const trips = await db.trip.findMany({
       where: tripWhere,

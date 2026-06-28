@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import { parseReportDateRange } from "@/lib/reports/date-range";
+import { parseReportDateBasis } from "@/lib/reports/date-basis";
 import {
   getDriverReport,
   type DriverReportSortKey,
@@ -12,6 +13,7 @@ const SUPPORTED_SORT_KEYS = new Set<string>([
   "totalRevenue",
   "totalTrips",
   "totalProfit",
+  "projectedRevenue",
   "completedTrips",
   "completionRate",
   "cancelRate",
@@ -53,6 +55,7 @@ export async function GET(request: NextRequest) {
       // If invalid, treat as undefined (show all) instead of throwing error
     }
     const search = searchParams.get("search") || "";
+    const dateBasis = parseReportDateBasis(searchParams.get("dateBasis"));
     const sortBy = parseSortBy(searchParams.get("sortBy"));
     const sortOrder = parseSortOrder(searchParams.get("sortOrder"));
     const page = parseInt(searchParams.get("page") || "1", 10);
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest) {
     const { data, pagination } = await getDriverReport(db, {
       accountId: user.accountId,
       current,
+      dateBasis,
       driverId,
       search,
       sortBy,

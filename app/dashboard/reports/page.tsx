@@ -10,10 +10,17 @@ import { DriverReportTab } from "@/components/reports/driver-report-tab";
 import { CustomerReportTab } from "@/components/reports/customer-report-tab";
 import { RouteReportTab } from "@/components/reports/route-report-tab";
 import { type DateFilter } from "@/lib/date-utils";
+import {
+  DEFAULT_REPORT_DATE_BASIS,
+  REPORT_DATE_BASIS_OPTIONS,
+  type ReportDateBasis,
+} from "@/lib/reports/date-basis";
 
 interface KpiData {
   totalRevenue: number;
   totalProfit: number;
+  assignedRevenue: number;
+  assignedProfit: number;
   projectedRevenue: number;
   projectedProfit: number;
   totalTrips: number;
@@ -79,6 +86,7 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [dateBasis, setDateBasis] = useState<ReportDateBasis>("assignedAt");
   const [selectedDriver, setSelectedDriver] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [driverDropdownOpen, setDriverDropdownOpen] = useState(false);
@@ -96,6 +104,7 @@ export default function ReportsPage() {
       if (endDate) params.set("endDate", endDate);
       if (startTime) params.set("startTime", startTime);
       if (endTime) params.set("endTime", endTime);
+      params.set("dateBasis", dateBasis);
       if (selectedDriver) params.set("driverId", selectedDriver);
 
       const res = await fetch(`/api/reports/stats?${params.toString()}`);
@@ -106,7 +115,7 @@ export default function ReportsPage() {
     } finally {
       setStatsLoading(false);
     }
-  }, [startDate, endDate, startTime, endTime, selectedDriver]);
+  }, [startDate, endDate, startTime, endTime, dateBasis, selectedDriver]);
 
   const fetchDrivers = useCallback(async () => {
     setDriversLoading(true);
@@ -163,6 +172,7 @@ export default function ReportsPage() {
     setEndDate("");
     setStartTime("");
     setEndTime("");
+    setDateBasis(DEFAULT_REPORT_DATE_BASIS);
     setDateFilter("all");
     setSelectedDriver("");
     setFiltersOpen(false);
@@ -176,6 +186,7 @@ export default function ReportsPage() {
     endDate !== "" ||
     startTime !== "" ||
     endTime !== "" ||
+    dateBasis !== DEFAULT_REPORT_DATE_BASIS ||
     selectedDriver !== "";
 
   const tabs = [
@@ -197,8 +208,13 @@ export default function ReportsPage() {
 
   const activeFilterCount = [
     dateFilter !== "all" || startDate !== "" || endDate !== "",
+    dateBasis !== DEFAULT_REPORT_DATE_BASIS,
     selectedDriver !== "",
   ].filter(Boolean).length;
+
+  const dateBasisLabel =
+    REPORT_DATE_BASIS_OPTIONS.find((option) => option.key === dateBasis)
+      ?.label || "Ngày gán tài xế";
 
   return (
     <>
@@ -254,7 +270,26 @@ export default function ReportsPage() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-3 space-y-3 animate-[slideDown_0.2s_ease-out]">
               {/* Date range */}
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-2 px-1">Ngày</p>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-2 px-1">
+                  Kiểu ngày
+                </p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-3">
+                  {REPORT_DATE_BASIS_OPTIONS.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setDateBasis(option.key)}
+                      className={`min-h-9 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                        dateBasis === option.key
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-2 px-1">Khoảng ngày</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <input
@@ -441,7 +476,12 @@ export default function ReportsPage() {
             {/* Tab Content */}
             <div className="p-3 lg:p-4">
               {activeTab === "overview" && (
-                <OverviewTab data={kpiData} loading={statsLoading} dateFilter={dateFilter} />
+                <OverviewTab
+                  data={kpiData}
+                  loading={statsLoading}
+                  dateFilter={dateFilter}
+                  dateBasisLabel={dateBasisLabel}
+                />
               )}
               {activeTab === "drivers" && (
                 <DriverReportTab
@@ -449,14 +489,27 @@ export default function ReportsPage() {
                   endDate={endDate}
                   startTime={startTime}
                   endTime={endTime}
+                  dateBasis={dateBasis}
                   selectedDriver={selectedDriver}
                 />
               )}
               {activeTab === "customers" && (
-                <CustomerReportTab startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} />
+                <CustomerReportTab
+                  startDate={startDate}
+                  endDate={endDate}
+                  startTime={startTime}
+                  endTime={endTime}
+                  dateBasis={dateBasis}
+                />
               )}
               {activeTab === "routes" && (
-                <RouteReportTab startDate={startDate} endDate={endDate} startTime={startTime} endTime={endTime} />
+                <RouteReportTab
+                  startDate={startDate}
+                  endDate={endDate}
+                  startTime={startTime}
+                  endTime={endTime}
+                  dateBasis={dateBasis}
+                />
               )}
             </div>
           </div>
@@ -471,10 +524,12 @@ function OverviewTab({
   data,
   loading,
   dateFilter,
+  dateBasisLabel,
 }: {
   data: KpiData | null;
   loading: boolean;
   dateFilter: string;
+  dateBasisLabel: string;
 }) {
   if (loading || !data) {
     return (
@@ -510,6 +565,7 @@ function OverviewTab({
           }
           loading={false}
           dateFilter={dateFilter}
+          dateBasisLabel={dateBasisLabel}
         />
         <StatusPieChart
           distribution={data.statusDistribution || []}

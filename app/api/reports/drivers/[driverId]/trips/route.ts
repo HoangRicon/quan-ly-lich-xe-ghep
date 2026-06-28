@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import { parseReportDateRange } from "@/lib/reports/date-range";
+import { parseReportDateBasis } from "@/lib/reports/date-basis";
 import { getDriverTripHistory } from "@/lib/reports/driver-trip-history";
 
 function parsePositiveInt(value: string | null, fallback: number) {
@@ -36,6 +37,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
+    const dateBasis = parseReportDateBasis(searchParams.get("dateBasis"));
     const { current } = parseReportDateRange(
       searchParams.get("startDate"),
       searchParams.get("endDate"),
@@ -47,6 +49,7 @@ export async function GET(
       accountId: user.accountId,
       driverId,
       current,
+      dateBasis,
       page: parsePositiveInt(searchParams.get("page"), 1),
       limit: parsePositiveInt(searchParams.get("limit"), 20),
     });

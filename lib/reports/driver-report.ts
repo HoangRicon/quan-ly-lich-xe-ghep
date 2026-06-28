@@ -1,5 +1,14 @@
-import { TRIP_EVENT_TYPES } from "@/lib/trip-events";
 import type { ReportRangeFilter } from "@/lib/reports/date-range";
+import {
+  buildTripDateWhere,
+  DEFAULT_REPORT_DATE_BASIS,
+  eventTripIds,
+  hasReportRange,
+  isProjectedTrip,
+  REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+  REPORT_TRIP_COMPLETION_EVENT_TYPES,
+  type ReportDateBasis,
+} from "@/lib/reports/date-basis";
 import {
   percent,
   reportStatusBucket,
@@ -33,6 +42,7 @@ type DriverTrip = {
   profit?: unknown;
   pointsEarned?: unknown;
   createdAt: Date;
+  departureTime?: Date;
 };
 
 type DriverTripEvent = {
@@ -53,6 +63,7 @@ export type DriverReportSortKey =
   | "totalRevenue"
   | "totalTrips"
   | "totalProfit"
+  | "projectedRevenue"
   | "completedTrips"
   | "completionRate"
   | "cancelRate"
@@ -63,6 +74,7 @@ export type DriverReportInput = {
   accountId: number;
   current?: ReportRangeFilter;
   dateRange?: ReportRangeFilter;
+  dateBasis?: ReportDateBasis;
   driverId?: number | null;
   search?: string | null;
   sortBy?: DriverReportSortKey;
@@ -85,6 +97,7 @@ export type DriverReportRow = {
   cancelRate: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedRevenue: number;
   projectedProfit: number;
   totalPoints: number;
   assignedPointProfit: number;
@@ -105,6 +118,12 @@ export type DriverReportResult = {
   };
 };
 
+type DriverReportFetchedTrips = {
+  trips: DriverTrip[];
+  assignmentEvents: DriverTripEvent[];
+  completionEvents?: DriverTripEvent[];
+};
+
 type DriverAccumulator = {
   totalTrips: number;
   completedTrips: number;
@@ -113,6 +132,7 @@ type DriverAccumulator = {
   cancelledTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  projectedRevenue: number;
   projectedProfit: number;
   totalPoints: number;
   assignedPointProfit: number;
@@ -122,16 +142,12 @@ const SORT_KEYS: DriverReportSortKey[] = [
   "totalRevenue",
   "totalTrips",
   "totalProfit",
+  "projectedRevenue",
   "completedTrips",
   "completionRate",
   "cancelRate",
   "lastAssignedAt",
   "name",
-];
-
-const DRIVER_ASSIGNMENT_EVENT_TYPES = [
-  TRIP_EVENT_TYPES.DRIVER_ASSIGNED,
-  TRIP_EVENT_TYPES.DRIVER_CHANGED,
 ];
 
 function newAccumulator(): DriverAccumulator {
@@ -143,6 +159,7 @@ function newAccumulator(): DriverAccumulator {
     cancelledTrips: 0,
     totalRevenue: 0,
     totalProfit: 0,
+    projectedRevenue: 0,
     projectedProfit: 0,
     totalPoints: 0,
     assignedPointProfit: 0,
@@ -165,10 +182,6 @@ function setMaxDate(map: Map<number, Date>, id: number, date: Date) {
 
 function assignmentSnapshotKey(tripId: number, driverId: number): string {
   return `${tripId}:${driverId}`;
-}
-
-function hasRangeFilter(range: ReportRangeFilter | undefined): range is ReportRangeFilter {
-  return Boolean(range && Object.keys(range).length > 0);
 }
 
 function isNewerEvent(event: DriverTripEvent, current: DriverTripEvent): boolean {
@@ -224,6 +237,233 @@ function legacyAssignmentEventFromTrip(trip: DriverTrip): DriverTripEvent | null
     pointsEarned: trip.pointsEarned,
     profit: trip.profit,
   };
+}
+
+function driverTripSelect() {
+  return {
+    id: true,
+    driverId: true,
+    status: true,
+    price: true,
+    profit: true,
+    pointsEarned: true,
+    createdAt: true,
+    departureTime: true,
+  };
+}
+
+function driverEventSelect() {
+  return {
+    id: true,
+    tripId: true,
+    toDriverId: true,
+    createdAt: true,
+    pointsEarned: true,
+    profit: true,
+    profitRate: true,
+    formulaId: true,
+    formulaName: true,
+  };
+}
+
+async function fetchAssignmentEventsForTrips(
+  db: DriverReportDb,
+  input: DriverReportInput,
+  driverIds: number[],
+  trips: DriverTrip[],
+) {
+  const tripIds = trips.map((trip) => trip.id);
+  if (tripIds.length === 0) return [];
+
+  return (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      type: {
+        in: REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+      },
+      toDriverId: { in: driverIds },
+      tripId: { in: tripIds },
+    },
+    select: driverEventSelect(),
+  })) as DriverTripEvent[];
+}
+
+async function fetchTripsByDirectDateBasis(
+  db: DriverReportDb,
+  input: DriverReportInput,
+  driverIds: number[],
+  dateBasis: ReportDateBasis,
+  currentRange: ReportRangeFilter | undefined,
+) {
+  const dateWhere = buildTripDateWhere(dateBasis, currentRange);
+  const trips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      driverId: { in: driverIds },
+      ...(dateWhere ?? {}),
+    },
+    select: driverTripSelect(),
+  })) as DriverTrip[];
+
+  return {
+    trips,
+    assignmentEvents: await fetchAssignmentEventsForTrips(
+      db,
+      input,
+      driverIds,
+      trips,
+    ),
+  } satisfies DriverReportFetchedTrips;
+}
+
+async function fetchTripsByAssignedAt(
+  db: DriverReportDb,
+  input: DriverReportInput,
+  driverIds: number[],
+  currentRange: ReportRangeFilter,
+) {
+  const eventsInPeriod = (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      type: {
+        in: REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+      },
+      toDriverId: { in: driverIds },
+      createdAt: currentRange,
+    },
+    select: driverEventSelect(),
+  })) as DriverTripEvent[];
+
+  const candidateTripIds = eventTripIds(eventsInPeriod);
+
+  const eventBackedTrips =
+    candidateTripIds.length > 0
+      ? ((await db.trip.findMany({
+          where: {
+            accountId: input.accountId,
+            id: { in: candidateTripIds },
+            driverId: { in: driverIds },
+          },
+          select: driverTripSelect(),
+        })) as DriverTrip[])
+      : [];
+
+  const legacyTrips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      driverId: { in: driverIds },
+      createdAt: currentRange,
+      ...(candidateTripIds.length > 0 ? { id: { notIn: candidateTripIds } } : {}),
+      NOT: {
+        events: {
+          some: {
+            type: {
+              in: REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES,
+            },
+          },
+        },
+      },
+    },
+    select: driverTripSelect(),
+  })) as DriverTrip[];
+
+  const trips = [...eventBackedTrips, ...legacyTrips];
+  const currentDriverByTripId = new Map(
+    trips
+      .filter((trip) => trip.driverId != null)
+      .map((trip) => [trip.id, trip.driverId as number]),
+  );
+
+  return {
+    trips,
+    assignmentEvents: [
+      ...eventsInPeriod.filter(
+        (event) =>
+          event.tripId != null &&
+          event.toDriverId != null &&
+          currentDriverByTripId.get(event.tripId) === event.toDriverId,
+      ),
+      ...legacyTrips.flatMap((trip) => {
+        const event = legacyAssignmentEventFromTrip(trip);
+        return event ? [event] : [];
+      }),
+    ],
+  } satisfies DriverReportFetchedTrips;
+}
+
+async function fetchTripsByCompletedAt(
+  db: DriverReportDb,
+  input: DriverReportInput,
+  driverIds: number[],
+  currentRange: ReportRangeFilter,
+) {
+  const completionEventsInPeriod = (await db.tripEvent.findMany({
+    where: {
+      accountId: input.accountId,
+      type: {
+        in: REPORT_TRIP_COMPLETION_EVENT_TYPES,
+      },
+      createdAt: currentRange,
+    },
+    select: {
+      id: true,
+      tripId: true,
+      createdAt: true,
+    },
+  })) as DriverTripEvent[];
+
+  const candidateTripIds = eventTripIds(completionEventsInPeriod);
+  const eventBackedTrips =
+    candidateTripIds.length > 0
+      ? ((await db.trip.findMany({
+          where: {
+            accountId: input.accountId,
+            id: { in: candidateTripIds },
+            driverId: { in: driverIds },
+            status: "completed",
+          },
+          select: driverTripSelect(),
+        })) as DriverTrip[])
+      : [];
+
+  const legacyTrips = (await db.trip.findMany({
+    where: {
+      accountId: input.accountId,
+      driverId: { in: driverIds },
+      status: "completed",
+      createdAt: currentRange,
+      ...(candidateTripIds.length > 0 ? { id: { notIn: candidateTripIds } } : {}),
+      NOT: {
+        events: {
+          some: {
+            type: {
+              in: REPORT_TRIP_COMPLETION_EVENT_TYPES,
+            },
+          },
+        },
+      },
+    },
+    select: driverTripSelect(),
+  })) as DriverTrip[];
+
+  const trips = [...eventBackedTrips, ...legacyTrips];
+
+  return {
+    trips,
+    assignmentEvents: await fetchAssignmentEventsForTrips(
+      db,
+      input,
+      driverIds,
+      trips,
+    ),
+    completionEvents: [
+      ...completionEventsInPeriod,
+      ...legacyTrips.map((trip) => ({
+        tripId: trip.id,
+        createdAt: trip.createdAt,
+      })),
+    ],
+  } satisfies DriverReportFetchedTrips;
 }
 
 function addBadges(rows: DriverReportRow[]): DriverReportRow[] {
@@ -308,8 +548,8 @@ export function buildDriverReportRows(input: {
     stats.totalPoints += assignedPoints;
     stats.assignedPointProfit += assignedProfit;
 
-    // projectedProfit: tính cả assigned + completed
-    if (trip.status === "completed" || trip.status === "assigned") {
+    if (isProjectedTrip(trip)) {
+      stats.projectedRevenue += toMoneyNumber(trip.price);
       stats.projectedProfit += assignedProfit;
     }
 
@@ -344,6 +584,7 @@ export function buildDriverReportRows(input: {
       cancelRate: percent(stats.cancelledTrips, stats.totalTrips),
       totalRevenue: stats.totalRevenue,
       totalProfit: stats.totalProfit,
+      projectedRevenue: stats.projectedRevenue,
       projectedProfit: stats.projectedProfit,
       totalPoints: stats.totalPoints,
       assignedPointProfit: stats.assignedPointProfit,
@@ -393,7 +634,7 @@ export async function getDriverReport(
   input: DriverReportInput
 ): Promise<DriverReportResult> {
   const currentRange = input.current ?? input.dateRange;
-  const useAssignmentPeriod = hasRangeFilter(currentRange);
+  const dateBasis = input.dateBasis ?? DEFAULT_REPORT_DATE_BASIS;
   const drivers = (await db.user.findMany({
     where: {
       accountId: input.accountId,
@@ -421,171 +662,51 @@ export async function getDriverReport(
   }
 
   const driverIds = drivers.map((driver) => driver.id);
-  let trips: DriverTrip[] = [];
-  let assignmentEvents: DriverTripEvent[] = [];
+  const dateRangeActive = hasReportRange(currentRange);
+  const fetched: DriverReportFetchedTrips = dateRangeActive
+    ? dateBasis === "assignedAt"
+      ? await fetchTripsByAssignedAt(db, input, driverIds, currentRange)
+      : dateBasis === "completedAt"
+        ? await fetchTripsByCompletedAt(db, input, driverIds, currentRange)
+        : await fetchTripsByDirectDateBasis(
+            db,
+            input,
+            driverIds,
+            dateBasis,
+            currentRange,
+          )
+    : await fetchTripsByDirectDateBasis(
+        db,
+        input,
+        driverIds,
+        dateBasis,
+        currentRange,
+      );
 
-  if (useAssignmentPeriod) {
-    const eventsInPeriod = (await db.tripEvent.findMany({
-      where: {
-        accountId: input.accountId,
-        type: {
-          in: DRIVER_ASSIGNMENT_EVENT_TYPES,
-        },
-        toDriverId: { in: driverIds },
-        createdAt: currentRange,
-      },
-      select: {
-        id: true,
-        tripId: true,
-        toDriverId: true,
-        createdAt: true,
-        pointsEarned: true,
-        profit: true,
-        profitRate: true,
-        formulaId: true,
-        formulaName: true,
-      },
-    })) as DriverTripEvent[];
-
-    const candidateTripIds = Array.from(
-      new Set(
-        eventsInPeriod
-          .map((event) => event.tripId)
-          .filter((tripId): tripId is number => tripId != null)
-      )
-    );
-
-    const eventBackedTrips =
-      candidateTripIds.length > 0
-        ? ((await db.trip.findMany({
-            where: {
-              accountId: input.accountId,
-              id: { in: candidateTripIds },
-              driverId: { in: driverIds },
-            },
-            select: {
-              id: true,
-              driverId: true,
-              status: true,
-              price: true,
-              profit: true,
-              pointsEarned: true,
-              createdAt: true,
-            },
-          })) as DriverTrip[])
-        : [];
-
-    const legacyTrips = (await db.trip.findMany({
-      where: {
-        accountId: input.accountId,
-        driverId: { in: driverIds },
-        createdAt: currentRange,
-        ...(candidateTripIds.length > 0
-          ? { id: { notIn: candidateTripIds } }
-          : {}),
-        NOT: {
-          events: {
-            some: {
-              type: {
-                in: DRIVER_ASSIGNMENT_EVENT_TYPES,
-              },
-            },
-          },
-        },
-      },
-      select: {
-        id: true,
-        driverId: true,
-        status: true,
-        price: true,
-        profit: true,
-        pointsEarned: true,
-        createdAt: true,
-      },
-    })) as DriverTrip[];
-
-    trips = [...eventBackedTrips, ...legacyTrips];
-
-    const currentDriverByTripId = new Map(
-      trips
-        .filter((trip) => trip.driverId != null)
-        .map((trip) => [trip.id, trip.driverId as number])
-    );
-
-    assignmentEvents = [
-      ...eventsInPeriod.filter(
-        (event) =>
-          event.tripId != null &&
-          event.toDriverId != null &&
-          currentDriverByTripId.get(event.tripId) === event.toDriverId
-      ),
-      ...legacyTrips.flatMap((trip) => {
-        const event = legacyAssignmentEventFromTrip(trip);
-        return event ? [event] : [];
-      }),
-    ];
-  } else {
-    trips = (await db.trip.findMany({
-      where: {
-        accountId: input.accountId,
-        driverId: { in: driverIds },
-      },
-      select: {
-        id: true,
-        driverId: true,
-        status: true,
-        price: true,
-        profit: true,
-        pointsEarned: true,
-        createdAt: true,
-      },
-    })) as DriverTrip[];
-
-    const tripIds = trips.map((trip) => trip.id);
-
-    assignmentEvents =
-      tripIds.length > 0
-        ? ((await db.tripEvent.findMany({
-            where: {
-              accountId: input.accountId,
-              type: {
-                in: DRIVER_ASSIGNMENT_EVENT_TYPES,
-              },
-              toDriverId: { in: driverIds },
-              tripId: { in: tripIds },
-            },
-            select: {
-              id: true,
-              tripId: true,
-              toDriverId: true,
-              createdAt: true,
-              pointsEarned: true,
-              profit: true,
-              profitRate: true,
-              formulaId: true,
-              formulaName: true,
-            },
-          })) as DriverTripEvent[])
-        : [];
-  }
+  const trips = fetched.trips;
+  const assignmentEvents = fetched.assignmentEvents;
 
   const completedTripIds = trips
     .filter((trip) => trip.status === "completed")
     .map((trip) => trip.id);
   const completionEvents =
-    completedTripIds.length > 0
+    fetched.completionEvents ??
+    (completedTripIds.length > 0
       ? ((await db.tripEvent.findMany({
           where: {
             accountId: input.accountId,
-            type: TRIP_EVENT_TYPES.TRIP_COMPLETED,
+            type: {
+              in: REPORT_TRIP_COMPLETION_EVENT_TYPES,
+            },
             tripId: { in: completedTripIds },
           },
           select: {
+            id: true,
             tripId: true,
             createdAt: true,
           },
         })) as DriverTripEvent[])
-      : [];
+      : []);
 
   const rows = buildDriverReportRows({
     drivers,

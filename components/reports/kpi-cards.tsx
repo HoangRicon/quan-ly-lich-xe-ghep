@@ -17,6 +17,8 @@ import {
 interface KpiData {
   totalRevenue: number;
   totalProfit: number;
+  assignedRevenue: number;
+  assignedProfit: number;
   projectedRevenue: number;
   projectedProfit: number;
   totalTrips: number;
@@ -120,7 +122,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
           <div key={i} className="bg-white rounded-xl border border-slate-200 p-2.5">
             <div className="h-3 w-20 bg-slate-100 rounded mb-2 animate-pulse" />
             <div className="grid grid-cols-2 gap-1.5">
-              {Array.from({ length: i === 1 ? 5 : i === 0 ? 4 : 2 }).map((_, j) => (
+              {Array.from({ length: i === 1 ? 5 : i === 0 ? 6 : 2 }).map((_, j) => (
                 <SkeletonCard key={j} />
               ))}
             </div>
@@ -133,11 +135,11 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
   const groups: StatGroup[] = [
     {
       title: "Tiền",
-      helper: "bao gồm doanh thu cuốc hoàn thành và cuốc đã gán",
-      columns: "grid-cols-2",
+      helper: "hoàn thành, đã gán và dự kiến",
+      columns: "grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3",
       items: [
         {
-          label: "Doanh thu",
+          label: "Doanh thu đã hoàn thành",
           value: data.totalRevenue,
           icon: DollarSign,
           colorKey: "emerald",
@@ -145,11 +147,25 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
           type: "money",
         },
         {
-          label: "Lợi nhuận",
+          label: "Lợi nhuận đã hoàn thành",
           value: data.totalProfit,
           icon: Wallet,
           colorKey: "blue",
           trend: data.profitChangePercent,
+          type: "money",
+        },
+        {
+          label: "Doanh thu đã gán",
+          value: data.assignedRevenue,
+          icon: UserCheck,
+          colorKey: "sky",
+          type: "money",
+        },
+        {
+          label: "Lợi nhuận đã gán",
+          value: data.assignedProfit,
+          icon: Clock,
+          colorKey: "amber",
           type: "money",
         },
         {
@@ -170,7 +186,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
     },
     {
       title: "Vận hành",
-      helper: "theo ngày tạo cuốc",
+      helper: "theo kiểu ngày đang lọc",
       columns: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5",
       items: [
         {
