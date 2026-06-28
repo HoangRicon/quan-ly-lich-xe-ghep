@@ -2,8 +2,8 @@
  * Auto-generate a zom-style note from trip form fields.
  *
  * Logic mirror từ `components/trip-form.tsx` (lines 8-82 trước refactor).
- * Được share giữa trang thêm cuốc xe (`/dashboard/schedule/add`) và
- * bottom sheet sửa bản nháp ở trang tạo nhanh (`/dashboard/quick-create`).
+ * Được share giữa trang tạo thủ công (`/dashboard/quick-create`) và
+ * bottom sheet sửa bản nháp ở trang tạo nhanh (`/dashboard/schedule/add`).
  *
  * Format note (vd): "0-30p 1k HN - HP 150k 0912345678\nVị trí đón: 123 Cầu Giấy"
  */

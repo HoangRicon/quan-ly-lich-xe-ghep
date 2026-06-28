@@ -7,7 +7,7 @@ import { Calendar, Users, Settings, Plus, BarChart3 } from "lucide-react";
 const navItems = [
   { href: "/dashboard/schedule", icon: Calendar, label: "Cuốc xe" },
   { href: "/dashboard/drivers", icon: Users, label: "Zom" },
-  { href: "/dashboard/quick-create", icon: Plus, label: "Tạo nhanh", isFab: true },
+  { href: "/dashboard/quick-create", icon: Plus, label: "Tạo thủ công", isFab: true },
   { href: "/dashboard/reports", icon: BarChart3, label: "Báo cáo" },
   { href: "/dashboard/settings", icon: Settings, label: "Cài đặt" },
 ];
@@ -26,6 +26,8 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
+                title={item.label}
                 className="relative -top-6 flex items-center justify-center flex-shrink-0"
               >
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all duration-200 active:scale-95 touch-manipulation">

@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import {
   findMatchingFormula,
   applyFormula,
+  calculatePointsFromProfit,
   TripMatchInput,
 } from "@/lib/formula-engine";
 import {
@@ -200,13 +201,29 @@ export async function PUT(
       const db = txDb;
 
     const updateData: Prisma.TripUpdateInput = {};
+    let effectiveProfitRate: number | null = null;
+    const rememberProfitRate = (value: unknown) => {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 0) {
+        effectiveProfitRate = n;
+      }
+    };
     const hasManualProfitInput = profit !== undefined;
     const applyManualProfitInput = () => {
       if (profit === null || profit === "") {
         updateData.profit = null;
+        updateData.pointsEarned = null;
       } else {
         const n = parseVndNumber(profit);
-        updateData.profit = Number.isFinite(n) ? sanitizeOptionalDecimal10_2(n) : null;
+        const manualProfit = Number.isFinite(n) ? sanitizeOptionalDecimal10_2(n) : null;
+        updateData.profit = manualProfit;
+
+        if (manualProfit != null && effectiveProfitRate != null) {
+          updateData.pointsEarned = sanitizeOptionalDecimal10_2(
+            calculatePointsFromProfit(manualProfit, effectiveProfitRate)
+          );
+          updateData.profitRate = sanitizeOptionalDecimal15_2(effectiveProfitRate);
+        }
       }
     };
 
@@ -217,13 +234,15 @@ export async function PUT(
         accountId: number;
         status: string;
         driverId: number | null;
+        profitRate: unknown;
       }>
     >`
       SELECT
         "id",
         "account_id" AS "accountId",
         "status",
-        "driver_id" AS "driverId"
+        "driver_id" AS "driverId",
+        "profit_rate" AS "profitRate"
       FROM "trips"
       WHERE "id" = ${tripId}
         AND "account_id" = ${user.accountId}
@@ -234,6 +253,7 @@ export async function PUT(
     }
     const currentStatus = currentTripForValidation.status;
     const oldDriverId = currentTripForValidation.driverId;
+    rememberProfitRate(currentTripForValidation.profitRate);
 
     // DriverId thực tế sẽ được áp dụng sau khi merge input với DB state.
     const requestedDriverId =
@@ -246,12 +266,13 @@ export async function PUT(
 
       const driver = await db.user.findFirst({
         where: { id: requestedDriverId, accountId: user.accountId },
-        select: { id: true },
+        select: { id: true, profitRate: true },
       });
 
       if (!driver) {
         throw new TripMutationError(400, "Driver not found in your account");
       }
+      rememberProfitRate(driver.profitRate);
     }
 
     const finalDriverId: number | null =
@@ -331,6 +352,7 @@ export async function PUT(
       if (!currentTrip) {
         throw new TripMutationError(404, "Trip not found");
       }
+      rememberProfitRate(currentTrip.profitRate);
 
       const finalPriceRaw = price !== undefined ? parseVndNumber(price) : Number(currentTrip.price);
       const finalPrice = Number.isFinite(finalPriceRaw) ? clampDecimal10_2(finalPriceRaw) : clampDecimal10_2(Number(currentTrip.price));
@@ -366,6 +388,7 @@ export async function PUT(
 
       // Chỉ tính profit/points khi đã có driverId (tức là đã chọn Zom)
       if (!finalDriverId) {
+        effectiveProfitRate = null;
         updateData.pointsEarned = null;
         updateData.profitRate = null;
         updateData.profit = null;
@@ -379,7 +402,14 @@ export async function PUT(
 
         let driverProfitRate = 1000;
         const driverFormulaIds = Array.isArray(driver?.formulaIds) ? driver!.formulaIds : [];
-        if (driver) driverProfitRate = Number(driver.profitRate);
+        if (driver) {
+          const parsedDriverProfitRate = Number(driver.profitRate);
+          driverProfitRate =
+            Number.isFinite(parsedDriverProfitRate) && parsedDriverProfitRate > 0
+              ? parsedDriverProfitRate
+              : 1000;
+        }
+        rememberProfitRate(driverProfitRate);
 
         const allFormulas =
           driverFormulaIds.length > 0
@@ -423,6 +453,14 @@ export async function PUT(
     } else {
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
       if (tripType !== undefined) updateData.tripType = tripType;
+    }
+
+    if (hasManualProfitInput && finalDriverId && effectiveProfitRate == null) {
+      const driver = await db.user.findFirst({
+        where: { id: finalDriverId, accountId: user.accountId },
+        select: { profitRate: true },
+      });
+      rememberProfitRate(driver?.profitRate);
     }
 
     if (hasManualProfitInput) {

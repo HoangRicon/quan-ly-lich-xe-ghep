@@ -893,7 +893,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       // 1. Có driver + formulas VÀ không nhập profit thủ công → tự tính lại
       // 2. Có driver + formulas VÀ nhận profit thủ công → vẫn tính lại để cập nhật matchedFormulaId
       // NOTE: driver có formulas thì luôn recalculate (formula engine tự match đúng loại hình)
-      const shouldRecalculate = driverHasFormula && !hasManualProfit;
+      const shouldRecalculate = driverHasFormula;
 
       const res = await fetch(`/api/trips/${editingTrip.id}`, {
         method: "PUT",
@@ -1153,13 +1153,15 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           </div>
         </div>
 
-        {/* Manual Add Button */}
+        {/* Quick Create Button */}
         <Link
           href="/dashboard/schedule/add"
+          title="Tạo nhanh"
+          aria-label="Tạo nhanh"
           className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 text-xs font-semibold hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Tạo cuốc thủ công
+          Tạo nhanh
         </Link>
       </div>
 

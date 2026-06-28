@@ -127,6 +127,27 @@ export function calculateProfit(points: number, profitRate: number): number {
 }
 
 /**
+ * Tinh diem nguoc tu loi nhuan nhap tay: diem = loi nhuan / ti le quy doi.
+ */
+export function calculatePointsFromProfit(
+  profit: number,
+  profitRate: number
+): number | null {
+  const safeProfit = Number(profit);
+  const safeProfitRate = Number(profitRate);
+
+  if (!Number.isFinite(safeProfit) || !Number.isFinite(safeProfitRate)) {
+    return null;
+  }
+
+  if (safeProfitRate <= 0) {
+    return null;
+  }
+
+  return safeProfit / safeProfitRate;
+}
+
+/**
  * Áp dụng công thức cho chuyến xe.
  * Trả về object chứa các trường cần update vào Trip model.
  */

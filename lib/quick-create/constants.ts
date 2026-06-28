@@ -5,7 +5,7 @@
 
 import type { QuickEntryItemStatus } from "@/lib/quick-trip-entry/types";
 
-export const QUICK_CREATE_PAGE_HREF = "/dashboard/quick-create";
+export const QUICK_CREATE_PAGE_HREF = "/dashboard/schedule/add";
 export const SCHEDULE_PAGE_HREF = "/dashboard/schedule";
 
 /** Map draft parse status → Tailwind classes for status badge */
