@@ -45,6 +45,19 @@ assert.equal(completeCandidate.totalSeats, 1);
 assert.equal(completeCandidate.tripType, "ghep");
 assert.equal(validateQuickTripCandidate(completeCandidate).canAutoSave, true);
 
+const accentedColonTimeCandidate = parseQuickTripChunk(
+  "9:00 Hà Nội - Hải Phòng 150k 0912345678",
+  now,
+);
+assert.equal(accentedColonTimeCandidate.departure, "Hà Nội");
+assert.equal(accentedColonTimeCandidate.destination, "Hải Phòng");
+assert.equal(
+  accentedColonTimeCandidate.departureTime,
+  "2026-06-21T02:00:00.000Z",
+);
+assert.equal(accentedColonTimeCandidate.price, 150000);
+assert.equal(accentedColonTimeCandidate.customerPhone, "0912345678");
+
 const shorthandPriceCandidate = parseQuickTripChunk(
   "9h HN - HP 300 ca 0912345678",
   now,

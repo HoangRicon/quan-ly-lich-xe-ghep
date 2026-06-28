@@ -816,7 +816,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     // còn chiều 1C/2C nằm ở `trip.tripDirection`. ScheduleList preview lại match công thức theo `editForm.tripType`
     // nên cần ghép đúng suffix `_roundtrip` ở đây.
     let baseTripType: "ghep" | "bao" | null = null;
-    const rawTripType = (trip as any).tripType as unknown;
+    const rawTripType = trip.tripType;
     if (rawTripType === "bao" || rawTripType === "bao_roundtrip") baseTripType = "bao";
     else if (rawTripType === "ghep" || rawTripType === "ghep_roundtrip") baseTripType = "ghep";
 
@@ -1259,19 +1259,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                   <span className="text-slate-800 font-medium text-sm truncate">{trip.destination}</span>
                 </div>
 
-                {(trip.pickupLocation || trip.dropoffLocation) && (
-                  <div className="space-y-0.5 mb-1">
-                    {trip.pickupLocation && (
-                      <div className="text-[11px] text-slate-500 truncate">Đón: {trip.pickupLocation}</div>
-                    )}
-                    {trip.dropoffLocation && (
-                      <div className="text-[11px] text-slate-500 truncate">Trả: {trip.dropoffLocation}</div>
-                    )}
-                  </div>
-                )}
-
-                {/* Pickup/Dropoff */}
-                {/* Customer Phone - Below pickup/dropoff */}
+                {/* Customer Phone */}
                 {trip.customer?.phone && (
                   <div className="flex items-center gap-2 mb-0.5">
                     <a
@@ -1784,7 +1772,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                       <span className="text-sm font-medium text-red-500">Chưa có công thức</span>
                     ) : editProfitPreview.reason === "not_matching" ? (
                       <span className="text-sm font-medium text-red-500">
-                        Công thức "{editProfitPreview.formulaName || "?"}" không phù hợp số ghế/giá này
+                        Công thức &quot;{editProfitPreview.formulaName || "?"}&quot; không phù hợp số ghế/giá này
                       </span>
                     ) : (
                       <span className="text-sm font-bold text-green-600">

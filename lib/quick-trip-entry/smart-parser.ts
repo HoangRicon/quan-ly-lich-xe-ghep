@@ -82,13 +82,28 @@ function normalizeCandidate(candidate: QuickTripCandidate): QuickTripCandidate {
   };
 }
 
+function stripAutoLocations(candidate: QuickTripCandidate): QuickTripCandidate {
+  const rest = { ...candidate };
+  delete rest.pickupLocation;
+  delete rest.dropoffLocation;
+
+  return rest;
+}
+
+function stripAutoLocationChunk(chunk: ParsedQuickTripChunk): ParsedQuickTripChunk {
+  return {
+    ...chunk,
+    candidate: stripAutoLocations(chunk.candidate),
+  };
+}
+
 function normalizeParsedChunk(chunk: ParsedQuickTripChunk): ParsedQuickTripChunk {
   const ruleCandidate = parseQuickTripChunk(chunk.rawText);
   const aiCandidate = chunk.candidate;
 
   return {
     rawText: chunk.rawText,
-    candidate: normalizeCandidate({
+    candidate: stripAutoLocations(normalizeCandidate({
       ...ruleCandidate,
       ...pickUsefulCandidateFields(aiCandidate),
       departureTime: chooseMergedDepartureTime(
@@ -106,7 +121,7 @@ function normalizeParsedChunk(chunk: ParsedQuickTripChunk): ParsedQuickTripChunk
         ...toStringArray(ruleCandidate.warnings),
         ...toStringArray(aiCandidate.warnings),
       ]),
-    }),
+    })),
   };
 }
 
@@ -119,14 +134,14 @@ export async function parseQuickEntryDrafts(input: {
   const ruleChunks = parseQuickTripInput(input.rawText);
 
   if (input.parseMode === "rule") {
-    return ruleChunks;
+    return ruleChunks.map(stripAutoLocationChunk);
   }
 
   const provider =
     input.provider === undefined ? getQuickTripAiProvider() : input.provider;
 
   if (!provider) {
-    return ruleChunks;
+    return ruleChunks.map(stripAutoLocationChunk);
   }
 
   try {
@@ -143,17 +158,21 @@ export async function parseQuickEntryDrafts(input: {
       normalizedAiChunks.length < groupedDraftCount &&
       ruleChunks.length >= groupedDraftCount
     ) {
-      return ruleChunks;
+      return ruleChunks.map(stripAutoLocationChunk);
     }
 
-    return normalizedAiChunks.length > 0 ? normalizedAiChunks : ruleChunks;
+    return normalizedAiChunks.length > 0
+      ? normalizedAiChunks
+      : ruleChunks.map(stripAutoLocationChunk);
   } catch {
-    return ruleChunks.map((chunk) => ({
-      ...chunk,
-      candidate: {
-        ...chunk.candidate,
-        warnings: uniqueWarnings([...chunk.candidate.warnings, "ai_parse_failed"]),
-      },
-    }));
+    return ruleChunks.map((chunk) =>
+      stripAutoLocationChunk({
+        ...chunk,
+        candidate: {
+          ...chunk.candidate,
+          warnings: uniqueWarnings([...chunk.candidate.warnings, "ai_parse_failed"]),
+        },
+      }),
+    );
   }
 }

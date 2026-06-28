@@ -200,6 +200,15 @@ export async function PUT(
       const db = txDb;
 
     const updateData: Prisma.TripUpdateInput = {};
+    const hasManualProfitInput = profit !== undefined;
+    const applyManualProfitInput = () => {
+      if (profit === null || profit === "") {
+        updateData.profit = null;
+      } else {
+        const n = parseVndNumber(profit);
+        updateData.profit = Number.isFinite(n) ? sanitizeOptionalDecimal10_2(n) : null;
+      }
+    };
 
     // Lock current trip row before deriving event "from" values.
     const [currentTripForValidation] = await tx.$queryRaw<
@@ -310,7 +319,7 @@ export async function PUT(
       if (Number.isFinite(n)) updateData.price = clampDecimal10_2(n);
     }
 
-    // Nếu có recalculate=true thì bỏ qua profit thủ công, dùng formula engine
+    // Recalculate cập nhật điểm/công thức; profit nhập tay sẽ được áp dụng lại sau cùng.
     let assignmentFormulaName: string | null = null;
 
     if (recalculate === true || driverId !== undefined) {
@@ -412,17 +421,12 @@ export async function PUT(
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
       if (tripType !== undefined) updateData.tripType = tripType;
     } else {
-      // Chế độ bình thường: cho phép ghi đè profit thủ công
-      if (profit !== undefined) {
-        if (profit === null || profit === "") {
-          updateData.profit = null;
-        } else {
-          const n = parseVndNumber(profit);
-          updateData.profit = Number.isFinite(n) ? sanitizeOptionalDecimal10_2(n) : null;
-        }
-      }
       if (tripDirection !== undefined) updateData.tripDirection = tripDirection;
       if (tripType !== undefined) updateData.tripType = tripType;
+    }
+
+    if (hasManualProfitInput) {
+      applyManualProfitInput();
     }
 
     if (departureTime !== undefined && departureTime) {

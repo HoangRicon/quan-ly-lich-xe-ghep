@@ -161,21 +161,6 @@ export const DraftCard = memo(function DraftCard({
         </div>
       )}
 
-      {!isPending && (parsed?.pickupLocation || parsed?.dropoffLocation) && (
-        <div className="mb-1 space-y-0.5">
-          {parsed?.pickupLocation && (
-            <div className="truncate text-[11px] text-slate-500">
-              Đón: {parsed.pickupLocation}
-            </div>
-          )}
-          {parsed?.dropoffLocation && (
-            <div className="truncate text-[11px] text-slate-500">
-              Trả: {parsed.dropoffLocation}
-            </div>
-          )}
-        </div>
-      )}
-
       {!isPending && parsed?.customerPhone && (
         <div className="mb-0.5 flex items-center gap-2">
           <a

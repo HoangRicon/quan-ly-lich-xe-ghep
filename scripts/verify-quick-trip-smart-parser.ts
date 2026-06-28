@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import { parseQuickTripChunk } from "../lib/quick-trip-entry/parser";
+import { parseQuickEntryDrafts } from "../lib/quick-trip-entry/smart-parser";
 
 const now = new Date("2026-06-22T00:00:00+07:00");
 
@@ -65,8 +66,8 @@ const accentedQuickNoteSpeech = parseQuickTripChunk(
   now,
 );
 
-assert.equal(accentedQuickNoteSpeech.departure, "Kim Van, Kim Lu");
-assert.equal(accentedQuickNoteSpeech.destination, "Le Chan, Hai Phong");
+assert.equal(accentedQuickNoteSpeech.departure, "Kim Văn, Kim Lũ");
+assert.equal(accentedQuickNoteSpeech.destination, "Lê Chân, Hải Phòng");
 assert.equal(accentedQuickNoteSpeech.price, 400000);
 assert.equal(accentedQuickNoteSpeech.totalSeats, 1);
 assert.equal(
@@ -88,4 +89,39 @@ assert.equal(
   new Date(now.getTime() + 45 * 60 * 1000).toISOString(),
 );
 
-console.log("quick-trip smart parser checks passed");
+async function main() {
+  const aiLocationDrafts = await parseQuickEntryDrafts({
+    rawText: "9:00 Hà Nội - Hải Phòng 150k 0912345678",
+    parseMode: "smart",
+    provider: {
+      async parseMany(rawText) {
+        return [
+          {
+            rawText,
+            candidate: {
+              customerPhone: "0912345678",
+              departure: "Hà Nội",
+              destination: "Hải Phòng",
+              pickupLocation: "Link đón từ AI",
+              dropoffLocation: "Link trả từ AI",
+              departureTime: new Date("2026-06-22T09:00:00+07:00").toISOString(),
+              price: 150000,
+              totalSeats: 1,
+              tripType: "ghep",
+              tripDirection: "oneway",
+              confidence: 0.95,
+              missingFields: [],
+              warnings: [],
+            },
+          },
+        ];
+      },
+    },
+  });
+  assert.equal(aiLocationDrafts[0].candidate.pickupLocation, undefined);
+  assert.equal(aiLocationDrafts[0].candidate.dropoffLocation, undefined);
+
+  console.log("quick-trip smart parser checks passed");
+}
+
+void main();

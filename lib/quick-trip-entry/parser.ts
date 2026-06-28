@@ -55,6 +55,8 @@ const ROUTE_STOP_WORDS =
   "luc|gio|gia|cuoc|phi|tra|tien|sdt|so dien thoai|dien thoai|lien he|dt|phone|khach|don|tra khach|ghi chu|note";
 const ROUTE_STOP_LOOKAHEAD = `(?=\\s+(?:${ROUTE_STOP_WORDS})\\b|$)`;
 const ROUTE_STOP_PATTERN = new RegExp(`\\s+(?:${ROUTE_STOP_WORDS})\\b.*$`, "i");
+const ENDPOINT_PREFIX_PATTERN = /^(?:khach|kh|anh|chi|co|can|xe|di|tu)\s+/i;
+const TRIP_META_PATTERN = /\b(?:bao|bx|ghep|2\s*c|2\s*chieu)\b/i;
 
 const REQUIRED_FIELDS = [
   "customerPhone",
@@ -70,6 +72,125 @@ function toAsciiText(text: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\u0111/g, "d")
     .replace(/\u0110/g, "D");
+}
+
+function createAsciiIndexMap(text: string) {
+  let ascii = "";
+  const indexMap: number[] = [];
+
+  for (let index = 0; index < text.length; ) {
+    const codePoint = text.codePointAt(index);
+    if (codePoint === undefined) break;
+
+    const char = String.fromCodePoint(codePoint);
+    const normalized = toAsciiText(char);
+    for (const normalizedChar of normalized) {
+      ascii += normalizedChar;
+      indexMap.push(index);
+    }
+    index += char.length;
+  }
+
+  return { ascii, indexMap };
+}
+
+function mapAsciiOffsetToOriginal(
+  indexMap: number[],
+  asciiOffset: number,
+  textLength: number,
+) {
+  return asciiOffset >= indexMap.length ? textLength : indexMap[asciiOffset] ?? 0;
+}
+
+function matchRouteGroupsOnAscii(
+  text: string,
+  pattern: RegExp,
+): { departure: string; destination: string } | null {
+  const { ascii, indexMap } = createAsciiIndexMap(text);
+  const match = ascii.match(pattern);
+
+  if (!match || match.index === undefined || !match[1] || !match[2]) {
+    return null;
+  }
+
+  const firstStart = ascii.indexOf(match[1], match.index);
+  if (firstStart < 0) return null;
+
+  const firstEnd = firstStart + match[1].length;
+  const secondStart = ascii.indexOf(match[2], firstEnd);
+  if (secondStart < 0) return null;
+
+  const secondEnd = secondStart + match[2].length;
+
+  return {
+    departure: text.slice(
+      mapAsciiOffsetToOriginal(indexMap, firstStart, text.length),
+      mapAsciiOffsetToOriginal(indexMap, firstEnd, text.length),
+    ),
+    destination: text.slice(
+      mapAsciiOffsetToOriginal(indexMap, secondStart, text.length),
+      mapAsciiOffsetToOriginal(indexMap, secondEnd, text.length),
+    ),
+  };
+}
+
+function stripAsciiPatternSuffix(text: string, pattern: RegExp) {
+  const { ascii, indexMap } = createAsciiIndexMap(text);
+  const match = ascii.match(pattern);
+
+  if (!match || match.index === undefined) {
+    return text;
+  }
+
+  return text.slice(
+    0,
+    mapAsciiOffsetToOriginal(indexMap, match.index, text.length),
+  );
+}
+
+function stripAsciiPatternPrefix(text: string, pattern: RegExp) {
+  const { ascii, indexMap } = createAsciiIndexMap(text);
+  const match = ascii.match(pattern);
+
+  if (!match || match.index !== 0) {
+    return text;
+  }
+
+  return text.slice(
+    mapAsciiOffsetToOriginal(indexMap, match[0].length, text.length),
+  );
+}
+
+function stripAsciiPatternMatches(text: string, patterns: RegExp[]) {
+  const { ascii, indexMap } = createAsciiIndexMap(text);
+  const chars = text.split("");
+
+  for (const pattern of patterns) {
+    const flags = pattern.flags.includes("g")
+      ? pattern.flags
+      : `${pattern.flags}g`;
+    const globalPattern = new RegExp(pattern.source, flags);
+    let match: RegExpExecArray | null;
+
+    while ((match = globalPattern.exec(ascii)) !== null) {
+      const start = mapAsciiOffsetToOriginal(indexMap, match.index, text.length);
+      const end = mapAsciiOffsetToOriginal(
+        indexMap,
+        match.index + match[0].length,
+        text.length,
+      );
+
+      for (let index = start; index < end; index += 1) {
+        chars[index] = " ";
+      }
+
+      if (match[0].length === 0) {
+        globalPattern.lastIndex += 1;
+      }
+    }
+  }
+
+  return chars.join("");
 }
 
 function parsePhone(text: string): string | undefined {
@@ -396,10 +517,13 @@ function parseTripDirection(text: string): "oneway" | "roundtrip" {
 }
 
 function cleanEndpoint(value: string): string | undefined {
-  const cleaned = value
-    .replace(ROUTE_STOP_PATTERN, "")
+  const withoutStopSuffix = stripAsciiPatternSuffix(value, ROUTE_STOP_PATTERN);
+  const withoutPrefix = stripAsciiPatternPrefix(
+    withoutStopSuffix,
+    ENDPOINT_PREFIX_PATTERN,
+  );
+  const cleaned = withoutPrefix
     .replace(/^[\s,.;:|/\\]+|[\s,.;:|/\\]+$/g, "")
-    .replace(/^(?:khach|kh|anh|chi|co|can|xe|di|tu)\s+/i, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -407,27 +531,26 @@ function cleanEndpoint(value: string): string | undefined {
 }
 
 function removeKnownTokens(text: string): string {
-  return RELATIVE_DATE_STRIP_PATTERNS.reduce(
-    (value, pattern) => value.replace(pattern, " "),
-    toAsciiText(text),
-  )
-    .replace(PHONE_PATTERN, " ")
-    .replace(RELATIVE_DURATION_COMPACT_PATTERN, " ")
-    .replace(RELATIVE_DURATION_NUMERIC_PATTERN, " ")
-    .replace(RELATIVE_DURATION_WORD_PATTERN, " ")
-    .replace(PRICE_K_PATTERN, " ")
-    .replace(PRICE_THOUSAND_PATTERN, " ")
-    .replace(PRICE_CA_PATTERN, " ")
-    .replace(PRICE_MILLION_PATTERN, " ")
-    .replace(PRICE_WORD_THOUSAND_PATTERN, " ")
-    .replace(PRICE_CONTEXT_NUMBER_PATTERN, " ")
-    .replace(TIME_COLON_PATTERN, " ")
-    .replace(TIME_H_PATTERN, " ")
-    .replace(TIME_WORD_PATTERN, " ")
-    .replace(SEAT_PATTERN, " ")
-    .replace(SEAT_K_PATTERN, " ")
-    .replace(WORD_SEAT_PATTERN, " ")
-    .replace(/\b(?:bao|bx|ghep|2\s*c|2\s*chieu)\b/gi, " ")
+  return stripAsciiPatternMatches(text, [
+    ...RELATIVE_DATE_STRIP_PATTERNS,
+    PHONE_PATTERN,
+    RELATIVE_DURATION_COMPACT_PATTERN,
+    RELATIVE_DURATION_NUMERIC_PATTERN,
+    RELATIVE_DURATION_WORD_PATTERN,
+    PRICE_K_PATTERN,
+    PRICE_THOUSAND_PATTERN,
+    PRICE_CA_PATTERN,
+    PRICE_MILLION_PATTERN,
+    PRICE_WORD_THOUSAND_PATTERN,
+    PRICE_CONTEXT_NUMBER_PATTERN,
+    TIME_COLON_PATTERN,
+    TIME_H_PATTERN,
+    TIME_WORD_PATTERN,
+    SEAT_PATTERN,
+    SEAT_K_PATTERN,
+    WORD_SEAT_PATTERN,
+    TRIP_META_PATTERN,
+  ])
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -436,17 +559,16 @@ function parseRoute(text: string): {
   departure?: string;
   destination?: string;
 } {
-  const searchableText = toAsciiText(text);
   const fromToPattern = new RegExp(
     `(?:^|\\s)(?:di\\s+)?tu\\s+(.+?)\\s+(?:den|toi|ve)\\s+(.+?)${ROUTE_STOP_LOOKAHEAD}`,
     "i",
   );
-  const explicitFromToMatch = searchableText.match(fromToPattern);
+  const explicitFromToMatch = matchRouteGroupsOnAscii(text, fromToPattern);
 
   if (explicitFromToMatch) {
     return {
-      departure: cleanEndpoint(explicitFromToMatch[1]),
-      destination: cleanEndpoint(explicitFromToMatch[2]),
+      departure: cleanEndpoint(explicitFromToMatch.departure),
+      destination: cleanEndpoint(explicitFromToMatch.destination),
     };
   }
 
@@ -454,12 +576,12 @@ function parseRoute(text: string): {
     `(?:^|\\s)di\\s+(.+?)\\s+(?:den|toi|ve)\\s+(.+?)${ROUTE_STOP_LOOKAHEAD}`,
     "i",
   );
-  const directVerbMatch = searchableText.match(directVerbPattern);
+  const directVerbMatch = matchRouteGroupsOnAscii(text, directVerbPattern);
 
   if (directVerbMatch) {
     return {
-      departure: cleanEndpoint(directVerbMatch[1]),
-      destination: cleanEndpoint(directVerbMatch[2]),
+      departure: cleanEndpoint(directVerbMatch.departure),
+      destination: cleanEndpoint(directVerbMatch.destination),
     };
   }
 
@@ -473,13 +595,14 @@ function parseRoute(text: string): {
     };
   }
 
-  const wordSeparatorMatch = cleanedText.match(
+  const wordSeparatorMatch = matchRouteGroupsOnAscii(
+    cleanedText,
     /(.+?)\s+(?:di|den|toi|ve)\s+(.+)/i,
   );
   if (wordSeparatorMatch) {
     return {
-      departure: cleanEndpoint(wordSeparatorMatch[1]),
-      destination: cleanEndpoint(wordSeparatorMatch[2]),
+      departure: cleanEndpoint(wordSeparatorMatch.departure),
+      destination: cleanEndpoint(wordSeparatorMatch.destination),
     };
   }
 

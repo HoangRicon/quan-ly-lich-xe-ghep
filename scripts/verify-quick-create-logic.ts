@@ -155,7 +155,8 @@ const ruleSuggestionCandidate = parseQuickTripChunk(
 assert.equal(ruleSuggestionCandidate.customerPhone, "0912345678");
 assert.equal(ruleSuggestionCandidate.departure, "HP");
 assert.equal(ruleSuggestionCandidate.destination, "HN");
-assert.equal(ruleSuggestionCandidate.price, 150000);
+assert.equal(ruleSuggestionCandidate.price, 900000);
+assert.equal(ruleSuggestionCandidate.tripType, "bao");
 assert.deepEqual(ruleSuggestionCandidate.missingFields, []);
 
 const reviewDraft = buildDraft({
