@@ -1,0 +1,1 @@
+ALTER TABLE "trips" ADD COLUMN "expense" DECIMAL(10, 2);

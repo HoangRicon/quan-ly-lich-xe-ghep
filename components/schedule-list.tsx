@@ -15,6 +15,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { statusColorClasses, useTripStatuses } from "@/lib/useTripStatuses";
 import { getValidNextStatuses } from "@/lib/trip-status-transitions";
 import { toLocalDateString, getWeekStart, getMonthStart } from "@/lib/date-utils";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/money-input";
 
 interface Trip {
   id: number;
@@ -27,6 +28,7 @@ interface Trip {
   arrivalTime: string | null;
   price: number;
   profit: number | null;
+  expense: number | null;
   tripDirection?: string;
   tripType?: string;
   pointsEarned?: number | null;
@@ -97,7 +99,7 @@ const SCHEDULE_SORT_FIELD_KEY = "schedule-sort-field";
 const SCHEDULE_SORT_DIR_KEY = "schedule-sort-dir";
 
 function formatPriceK(price: string): string {
-  const n = parseInt((price || "").toString().replace(/[^\d]/g, ""), 10) || 0;
+  const n = parseMoneyInput(price) ?? 0;
   if (!n) return "";
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
 }
@@ -304,6 +306,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     departureTime: "",
     price: "",
     profit: "",
+    expense: "",
     totalSeats: "",
     customerName: "",
     customerPhone: "",
@@ -316,7 +319,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
   // Computed realtime profit preview from editForm
   const editProfitPreview = useMemo(() => {
-    const price = parseInt((editForm.price || "").replace(/\./g, "")) || 0;
+    const price = parseMoneyInput(editForm.price) ?? 0;
     const seats = editForm.totalSeats ? parseInt(editForm.totalSeats) : null;
     const dir = editForm.tripDirection || "oneway";
     const type = editForm.tripType || "ghep";
@@ -850,8 +853,9 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       dropoffLocation: trip.dropoffLocation || "",
       departureDate: toLocalDateString(deptDate),
       departureTime: deptDate.toTimeString().slice(0, 5),
-      price: trip.price?.toString() || "",
-      profit: trip.profit != null ? trip.profit.toString() : "",
+      price: formatMoneyInput(trip.price),
+      profit: trip.profit != null ? formatMoneyInput(trip.profit) : "",
+      expense: trip.expense != null ? formatMoneyInput(trip.expense) : "",
       totalSeats: totalSeatsForForm,
       customerName: trip.customer?.name || "",
       customerPhone: trip.customer?.phone || "",
@@ -914,7 +918,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
           tripDirection: editForm.tripDirection,
           tripType: editForm.tripType,
           recalculate: shouldRecalculate,
-          ...(hasManualProfit ? { profit: parseFloat(String(editForm.profit)) } : {}),
+          ...(hasManualProfit ? { profit: editForm.profit } : {}),
+          expense: String(editForm.expense).trim() === "" ? null : editForm.expense,
         }),
       });
       const data = await res.json();
@@ -1296,7 +1301,12 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                     )}
                     {trip.driver ? (
                       trip.profit !== null && trip.profit !== undefined ? (
-                      <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                      <>
+                        <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                        {trip.expense != null && trip.expense > 0 && (
+                          <span className="text-xs font-medium text-red-500">-{formatCurrency(trip.expense)}</span>
+                        )}
+                      </>
                       ) : (
                       <span className="text-xs text-red-400 flex-shrink-0">Chưa tính được lợi nhuận</span>
                       )
@@ -1539,7 +1549,12 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                         </div>
                           {trip.driver ? (
                             trip.profit !== null && trip.profit !== undefined ? (
-                              <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                                {trip.expense != null && trip.expense > 0 && (
+                                  <span className="text-xs font-medium text-red-500">-{formatCurrency(trip.expense)}</span>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-xs text-red-400">Chưa tính được lợi nhuận</span>
                             )
@@ -1757,7 +1772,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                       editForm.totalSeats &&
                       parseInt(editForm.totalSeats) > 0 &&
                       ` - ${editForm.totalSeats} ghế`}
-                    {editForm.price && ` - ${formatCurrency(parseInt(editForm.price.replace(/\./g, "")) || 0)}`}
+                    {editForm.price && ` - ${formatCurrency(parseMoneyInput(editForm.price) ?? 0)}`}
                     {editForm.tripDirection === "roundtrip" && " - 2 chiều"}
                   </h2>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -1922,9 +1937,10 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Giá (VNĐ)</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={editForm.price}
-                      onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                      onChange={(e) => setEditForm({ ...editForm, price: formatMoneyInput(e.target.value) })}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
                       placeholder="Giá tiền"
                     />
@@ -2046,9 +2062,10 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                     <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
                     <div className="flex gap-2">
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={editForm.profit}
-                        onChange={(e) => setEditForm({ ...editForm, profit: e.target.value })}
+                        onChange={(e) => setEditForm({ ...editForm, profit: formatMoneyInput(e.target.value) })}
                         className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm"
                         placeholder="Tu tinh theo cong thuc"
                       />
@@ -2056,7 +2073,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                         type="button"
                         onClick={() => {
                           if (editProfitPreview?.reason === null) {
-                            setEditForm({ ...editForm, profit: editProfitPreview.profit.toString() });
+                            setEditForm({ ...editForm, profit: formatMoneyInput(editProfitPreview.profit) });
                           }
                         }}
                         className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
@@ -2074,6 +2091,20 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                       <span className="font-semibold">
                         Nếu <b>để trống</b> và Zom có công thức thì hệ thống sẽ tự tính.
                       </span>
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Chi phí (VNĐ)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={editForm.expense}
+                      onChange={(e) => setEditForm({ ...editForm, expense: formatMoneyInput(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                      placeholder="Nhập chi phí phát sinh"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Lợi nhuận sau chi phí = lợi nhuận hoàn thành - chi phí.
                     </p>
                   </div>
                 </div>

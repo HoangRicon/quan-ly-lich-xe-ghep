@@ -17,6 +17,7 @@ export interface CreateTripInput {
   departureTime: string | Date;
   arrivalTime?: string | Date | null;
   price: number | string;
+  expense?: number | string | null;
   totalSeats?: number | string | null;
   tripType?: string | null;
   tripDirection?: string | null;
@@ -117,6 +118,7 @@ export async function createTripForAccountInTransaction(
     departureTime,
     arrivalTime,
     price,
+    expense,
     totalSeats,
     tripType,
     notes,
@@ -139,6 +141,11 @@ export async function createTripForAccountInTransaction(
   const parsedCustomerSeats = parsePositiveIntOrDefault(seats, 1);
   const parsedPrice = parseVndPrice(price);
   const safePrice = clampDecimal10_2(parsedPrice);
+  const parsedExpense =
+    expense === undefined || expense === null || expense === ""
+      ? null
+      : parseVndPrice(expense);
+  const safeExpense = sanitizeOptionalDecimal10_2(parsedExpense);
   const parsedDirection = tripDirection === "roundtrip" ? "roundtrip" : "oneway";
   const parsedTripType = tripType === "bao" ? "bao" : "ghep";
   const finalDriverId = requestedDriverId || null;
@@ -246,6 +253,7 @@ export async function createTripForAccountInTransaction(
       totalSeats: parsedTotalSeats,
       status: "scheduled",
       ...(notes ? { notes } : {}),
+      expense: safeExpense,
       pointsEarned: safePointsEarned,
       profitRate: safeProfitRate,
       profit: safeProfit,

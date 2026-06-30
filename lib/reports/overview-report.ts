@@ -35,6 +35,7 @@ export type OverviewTrip = {
   driverId?: number | null;
   price: unknown;
   profit?: unknown;
+  expense?: unknown;
   createdAt: Date;
   departureTime: Date;
 };
@@ -49,6 +50,8 @@ export type OverviewReport = {
   totalTrips: number;
   totalRevenue: number;
   totalProfit: number;
+  totalExpense: number;
+  netProfit: number;
   assignedRevenue: number;
   assignedProfit: number;
   projectedRevenue: number;
@@ -127,6 +130,7 @@ function overviewTripSelect() {
     driverId: true,
     price: true,
     profit: true,
+    expense: true,
     createdAt: true,
     departureTime: true,
   };
@@ -166,6 +170,8 @@ export function calculateOverviewReport(
   });
   const totalRevenue = sumMoney(completedOnly, (trip) => trip.price);
   const totalProfit = sumMoney(completedOnly, (trip) => trip.profit);
+  const totalExpense = sumMoney(completedOnly, (trip) => trip.expense);
+  const netProfit = totalProfit - totalExpense;
   const assignedRevenue = sumMoney(assignedOnly, (trip) => trip.price);
   const assignedProfit = sumMoney(assignedOnly, (trip) => trip.profit);
   const projectedRevenue = sumMoney(projectedTrips, (trip) => trip.price);
@@ -198,6 +204,8 @@ export function calculateOverviewReport(
     totalTrips,
     totalRevenue,
     totalProfit,
+    totalExpense,
+    netProfit,
     assignedRevenue,
     assignedProfit,
     projectedRevenue,

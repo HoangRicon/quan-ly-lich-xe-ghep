@@ -56,6 +56,7 @@ const overview = calculateOverviewReport([
     driverId: 9,
     price: 500000,
     profit: 150000,
+    expense: 25000,
     pointsEarned: 2,
     createdAt: new Date("2026-06-18T17:30:00.000Z"),
     departureTime: new Date("2026-06-20T02:00:00.000Z"),
@@ -75,6 +76,8 @@ assert.equal(overview.totalTrips, 2);
 assert.equal(overview.completedTrips, 1);
 assert.equal(overview.totalRevenue, 500000);
 assert.equal(overview.totalProfit, 150000);
+assert.equal(overview.totalExpense, 25000);
+assert.equal(overview.netProfit, 125000);
 assert.equal(overview.assignedRevenue, 999999);
 assert.equal(overview.assignedProfit, 999999);
 assert.equal(overview.projectedRevenue, 1499999);

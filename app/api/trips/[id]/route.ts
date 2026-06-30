@@ -108,6 +108,7 @@ export async function GET(
       arrivalTime: trip.arrivalTime,
       price: trip.price,
       profit: trip.profit != null ? Number(trip.profit) : null,
+      expense: trip.expense != null ? Number(trip.expense) : null,
       tripDirection: trip.tripDirection,
       tripType: trip.tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,
@@ -155,7 +156,7 @@ export async function PUT(
     const tripId = parseInt(id);
 
     const {
-      status, driverId, departure, destination, pickupLocation, dropoffLocation, price, profit,
+      status, driverId, departure, destination, pickupLocation, dropoffLocation, price, profit, expense,
       title, departureTime, totalSeats, notes,
       customerPhone,
       customerName,
@@ -338,6 +339,17 @@ export async function PUT(
     if (price !== undefined) {
       const n = parseVndNumber(price);
       if (Number.isFinite(n)) updateData.price = clampDecimal10_2(n);
+    }
+
+    if (expense !== undefined) {
+      if (expense === null || expense === "") {
+        updateData.expense = null;
+      } else {
+        const n = parseVndNumber(expense);
+        if (Number.isFinite(n)) {
+          updateData.expense = sanitizeOptionalDecimal10_2(n);
+        }
+      }
     }
 
     // Recalculate cập nhật điểm/công thức; profit nhập tay sẽ được áp dụng lại sau cùng.
@@ -660,6 +672,7 @@ export async function PUT(
       arrivalTime: trip.arrivalTime,
       price: trip.price,
       profit: trip.profit != null ? Number(trip.profit) : null,
+      expense: trip.expense != null ? Number(trip.expense) : null,
       tripDirection: trip.tripDirection,
       tripType: trip.tripType || "ghep",
       pointsEarned: trip.pointsEarned != null ? Number(trip.pointsEarned) : null,

@@ -77,6 +77,9 @@ export async function GET(request: NextRequest) {
         trang_thai: statusLabels[trip.status] ?? trip.status,
         gia_ve: Number(trip.price),
         loi_nhuan: trip.profit != null ? Number(trip.profit) : "",
+        chi_phi: trip.expense != null ? Number(trip.expense) : "",
+        loi_nhuan_sau_chi_phi:
+          trip.profit != null ? Number(trip.profit) - Number(trip.expense ?? 0) : "",
         ti_le_loi_nhuan: trip.profitRate != null ? Number(trip.profitRate) : "",
         diem_tichluy: trip.pointsEarned != null ? Number(trip.pointsEarned) : "",
         tong_ghe: trip.totalSeats,

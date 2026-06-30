@@ -80,6 +80,7 @@ model Trip {
   notes            String?
   createdById      Int?           @map("created_by_id")
   profit           Decimal?       @db.Decimal(10, 2)
+  expense          Decimal?       @db.Decimal(10, 2)
   matchedFormulaId Int?           @map("matched_formula_id")
   pointsEarned     Decimal?       @map("points_earned") @db.Decimal(10, 2)
   profitRate       Decimal?       @map("profit_rate") @db.Decimal(15, 2)

@@ -19,6 +19,8 @@ import {
 interface KpiData {
   totalRevenue: number;
   totalProfit: number;
+  totalExpense: number;
+  netProfit: number;
   assignedRevenue: number;
   assignedProfit: number;
   projectedRevenue: number;

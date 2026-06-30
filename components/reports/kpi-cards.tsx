@@ -7,6 +7,7 @@ import {
   Clock,
   DollarSign,
   Gauge,
+  Receipt,
   TrendingDown,
   TrendingUp,
   UserCheck,
@@ -17,6 +18,8 @@ import {
 interface KpiData {
   totalRevenue: number;
   totalProfit: number;
+  totalExpense: number;
+  netProfit: number;
   assignedRevenue: number;
   assignedProfit: number;
   projectedRevenue: number;
@@ -122,7 +125,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
           <div key={i} className="bg-white rounded-xl border border-slate-200 p-2.5">
             <div className="h-3 w-20 bg-slate-100 rounded mb-2 animate-pulse" />
             <div className="grid grid-cols-2 gap-1.5">
-              {Array.from({ length: i === 1 ? 5 : i === 0 ? 6 : 2 }).map((_, j) => (
+              {Array.from({ length: i === 1 ? 5 : i === 0 ? 8 : 2 }).map((_, j) => (
                 <SkeletonCard key={j} />
               ))}
             </div>
@@ -152,6 +155,20 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
           icon: Wallet,
           colorKey: "blue",
           trend: data.profitChangePercent,
+          type: "money",
+        },
+        {
+          label: "Chi phí",
+          value: data.totalExpense,
+          icon: Receipt,
+          colorKey: "rose",
+          type: "money",
+        },
+        {
+          label: "Lợi nhuận sau chi phí",
+          value: data.netProfit,
+          icon: Wallet,
+          colorKey: "teal",
           type: "money",
         },
         {

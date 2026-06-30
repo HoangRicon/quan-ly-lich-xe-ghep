@@ -11,6 +11,7 @@ describe("calculateOverviewReport", () => {
         status: "completed",
         price: 100_000,
         profit: 25_000,
+        expense: 5_000,
         createdAt: new Date("2026-06-10T03:00:00.000Z"),
         departureTime: new Date("2026-06-11T03:00:00.000Z"),
       },
@@ -19,6 +20,7 @@ describe("calculateOverviewReport", () => {
         driverId: 11,
         price: 300_000,
         profit: 90_000,
+        expense: 30_000,
         createdAt: new Date("2026-06-11T03:00:00.000Z"),
         departureTime: new Date("2026-06-12T03:00:00.000Z"),
       },
@@ -49,6 +51,8 @@ describe("calculateOverviewReport", () => {
     expect(report.assignedTrips).toBe(1);
     expect(report.totalRevenue).toBe(100_000);
     expect(report.totalProfit).toBe(25_000);
+    expect(report.totalExpense).toBe(5_000);
+    expect(report.netProfit).toBe(20_000);
     expect(report.revenueByDay).toEqual([
       {
         date: "2026-06-11",
