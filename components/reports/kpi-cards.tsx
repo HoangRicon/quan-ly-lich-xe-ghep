@@ -186,11 +186,11 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
     },
     {
       title: "Vận hành",
-      helper: "theo ngày tạo cuốc",
+      helper: "theo ngày đi",
       columns: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5",
       items: [
         {
-          label: "Tổng cuốc tạo",
+          label: "Tổng cuốc",
           value: data.totalTrips,
           icon: Car,
           colorKey: "violet",
@@ -229,7 +229,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
     },
     {
       title: "Chất lượng",
-      helper: "trên tổng cuốc tạo",
+      helper: "trên tổng cuốc",
       columns: "grid-cols-2",
       items: [
         {

@@ -125,7 +125,7 @@ export function RevenueChart({
   dateFilter = "month",
 }: RevenueChartProps) {
   const chartTitle = CHART_TITLE_MAP[dateFilter] || "Doanh thu ghi nhận theo ngày";
-  const chartHelper = "Chỉ tính cuốc completed theo ngày tạo cuốc";
+  const chartHelper = "Chỉ tính cuốc completed theo ngày đi";
   const useMonthLabels = dateFilter === "year" || dateFilter === "all";
   const hasData = data.length > 0;
 

@@ -1,5 +1,10 @@
 import type { ReportRangeFilter } from "@/lib/reports/date-range";
 import {
+  buildTripDateBasisRelationWhere,
+  DEFAULT_REPORT_DATE_BASIS,
+  type ReportDateBasis,
+} from "@/lib/reports/date-basis";
+import {
   changePercent,
   percent,
   reportStatusBucket,
@@ -21,6 +26,7 @@ export type OverviewReportInput = {
   current?: ReportRangeFilter;
   dateRange?: ReportRangeFilter;
   previousRange?: ReportRangeFilter;
+  dateBasis?: ReportDateBasis;
   driverId?: number | null;
 };
 
@@ -30,6 +36,7 @@ export type OverviewTrip = {
   price: unknown;
   profit?: unknown;
   createdAt: Date;
+  departureTime: Date;
 };
 
 export type RevenuePeriodPoint = {
@@ -121,6 +128,7 @@ function overviewTripSelect() {
     price: true,
     profit: true,
     createdAt: true,
+    departureTime: true,
   };
 }
 
@@ -128,19 +136,17 @@ function buildDriverWhere(input: OverviewReportInput) {
   return input.driverId ? { driverId: input.driverId } : {};
 }
 
-function buildCreatedAtWhere(range: ReportRangeFilter | undefined) {
-  return range && Object.keys(range).length > 0 ? { createdAt: range } : {};
-}
-
 async function fetchTripsForRange(
   db: TripFindManyDb,
   input: OverviewReportInput,
   range: ReportRangeFilter | undefined,
 ) {
+  const dateBasis = input.dateBasis ?? DEFAULT_REPORT_DATE_BASIS;
+
   return (await db.trip.findMany({
     where: {
       accountId: input.accountId,
-      ...buildCreatedAtWhere(range),
+      ...buildTripDateBasisRelationWhere(dateBasis, range),
       ...buildDriverWhere(input),
     },
     select: overviewTripSelect(),
@@ -179,8 +185,8 @@ export function calculateOverviewReport(
   const revenueByMonthMap = new Map<string, RevenuePeriodPoint>();
   const revenueByStatus = emptyStatusMoney();
   for (const trip of completedOnly) {
-    addRevenuePoint(revenueByDayMap, toDayKey(trip.createdAt), trip);
-    addRevenuePoint(revenueByMonthMap, toMonthKey(trip.createdAt), trip);
+    addRevenuePoint(revenueByDayMap, toDayKey(trip.departureTime), trip);
+    addRevenuePoint(revenueByMonthMap, toMonthKey(trip.departureTime), trip);
     revenueByStatus[reportStatusBucket(trip)] += toMoneyNumber(trip.price);
   }
 

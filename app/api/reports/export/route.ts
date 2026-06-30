@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const { current } = parseReportDateRange(startDate, endDate);
     if (Object.keys(current).length > 0) {
-      where.createdAt = current;
+      where.departureTime = current;
     }
 
     const trips = await db.trip.findMany({

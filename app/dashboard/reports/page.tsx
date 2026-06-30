@@ -86,7 +86,7 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [dateBasis, setDateBasis] = useState<ReportDateBasis>("assignedAt");
+  const [dateBasis, setDateBasis] = useState<ReportDateBasis>(DEFAULT_REPORT_DATE_BASIS);
   const [selectedDriver, setSelectedDriver] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [driverDropdownOpen, setDriverDropdownOpen] = useState(false);
@@ -104,6 +104,7 @@ export default function ReportsPage() {
       if (endDate) params.set("endDate", endDate);
       if (startTime) params.set("startTime", startTime);
       if (endTime) params.set("endTime", endTime);
+      params.set("dateBasis", dateBasis);
       if (selectedDriver) params.set("driverId", selectedDriver);
 
       const res = await fetch(`/api/reports/stats?${params.toString()}`);
@@ -114,7 +115,7 @@ export default function ReportsPage() {
     } finally {
       setStatsLoading(false);
     }
-  }, [startDate, endDate, startTime, endTime, selectedDriver]);
+  }, [startDate, endDate, startTime, endTime, dateBasis, selectedDriver]);
 
   const fetchDrivers = useCallback(async () => {
     setDriversLoading(true);

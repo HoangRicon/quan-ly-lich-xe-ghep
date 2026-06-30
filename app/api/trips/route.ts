@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { createTenantPrisma } from "@/lib/prisma-tenant";
 import type { Prisma } from "@prisma/client";
+import { parseReportDateRange } from "@/lib/reports/date-range";
 import {
   createTripForAccount,
   CreateTripError,
@@ -64,36 +65,11 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    if (date) {
-      const [y, m, d] = date.split("-").map(Number);
-      const startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
-      const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
-      where.departureTime = {
-        gte: startOfDay,
-        lte: endOfDay,
-      };
-    } else if (startDate && endDate) {
-      const [sY, sM, sD] = startDate.split("-").map(Number);
-      const [eY, eM, eD] = endDate.split("-").map(Number);
-      const start = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
-      const end = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
-      where.departureTime = {
-        gte: start,
-        lte: end,
-      };
-    } else if (startDate) {
-      // Parse YYYY-MM-DD as local date: split components and create Date in local timezone
-      const [sY, sM, sD] = startDate.split("-").map(Number);
-      const start = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
-      where.departureTime = {
-        gte: start,
-      };
-    } else if (endDate) {
-      const [eY, eM, eD] = endDate.split("-").map(Number);
-      const end = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
-      where.departureTime = {
-        lte: end,
-      };
+    const tripDateRange = date
+      ? parseReportDateRange(date, date).current
+      : parseReportDateRange(startDate, endDate).current;
+    if (Object.keys(tripDateRange).length > 0) {
+      where.departureTime = tripDateRange;
     }
 
     const skip = (page - 1) * limit;

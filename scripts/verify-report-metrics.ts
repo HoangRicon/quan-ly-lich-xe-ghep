@@ -67,6 +67,7 @@ const overview = calculateOverviewReport([
     price: 999999,
     profit: 999999,
     createdAt: new Date("2026-06-19T04:00:00.000Z"),
+    departureTime: new Date("2026-06-20T04:00:00.000Z"),
   },
 ] as Parameters<typeof calculateOverviewReport>[0]);
 
@@ -79,7 +80,7 @@ assert.equal(overview.assignedProfit, 999999);
 assert.equal(overview.projectedRevenue, 1499999);
 assert.equal(overview.projectedProfit, 1149999);
 assert.deepEqual(overview.revenueByDay, [
-  { date: "2026-06-19", revenue: 500000, profit: 150000, trips: 1 },
+  { date: "2026-06-20", revenue: 500000, profit: 150000, trips: 1 },
 ]);
 assert.equal(overview.statusCounts.assigned, 1);
 assert.equal(overview.revenueByStatus.completed, 500000);
@@ -325,6 +326,7 @@ async function main() {
     {
       accountId: 1,
       driverId: 2,
+      dateBasis: "assignedAt",
       current: parseReportDateRange("2026-06-19", "2026-06-19").current,
     }
   );
@@ -443,6 +445,7 @@ async function main() {
     {
       accountId: 1,
       driverId: 2,
+      dateBasis: "assignedAt",
       current: parseReportDateRange("2026-06-19", "2026-06-19").current,
     }
   );

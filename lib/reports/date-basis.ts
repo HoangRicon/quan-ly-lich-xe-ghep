@@ -12,7 +12,7 @@ export const REPORT_DATE_BASIS_OPTIONS = [
 
 export type ReportDateBasis = (typeof REPORT_DATE_BASIS_OPTIONS)[number]["key"];
 
-export const DEFAULT_REPORT_DATE_BASIS: ReportDateBasis = "assignedAt";
+export const DEFAULT_REPORT_DATE_BASIS: ReportDateBasis = "departureTime";
 
 export const REPORT_DRIVER_ASSIGNMENT_EVENT_TYPES = [
   TRIP_EVENT_TYPES.DRIVER_ASSIGNED,

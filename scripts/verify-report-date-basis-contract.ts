@@ -4,6 +4,9 @@ import { readFile } from "node:fs/promises";
 async function main() {
   const reportsPage = await readFile("app/dashboard/reports/page.tsx", "utf8");
   const statsRoute = await readFile("app/api/reports/stats/route.ts", "utf8");
+  const exportRoute = await readFile("app/api/reports/export/route.ts", "utf8");
+  const tripsRoute = await readFile("app/api/trips/route.ts", "utf8");
+  const overviewReport = await readFile("lib/reports/overview-report.ts", "utf8");
   const driversRoute = await readFile("app/api/reports/drivers/route.ts", "utf8");
   const driverHistoryRoute = await readFile(
     "app/api/reports/drivers/[driverId]/trips/route.ts",
@@ -17,13 +20,18 @@ async function main() {
 
   assert.match(
     reportsPage,
-    /useState<ReportDateBasis>\("assignedAt"\)/,
-    "Reports page must default date filtering to driver assignment date",
+    /useState<ReportDateBasis>\(DEFAULT_REPORT_DATE_BASIS\)/,
+    "Reports page must default date filtering from the shared helper",
   );
   assert.doesNotMatch(
     reportsPage,
+    /params\.set\("dateBasis", "assignedAt"\)/,
+    "Reports page must not hard-code dateBasis",
+  );
+  assert.match(
+    reportsPage,
     /params\.set\("dateBasis", dateBasis\)/,
-    "Overview stats requests must not send dateBasis",
+    "Overview stats requests must send the selected dateBasis",
   );
 
   for (const key of ["assignedAt", "createdAt", "completedAt", "departureTime"]) {
@@ -35,14 +43,49 @@ async function main() {
   }
 
   assert.match(
+    dateBasisHelper,
+    /DEFAULT_REPORT_DATE_BASIS:\s*ReportDateBasis\s*=\s*"departureTime"/,
+    "Report date-basis helper must default to departure date",
+  );
+  assert.match(
     reportsPage,
     /REPORT_DATE_BASIS_OPTIONS\.map/,
     "Reports page must render date-basis choices from the shared helper",
   );
-  assert.doesNotMatch(
+  assert.match(
     statsRoute,
-    /parseReportDateBasis|dateBasis/,
-    "Stats API must stay pinned to createdAt and ignore dateBasis",
+    /parseReportDateBasis\(searchParams\.get\("dateBasis"\)\)/,
+    "Overview stats API must parse dateBasis from query params",
+  );
+  assert.match(
+    statsRoute,
+    /getOverviewReport/,
+    "Stats API must delegate overview filtering to the shared overview report helper",
+  );
+  assert.match(
+    overviewReport,
+    /buildTripDateBasisRelationWhere\(dateBasis,\s*range\)/,
+    "Overview report must apply the selected date basis",
+  );
+  assert.match(
+    tripsRoute,
+    /parseReportDateRange\(date,\s*date\)/,
+    "Trips page API must use the shared report date parser for single-day filters",
+  );
+  assert.match(
+    tripsRoute,
+    /where\.departureTime\s*=\s*tripDateRange/,
+    "Trips page API must filter by departure date",
+  );
+  assert.doesNotMatch(
+    exportRoute,
+    /where\.createdAt\s*=\s*current/,
+    "Export API must not filter report rows by trip creation date",
+  );
+  assert.match(
+    exportRoute,
+    /where\.departureTime\s*=\s*current/,
+    "Export API must filter report rows by departure date like the trips page",
   );
   assert.match(
     driversRoute,
