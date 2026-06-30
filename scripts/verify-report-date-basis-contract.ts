@@ -20,25 +20,29 @@ async function main() {
     /useState<ReportDateBasis>\("assignedAt"\)/,
     "Reports page must default date filtering to driver assignment date",
   );
-  assert.match(
+  assert.doesNotMatch(
     reportsPage,
     /params\.set\("dateBasis", dateBasis\)/,
-    "Overview stats requests must send the selected date basis",
+    "Overview stats requests must not send dateBasis",
   );
-  assert.match(
-    dateBasisHelper,
-    /Ngày gán tài xế[\s\S]*Ngày tạo cuốc[\s\S]*Ngày hoàn thành[\s\S]*Ngày đi/,
-    "Date-basis helper must expose choices in Vietnamese",
-  );
+
+  for (const key of ["assignedAt", "createdAt", "completedAt", "departureTime"]) {
+    assert.match(
+      dateBasisHelper,
+      new RegExp(`key:\\s*"${key}"`),
+      `Date-basis helper must expose ${key}`,
+    );
+  }
+
   assert.match(
     reportsPage,
     /REPORT_DATE_BASIS_OPTIONS\.map/,
     "Reports page must render date-basis choices from the shared helper",
   );
-  assert.match(
+  assert.doesNotMatch(
     statsRoute,
-    /parseReportDateBasis\(searchParams\.get\("dateBasis"\)\)/,
-    "Stats API must parse dateBasis from query params",
+    /parseReportDateBasis|dateBasis/,
+    "Stats API must stay pinned to createdAt and ignore dateBasis",
   );
   assert.match(
     driversRoute,
@@ -47,8 +51,13 @@ async function main() {
   );
   assert.match(
     driverHistoryRoute,
-    /dateBasis/,
-    "Driver trip-history API must forward dateBasis",
+    /parseReportDateBasis\(searchParams\.get\("dateBasis"\)\)[\s\S]*dateBasis,/,
+    "Driver trip-history API must parse and forward dateBasis",
+  );
+  assert.equal(
+    (driverTab.match(/params\.set\("dateBasis", dateBasis\)/g) ?? []).length,
+    2,
+    "Driver report tab must send dateBasis for summary and trip history",
   );
   assert.match(
     customerTab,
@@ -67,7 +76,7 @@ async function main() {
   );
   assert.match(
     kpiCards,
-    /Doanh thu đã gán[\s\S]*Lợi nhuận đã gán/,
+    /assignedRevenue[\s\S]*assignedProfit[\s\S]*projectedRevenue[\s\S]*projectedProfit/,
     "KPI cards must split assigned-only money from completed and projected money",
   );
 

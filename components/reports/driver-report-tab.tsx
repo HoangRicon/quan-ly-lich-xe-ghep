@@ -5,7 +5,6 @@ import { Download, History, Search, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { ReportTable } from "./report-table";
 import { TripInfoCardList } from "@/components/trip-info-card";
-import { statusColorClasses } from "@/lib/useTripStatuses";
 import type { ReportDateBasis } from "@/lib/reports/date-basis";
 
 interface DriverStats {
@@ -35,6 +34,8 @@ interface DriverStats {
 interface DriverTripHistoryRow {
   tripId: number;
   title: string;
+  departure: string;
+  destination: string;
   route: string;
   createdAt: string;
   departureTime: string;
@@ -68,20 +69,6 @@ function formatVND(amount: number): string {
 
 function formatPercent(value: number): string {
   return `${value.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`;
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-
-  return date.toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function Badge({ badge }: { badge: string }) {
@@ -541,11 +528,10 @@ export function DriverReportTab({
               ) : (
                 <TripInfoCardList
                   trips={historyRows.map((row) => {
-                    const statusColor = statusColorClasses(row.statusColor || "slate");
                     return {
                       id: row.tripId,
-                      departure: row.route.split(" → ")[0] || "",
-                      destination: row.route.split(" → ")[1] || row.route,
+                      departure: row.departure,
+                      destination: row.destination,
                       status: row.status,
                       statusLabel: row.statusLabel || row.status,
                       statusColor: row.statusColor || "slate",

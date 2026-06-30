@@ -186,7 +186,7 @@ export function KpiCards({ data, loading }: KpiCardsProps) {
     },
     {
       title: "Vận hành",
-      helper: "theo kiểu ngày đang lọc",
+      helper: "theo ngày tạo cuốc",
       columns: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5",
       items: [
         {

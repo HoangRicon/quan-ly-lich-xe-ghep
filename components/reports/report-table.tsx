@@ -57,6 +57,75 @@ export function ReportTable<T extends object>({
   cardSubtitle,
   cardAction,
 }: ReportTableProps<T>) {
+  const renderPagination = (className = "") => {
+    if (!pagination || pagination.totalPages <= 1) return null;
+
+    return (
+      <div className={`flex items-center justify-between px-3 py-2.5 border-t border-slate-200 bg-slate-50 ${className}`}>
+        <p className="text-[11px] text-slate-500">
+          {(currentPage - 1) * pagination.limit + 1}-
+          {Math.min(currentPage * pagination.limit, pagination.total)} /{" "}
+          {pagination.total.toLocaleString("vi-VN")}
+        </p>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            aria-label="Trang trước"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
+          </button>
+
+          {(() => {
+            const total = pagination.totalPages;
+            const pages: (number | "ellipsis")[] = [];
+            if (total <= 5) {
+              for (let i = 1; i <= total; i++) pages.push(i);
+            } else {
+              pages.push(1);
+              if (currentPage > 3) pages.push("ellipsis");
+              for (let i = Math.max(2, currentPage - 1); i <= Math.min(total - 1, currentPage + 1); i++) {
+                pages.push(i);
+              }
+              if (currentPage < total - 2) pages.push("ellipsis");
+              pages.push(total);
+            }
+            return pages.map((p, i) =>
+              p === "ellipsis" ? (
+                <span key={`e${i}`} className="px-1 text-slate-400 text-xs">...</span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onPageChange(p)}
+                  className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium ${
+                    currentPage === p
+                      ? "bg-blue-500 text-white"
+                      : "text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            );
+          })()}
+
+          <button
+            type="button"
+            aria-label="Trang sau"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= pagination.totalPages}
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="space-y-2 lg:space-y-0">
@@ -174,6 +243,7 @@ export function ReportTable<T extends object>({
             </div>
           );
         })}
+        {renderPagination("rounded-xl border border-slate-200 shadow-sm")}
       </div>
     );
   };
@@ -248,6 +318,8 @@ export function ReportTable<T extends object>({
             </p>
             <div className="flex items-center gap-0.5">
               <button
+                type="button"
+                aria-label="Trang trước"
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage <= 1}
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -289,6 +361,8 @@ export function ReportTable<T extends object>({
               })()}
 
               <button
+                type="button"
+                aria-label="Trang sau"
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage >= pagination.totalPages}
                 className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"

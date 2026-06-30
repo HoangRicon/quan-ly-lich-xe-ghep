@@ -22,7 +22,6 @@ interface RevenueChartProps {
   data: RevenueDayData[];
   loading: boolean;
   dateFilter?: string;
-  dateBasisLabel?: string;
 }
 
 function formatVNDShort(value: number): string {
@@ -47,11 +46,11 @@ function formatMonthLabel(dateStr: string): string {
 }
 
 const CHART_TITLE_MAP: Record<string, string> = {
-  today: "Doanh thu dự kiến theo ngày",
-  week: "Doanh thu dự kiến theo ngày",
-  month: "Doanh thu dự kiến theo ngày",
-  year: "Doanh thu dự kiến theo tháng",
-  all: "Doanh thu dự kiến theo tháng",
+  today: "Doanh thu ghi nhận theo ngày",
+  week: "Doanh thu ghi nhận theo ngày",
+  month: "Doanh thu ghi nhận theo ngày",
+  year: "Doanh thu ghi nhận theo tháng",
+  all: "Doanh thu ghi nhận theo tháng",
 };
 
 function CustomTooltip({
@@ -124,10 +123,9 @@ export function RevenueChart({
   data,
   loading,
   dateFilter = "month",
-  dateBasisLabel = "Ngày gán tài xế",
 }: RevenueChartProps) {
-  const chartTitle = `${CHART_TITLE_MAP[dateFilter] || "Doanh thu dự kiến theo ngày"} - ${dateBasisLabel.toLowerCase()}`;
-  const chartHelper = "Gồm cuốc hoàn thành và cuốc đã gán tài xế";
+  const chartTitle = CHART_TITLE_MAP[dateFilter] || "Doanh thu ghi nhận theo ngày";
+  const chartHelper = "Chỉ tính cuốc completed theo ngày tạo cuốc";
   const useMonthLabels = dateFilter === "year" || dateFilter === "all";
   const hasData = data.length > 0;
 

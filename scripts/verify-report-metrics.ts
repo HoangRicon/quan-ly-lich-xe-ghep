@@ -79,11 +79,11 @@ assert.equal(overview.assignedProfit, 999999);
 assert.equal(overview.projectedRevenue, 1499999);
 assert.equal(overview.projectedProfit, 1149999);
 assert.deepEqual(overview.revenueByDay, [
-  { date: "2026-06-19", revenue: 1499999, profit: 1149999, trips: 2 },
+  { date: "2026-06-19", revenue: 500000, profit: 150000, trips: 1 },
 ]);
 assert.equal(overview.statusCounts.assigned, 1);
 assert.equal(overview.revenueByStatus.completed, 500000);
-assert.equal(overview.revenueByStatus.assigned, 999999);
+assert.equal(overview.revenueByStatus.assigned, 0);
 
 const driverRows = buildDriverReportRows({
   drivers: [
@@ -389,6 +389,8 @@ async function main() {
   );
 
   assert.equal(history.data[0].tripId, 501);
+  assert.equal(history.data[0].departure, "A");
+  assert.equal(history.data[0].destination, "B");
   assert.equal(history.data[0].lastAssignedAt, "2026-06-19T06:15:00.000Z");
   assert.equal(history.data[0].pointsEarned, 2.5);
   assert.equal(history.data[0].profit, 2500);
@@ -446,6 +448,8 @@ async function main() {
   );
 
   assert.equal(assignedAxisHistory.data[0].tripId, 602);
+  assert.equal(assignedAxisHistory.data[0].departure, "C");
+  assert.equal(assignedAxisHistory.data[0].destination, "D");
   assert.equal(
     assignedAxisHistory.data[0].lastAssignedAt,
     "2026-06-19T06:15:00.000Z"

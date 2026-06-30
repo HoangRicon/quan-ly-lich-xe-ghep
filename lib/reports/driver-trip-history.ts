@@ -58,6 +58,8 @@ export type DriverTripHistoryInput = {
 export type DriverTripHistoryRow = {
   tripId: number;
   title: string;
+  departure: string;
+  destination: string;
   route: string;
   createdAt: string;
   departureTime: string;
@@ -381,6 +383,8 @@ export async function getDriverTripHistory(
     return {
       tripId: trip.id,
       title: trip.title || `Cuoc #${trip.id}`,
+      departure: trip.departure,
+      destination: trip.destination,
       route: `${trip.departure} - ${trip.destination}`,
       createdAt: trip.createdAt.toISOString(),
       departureTime: trip.departureTime.toISOString(),

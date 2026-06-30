@@ -104,7 +104,6 @@ export default function ReportsPage() {
       if (endDate) params.set("endDate", endDate);
       if (startTime) params.set("startTime", startTime);
       if (endTime) params.set("endTime", endTime);
-      params.set("dateBasis", dateBasis);
       if (selectedDriver) params.set("driverId", selectedDriver);
 
       const res = await fetch(`/api/reports/stats?${params.toString()}`);
@@ -115,7 +114,7 @@ export default function ReportsPage() {
     } finally {
       setStatsLoading(false);
     }
-  }, [startDate, endDate, startTime, endTime, dateBasis, selectedDriver]);
+  }, [startDate, endDate, startTime, endTime, selectedDriver]);
 
   const fetchDrivers = useCallback(async () => {
     setDriversLoading(true);
@@ -211,10 +210,6 @@ export default function ReportsPage() {
     dateBasis !== DEFAULT_REPORT_DATE_BASIS,
     selectedDriver !== "",
   ].filter(Boolean).length;
-
-  const dateBasisLabel =
-    REPORT_DATE_BASIS_OPTIONS.find((option) => option.key === dateBasis)
-      ?.label || "Ngày gán tài xế";
 
   return (
     <>
@@ -480,7 +475,6 @@ export default function ReportsPage() {
                   data={kpiData}
                   loading={statsLoading}
                   dateFilter={dateFilter}
-                  dateBasisLabel={dateBasisLabel}
                 />
               )}
               {activeTab === "drivers" && (
@@ -524,12 +518,10 @@ function OverviewTab({
   data,
   loading,
   dateFilter,
-  dateBasisLabel,
 }: {
   data: KpiData | null;
   loading: boolean;
   dateFilter: string;
-  dateBasisLabel: string;
 }) {
   if (loading || !data) {
     return (
@@ -565,7 +557,6 @@ function OverviewTab({
           }
           loading={false}
           dateFilter={dateFilter}
-          dateBasisLabel={dateBasisLabel}
         />
         <StatusPieChart
           distribution={data.statusDistribution || []}
