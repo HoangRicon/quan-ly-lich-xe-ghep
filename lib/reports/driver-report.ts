@@ -532,7 +532,8 @@ export function buildDriverReportRows(input: {
     if (!stats) continue;
 
     stats.totalTrips += 1;
-    incrementBucket(stats, reportStatusBucket(trip));
+    const bucket = reportStatusBucket(trip);
+    incrementBucket(stats, bucket);
 
     const assignment = lastAssignmentByTripAndDriver.get(
       assignmentSnapshotKey(trip.id, trip.driverId)
@@ -545,8 +546,10 @@ export function buildDriverReportRows(input: {
       assignment && assignment.profit != null
         ? toMoneyNumber(assignment.profit)
         : toMoneyNumber(trip.profit);
-    stats.totalPoints += assignedPoints;
-    stats.assignedPointProfit += assignedProfit;
+    if (bucket !== "cancelled") {
+      stats.totalPoints += assignedPoints;
+      stats.assignedPointProfit += assignedProfit;
+    }
 
     if (isProjectedTrip(trip)) {
       stats.projectedRevenue += toMoneyNumber(trip.price);
