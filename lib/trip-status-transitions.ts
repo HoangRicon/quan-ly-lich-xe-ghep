@@ -15,8 +15,6 @@ export type TransitionValidationResult =
   | { ok: true }
   | { ok: false; message: string };
 
-const TERMINAL_STATUSES: TripStatusKey[] = ["completed"];
-
 /**
  * Trả về danh sách trạng thái hợp lệ tiếp theo cho trip hiện tại.
  * Dùng cho frontend (filter dropdown) và cho validate API.
@@ -28,10 +26,6 @@ export function getValidNextStatuses(
   currentStatus: string,
   hasDriver: boolean
 ): string[] {
-  if (TERMINAL_STATUSES.includes(currentStatus as TripStatusKey)) {
-    return [];
-  }
-
   if (currentStatus === "scheduled") {
     const next: string[] = ["cancelled"];
     if (hasDriver) next.push("confirmed");
@@ -44,6 +38,13 @@ export function getValidNextStatuses(
 
   if (currentStatus === "running" || currentStatus === "in_progress") {
     return ["scheduled", "cancelled", "completed"];
+  }
+
+  if (currentStatus === "completed") {
+    const next: string[] = [];
+    if (hasDriver) next.push("confirmed");
+    next.push("cancelled");
+    return next;
   }
 
   if (currentStatus === "cancelled") {
@@ -68,13 +69,6 @@ export function validateStatusTransition(
 ): TransitionValidationResult {
   if (currentStatus === newStatus) {
     return { ok: true };
-  }
-
-  if (TERMINAL_STATUSES.includes(currentStatus as TripStatusKey)) {
-    return {
-      ok: false,
-      message: "Không thể thay đổi trạng thái của cuốc đã hoàn thành.",
-    };
   }
 
   if (
