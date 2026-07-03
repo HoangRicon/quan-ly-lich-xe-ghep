@@ -104,6 +104,13 @@ function formatPriceK(price: string): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
 }
 
+function formatPointValue(points: number | null | undefined): string {
+  if (points == null || !Number.isFinite(points)) return "";
+  return points.toLocaleString("vi-VN", {
+    maximumFractionDigits: 2,
+  });
+}
+
 // Ghi chú tự động (bắt chước mẫu trong TripForm)
 function getDirection(tripType: string): string {
   if (tripType.includes("roundtrip")) return "roundtrip";
@@ -397,6 +404,37 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       reason: "not_matching" as const
     };
   }, [editForm.price, editForm.totalSeats, editForm.tripDirection, editForm.tripType, editForm.driverId, drivers, editingTrip]);
+
+  const selectedDriverProfitRate = useMemo(() => {
+    const driverFromTrip = editingTrip?.driver;
+    const driverFromList = drivers.find(d => d.id === editForm.driverId);
+    const rate =
+      driverFromList?.profitRate ??
+      (driverFromTrip?.id === editForm.driverId ? driverFromTrip?.profitRate : undefined) ??
+      driverFromTrip?.profitRate;
+    const parsed = Number(rate);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [editForm.driverId, drivers, editingTrip]);
+
+  const manualProfitValue = parseMoneyInput(editForm.profit);
+  const manualProfitPoints =
+    manualProfitValue != null && selectedDriverProfitRate
+      ? manualProfitValue / selectedDriverProfitRate
+      : editingTrip?.pointsEarned ?? null;
+  const isCompletedLockedEdit = editingTrip?.status === "completed";
+  const lockedFieldsetClass = isCompletedLockedEdit
+    ? "m-0 space-y-3 border-0 p-0 opacity-60 [&_*]:cursor-not-allowed"
+    : "m-0 space-y-3 border-0 p-0";
+  const visibleEditStatuses = useMemo(() => {
+    if (!isCompletedLockedEdit) return statuses;
+    const hasDriver = Boolean(editingTrip?.driver || editForm.driverId);
+    return statuses.filter(
+      (s) =>
+        s.key === "completed" ||
+        s.key === "cancelled" ||
+        (hasDriver && s.key === "confirmed")
+    );
+  }, [statuses, isCompletedLockedEdit, editingTrip, editForm.driverId]);
 
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -899,28 +937,32 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       // NOTE: driver có formulas thì luôn recalculate (formula engine tự match đúng loại hình)
       const shouldRecalculate = driverHasFormula;
 
+      const payload = isCompletedLockedEdit
+        ? { status: editForm.status }
+        : {
+            departure: editForm.departure,
+            destination: editForm.destination,
+            pickupLocation: editForm.pickupLocation,
+            dropoffLocation: editForm.dropoffLocation,
+            departureTime: departureDateTime,
+            price: editForm.price,
+            totalSeats: editForm.totalSeats,
+            customerName: editForm.customerName,
+            customerPhone: editForm.customerPhone,
+            driverId: editForm.driverId,
+            status: editForm.status,
+            notes: editForm.notes || null,
+            tripDirection: editForm.tripDirection,
+            tripType: editForm.tripType,
+            recalculate: shouldRecalculate,
+            ...(hasManualProfit ? { profit: editForm.profit } : {}),
+            expense: String(editForm.expense).trim() === "" ? null : editForm.expense,
+          };
+
       const res = await fetch(`/api/trips/${editingTrip.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          departure: editForm.departure,
-          destination: editForm.destination,
-          pickupLocation: editForm.pickupLocation,
-          dropoffLocation: editForm.dropoffLocation,
-          departureTime: departureDateTime,
-          price: editForm.price,
-          totalSeats: editForm.totalSeats,
-          customerName: editForm.customerName,
-          customerPhone: editForm.customerPhone,
-          driverId: editForm.driverId,
-          status: editForm.status,
-          notes: editForm.notes || null,
-          tripDirection: editForm.tripDirection,
-          tripType: editForm.tripType,
-          recalculate: shouldRecalculate,
-          ...(hasManualProfit ? { profit: editForm.profit } : {}),
-          expense: String(editForm.expense).trim() === "" ? null : editForm.expense,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -1760,6 +1802,11 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
 
             {/* Header */}
             <div className="px-4 pb-4 border-b border-slate-100 flex-shrink-0">
+              {isCompletedLockedEdit && (
+                <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                  Cuốc xe đã hoàn thành. Chỉ có thể đổi trạng thái về <strong>Đã gán</strong> để sửa tiếp thông tin.
+                </div>
+              )}
               <div className="flex items-center justify-between mb-3">
                 <div className="min-w-0 flex-1 mr-2">
                   <p className="text-xs text-slate-400">Mã cuốc #{editingTrip.id}</p>
@@ -1783,7 +1830,13 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                     ) : (
                       <span className="text-sm font-medium text-slate-400">Chưa gán Zom</span>
                     )}
-                    {editProfitPreview === null ? (
+                    {manualProfitValue != null ? (
+                      <span className="text-sm font-bold text-green-600">
+                        +{formatCurrency(manualProfitValue)}
+                        {manualProfitPoints != null && ` · ${formatPointValue(manualProfitPoints)} điểm`}
+                        {" · lợi nhuận hiện tại"}
+                      </span>
+                    ) : editProfitPreview === null ? (
                       <span className="text-sm font-medium text-slate-400">Chưa đủ thông tin</span>
                     ) : editProfitPreview.reason === "no_formula" ? (
                       <span className="text-sm font-medium text-red-500">Chưa có công thức</span>
@@ -1807,16 +1860,17 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
             {/* Edit Form - scrollable content area */}
             <div className="flex-1 overflow-y-auto">
               <div className="p-4 space-y-3">
+                <fieldset disabled={isCompletedLockedEdit} className={lockedFieldsetClass}>
               {/* Customer Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-sm font-medium text-blue-800 mb-3">Thông tin khách hàng</p>
-                {(editForm.status === "completed" || editForm.status === "cancelled") ? (
+                {editForm.status === "cancelled" ? (
                   <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                     <div className="text-xs text-amber-800 leading-relaxed">
-                      Cuốc xe đã <strong>{editForm.status === "completed" ? "hoàn thành" : "bị hủy"}</strong>. Không thể sửa thông tin khách hàng.<br />
+                      Cuốc xe đã <strong>bị hủy</strong>. Không thể sửa thông tin khách hàng.<br />
                       Để chỉnh sửa, hãy đổi trạng thái về <strong>Chờ gán</strong> hoặc <strong>Đã gán</strong>.
                     </div>
                   </div>
@@ -2109,12 +2163,13 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                   </div>
                 </div>
               </div>
+              </fieldset>
 
               {/* Status */}
               <div className="bg-slate-50 rounded-xl p-3">
                 <p className="text-sm font-medium text-slate-700 mb-3">Trạng thái</p>
                 <div className="flex flex-wrap gap-2">
-                  {statuses.map((s) => {
+                  {visibleEditStatuses.map((s) => {
                     const c = statusColorClasses(s.color);
                     return (
                       <button
@@ -2130,59 +2185,64 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
               </div>
 
               {/* Notes */}
-              <div className="bg-slate-50 rounded-xl p-3">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <p className="text-sm font-medium text-slate-700">Ghi chú</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const seats = Math.max(1, parseInt(editForm.totalSeats, 10) || 1);
-                        const isBao = editForm.tripType === "bao" || editForm.tripType === "bao_roundtrip";
-                        const direction = getDirection(editForm.tripType);
-                        const quick = generateAutoNoteLikeTripForm(
-                          editForm.departureTime,
-                          editForm.departure,
-                          editForm.destination,
-                          editForm.price,
-                          editForm.customerPhone,
-                          seats,
-                          isBao ? "bao" : "ghep",
-                          editForm.pickupLocation,
-                          editForm.dropoffLocation,
-                          direction
-                        );
-                        if (!quick) return;
-                        const existing = (editForm.notes || "").trim();
-                        setEditForm({
-                          ...editForm,
-                          notes: existing ? `${existing} ${quick}` : quick,
-                        });
-                      }}
-                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-md font-medium transition-colors"
-                      title="Tạo thêm ghi chú"
-                    >
-                      ✨ Tạo thêm ghi chú
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditForm({ ...editForm, notes: "" })}
-                      className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md font-medium transition-colors"
-                      title="Xóa tất cả ghi chú"
-                    >
-                      Xóa tất cả ghi chú
-                    </button>
+              <fieldset
+                disabled={isCompletedLockedEdit}
+                className={isCompletedLockedEdit ? "m-0 border-0 p-0 opacity-60 [&_*]:cursor-not-allowed" : "m-0 border-0 p-0"}
+              >
+                <div className="bg-slate-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-sm font-medium text-slate-700">Ghi chú</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const seats = Math.max(1, parseInt(editForm.totalSeats, 10) || 1);
+                          const isBao = editForm.tripType === "bao" || editForm.tripType === "bao_roundtrip";
+                          const direction = getDirection(editForm.tripType);
+                          const quick = generateAutoNoteLikeTripForm(
+                            editForm.departureTime,
+                            editForm.departure,
+                            editForm.destination,
+                            editForm.price,
+                            editForm.customerPhone,
+                            seats,
+                            isBao ? "bao" : "ghep",
+                            editForm.pickupLocation,
+                            editForm.dropoffLocation,
+                            direction
+                          );
+                          if (!quick) return;
+                          const existing = (editForm.notes || "").trim();
+                          setEditForm({
+                            ...editForm,
+                            notes: existing ? `${existing} ${quick}` : quick,
+                          });
+                        }}
+                        className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-md font-medium transition-colors"
+                        title="Tạo thêm ghi chú"
+                      >
+                        ✨ Tạo thêm ghi chú
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditForm({ ...editForm, notes: "" })}
+                        className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md font-medium transition-colors"
+                        title="Xóa tất cả ghi chú"
+                      >
+                        Xóa tất cả ghi chú
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <textarea
-                  value={editForm.notes}
-                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                  placeholder="Nhập ghi chú..."
-                  rows={3}
-                />
-              </div>
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                    placeholder="Nhập ghi chú..."
+                    rows={3}
+                  />
+                </div>
+              </fieldset>
             </div>
 
               {/* Action Buttons */}

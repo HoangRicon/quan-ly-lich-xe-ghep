@@ -155,6 +155,7 @@ export async function PUT(
     const { id } = await params;
     const tripId = parseInt(id);
 
+    const body = await request.json();
     const {
       status, driverId, departure, destination, pickupLocation, dropoffLocation, price, profit, expense,
       title, departureTime, totalSeats, notes,
@@ -163,7 +164,7 @@ export async function PUT(
       customerEmail,
       customerNotes,
       tripDirection, tripType, recalculate,
-    } = await request.json();
+    } = body || {};
 
     const DECIMAL_10_2_MAX = 99999999.99;
     const DECIMAL_15_2_MAX = 9999999999999.99;
@@ -291,6 +292,20 @@ export async function PUT(
 
     // Status cuối cùng sẽ ghi vào DB (user gửi → ưu tiên, không gửi → dùng cascade nếu có)
     const finalStatus = status !== undefined ? status : cascadedStatus;
+
+    if (currentStatus === "completed") {
+      const requestedKeys = Object.keys(body || {}).filter(
+        (key) => (body as Record<string, unknown>)[key] !== undefined
+      );
+      const hasNonStatusUpdate = requestedKeys.some((key) => key !== "status");
+
+      if (hasNonStatusUpdate) {
+        throw new TripMutationError(
+          400,
+          "Cuốc đã hoàn thành chỉ được đổi trạng thái về Đã gán hoặc Đã hủy trước khi sửa thông tin."
+        );
+      }
+    }
 
     // Validate transition trước khi ghi (chỉ khi status thực sự thay đổi)
     if (finalStatus !== undefined && finalStatus !== currentStatus) {

@@ -19,10 +19,13 @@ describe("trip status transitions", () => {
     });
   });
 
-  it("does not allow returning a completed trip to confirmed without a driver", () => {
+  it("allows cancelling a completed trip without a driver, but not returning to confirmed", () => {
     expect(getValidNextStatuses("completed", false)).toEqual(["cancelled"]);
 
     const result = validateStatusTransition("completed", "confirmed", null);
     expect(result.ok).toBe(false);
+    expect(validateStatusTransition("completed", "cancelled", null)).toEqual({
+      ok: true,
+    });
   });
 });

@@ -364,19 +364,23 @@ export async function getDriverTripHistory(
   const rows = trips.map((trip) => {
     const assignment = latestByTrip.get(trip.id);
     const points =
-      assignment && assignment.pointsEarned != null
-        ? toMoneyNumber(assignment.pointsEarned)
-        : toMoneyNumber(trip.pointsEarned);
+      trip.pointsEarned != null
+        ? toMoneyNumber(trip.pointsEarned)
+        : assignment && assignment.pointsEarned != null
+          ? toMoneyNumber(assignment.pointsEarned)
+          : 0;
     const profit =
-      assignment && assignment.profit != null
-        ? toMoneyNumber(assignment.profit)
-        : toMoneyNumber(trip.profit);
+      trip.profit != null
+        ? toMoneyNumber(trip.profit)
+        : assignment && assignment.profit != null
+          ? toMoneyNumber(assignment.profit)
+          : 0;
     const profitRate =
-      assignment && assignment.profitRate != null
-        ? toMoneyNumber(assignment.profitRate)
-        : trip.profitRate != null
+      trip.profitRate != null
           ? toMoneyNumber(trip.profitRate)
-          : null;
+          : assignment && assignment.profitRate != null
+            ? toMoneyNumber(assignment.profitRate)
+            : null;
 
     const tripStatus = statusMap.get(trip.status);
 
@@ -396,7 +400,7 @@ export async function getDriverTripHistory(
       pointsEarned: points,
       profit,
       profitRate,
-      formulaId: assignment?.formulaId ?? trip.matchedFormulaId ?? null,
+      formulaId: trip.matchedFormulaId ?? assignment?.formulaId ?? null,
       formulaName: assignment?.formulaName ?? null,
     };
   }).sort((a, b) => {

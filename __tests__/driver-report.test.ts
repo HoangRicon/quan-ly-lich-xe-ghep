@@ -142,6 +142,43 @@ describe("getDriverReport", () => {
 });
 
 describe("buildDriverReportRows", () => {
+  it("uu tien diem va cong hien tai cua cuoc khi user da sua loi nhuan thu cong", () => {
+    const rows = buildDriverReportRows({
+      drivers: [{ id: 42, fullName: "Tai xe A", phone: "0900000000" }],
+      trips: [
+        {
+          id: 301,
+          driverId: 42,
+          status: "completed",
+          price: 400_000,
+          profit: 400_000,
+          pointsEarned: 1.3333333333,
+          createdAt: new Date("2026-06-12T03:00:00.000Z"),
+          departureTime: new Date("2026-06-30T03:00:00.000Z"),
+        },
+      ],
+      assignmentEvents: [
+        {
+          id: 1,
+          tripId: 301,
+          toDriverId: 42,
+          createdAt: new Date("2026-06-12T04:00:00.000Z"),
+          pointsEarned: 0.5,
+          profit: 150_000,
+        },
+      ],
+    });
+
+    expect(rows[0]).toMatchObject({
+      totalTrips: 1,
+      completedTrips: 1,
+      totalPoints: 1.3333333333,
+      assignedPointProfit: 400_000,
+      totalRevenue: 400_000,
+      totalProfit: 400_000,
+    });
+  });
+
   it("khong cong diem va cong cua cuoc da huy", () => {
     const rows = buildDriverReportRows({
       drivers: [{ id: 42, fullName: "Tai xe A", phone: "0900000000" }],
