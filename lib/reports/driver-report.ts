@@ -40,6 +40,7 @@ type DriverTrip = {
   status: string;
   price: unknown;
   profit?: unknown;
+  collectionAmount?: unknown;
   pointsEarned?: unknown;
   createdAt: Date;
   departureTime?: Date;
@@ -246,6 +247,7 @@ function driverTripSelect() {
     status: true,
     price: true,
     profit: true,
+    collectionAmount: true,
     pointsEarned: true,
     createdAt: true,
     departureTime: true,
@@ -539,8 +541,10 @@ export function buildDriverReportRows(input: {
       assignmentSnapshotKey(trip.id, trip.driverId)
     );
     const assignedPoints =
-      trip.pointsEarned != null
-        ? toMoneyNumber(trip.pointsEarned)
+      trip.collectionAmount != null
+        ? 0
+        : trip.pointsEarned != null
+          ? toMoneyNumber(trip.pointsEarned)
         : assignment && assignment.pointsEarned != null
           ? toMoneyNumber(assignment.pointsEarned)
           : 0;

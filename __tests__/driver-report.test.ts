@@ -234,4 +234,30 @@ describe("buildDriverReportRows", () => {
       totalProfit: 20_000,
     });
   });
+
+  it("cuoc thu ho khong cong diem nhung van tinh loi nhuan bang so thu ho", () => {
+    const rows = buildDriverReportRows({
+      drivers: [{ id: 42, fullName: "Tai xe A", phone: "0900000000" }],
+      trips: [
+        {
+          id: 301,
+          driverId: 42,
+          status: "completed",
+          price: 250_000,
+          profit: 75_000,
+          collectionAmount: 75_000,
+          pointsEarned: 5,
+          createdAt: new Date("2026-07-03T03:00:00.000Z"),
+          departureTime: new Date("2026-07-03T04:00:00.000Z"),
+        },
+      ],
+    });
+
+    expect(rows[0]).toMatchObject({
+      completedTrips: 1,
+      totalPoints: 0,
+      assignedPointProfit: 75_000,
+      totalProfit: 75_000,
+    });
+  });
 });

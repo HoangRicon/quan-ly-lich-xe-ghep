@@ -29,6 +29,7 @@ type HistoryTrip = {
   status: string;
   price: unknown;
   profit?: unknown;
+  collectionAmount?: unknown;
   profitRate?: unknown;
   pointsEarned?: unknown;
   matchedFormulaId?: number | null;
@@ -70,6 +71,7 @@ export type DriverTripHistoryRow = {
   price: number;
   pointsEarned: number;
   profit: number;
+  collectionAmount: number | null;
   profitRate: number | null;
   formulaId: number | null;
   formulaName: string | null;
@@ -109,6 +111,7 @@ function historyTripSelect() {
     status: true,
     price: true,
     profit: true,
+    collectionAmount: true,
     profitRate: true,
     pointsEarned: true,
     matchedFormulaId: true,
@@ -364,7 +367,9 @@ export async function getDriverTripHistory(
   const rows = trips.map((trip) => {
     const assignment = latestByTrip.get(trip.id);
     const points =
-      trip.pointsEarned != null
+      trip.collectionAmount != null
+        ? 0
+        : trip.pointsEarned != null
         ? toMoneyNumber(trip.pointsEarned)
         : assignment && assignment.pointsEarned != null
           ? toMoneyNumber(assignment.pointsEarned)
@@ -399,6 +404,8 @@ export async function getDriverTripHistory(
       price: toMoneyNumber(trip.price),
       pointsEarned: points,
       profit,
+      collectionAmount:
+        trip.collectionAmount != null ? toMoneyNumber(trip.collectionAmount) : null,
       profitRate,
       formulaId: trip.matchedFormulaId ?? assignment?.formulaId ?? null,
       formulaName: assignment?.formulaName ?? null,

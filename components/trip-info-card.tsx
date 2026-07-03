@@ -16,6 +16,7 @@ interface TripInfoCardProps {
     statusColor?: string;
     pointsEarned?: number | null;
     profit?: number | null;
+    collectionAmount?: number | null;
     profitRate?: number | null;
     matchedFormulaId?: number | null;
     matchedFormulaName?: string | null;
@@ -121,6 +122,11 @@ export function TripInfoCard({ trip, className }: TripInfoCardProps) {
               {formatCurrency(trip.profit)}
             </span>
           </div>
+          {trip.collectionAmount != null && (
+            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+              Thu hộ {formatCurrency(trip.collectionAmount)}
+            </span>
+          )}
         </div>
 
         {/* Expand indicator */}

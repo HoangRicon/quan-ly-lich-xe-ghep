@@ -40,6 +40,9 @@ interface ExportRow {
   trang_thai: string;
   gia_ve: number;
   loi_nhuan: number | "";
+  thu_ho: number | "";
+  chi_phi: number | "";
+  loi_nhuan_sau_chi_phi: number | "";
   ti_le_loi_nhuan: number | "";
   diem_tichluy: number | "";
   tong_ghe: number;
@@ -111,6 +114,9 @@ export function ImportSection({ startDate, endDate, selectedDriver }: ImportSect
         { wch: 12 },  // trang_thai
         { wch: 10 },  // gia_ve
         { wch: 10 },  // loi_nhuan
+        { wch: 10 },  // thu_ho
+        { wch: 10 },  // chi_phi
+        { wch: 12 },  // loi_nhuan_sau_chi_phi
         { wch: 10 },  // ti_le_loi_nhuan
         { wch: 8 },   // diem_tichluy
         { wch: 6 },   // tong_ghe

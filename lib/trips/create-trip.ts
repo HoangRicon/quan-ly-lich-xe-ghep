@@ -17,6 +17,7 @@ export interface CreateTripInput {
   departureTime: string | Date;
   arrivalTime?: string | Date | null;
   price: number | string;
+  collectionAmount?: number | string | null;
   expense?: number | string | null;
   totalSeats?: number | string | null;
   tripType?: string | null;
@@ -118,6 +119,7 @@ export async function createTripForAccountInTransaction(
     departureTime,
     arrivalTime,
     price,
+    collectionAmount,
     expense,
     totalSeats,
     tripType,
@@ -141,6 +143,17 @@ export async function createTripForAccountInTransaction(
   const parsedCustomerSeats = parsePositiveIntOrDefault(seats, 1);
   const parsedPrice = parseVndPrice(price);
   const safePrice = clampDecimal10_2(parsedPrice);
+  const hasCollectionAmountInput =
+    collectionAmount !== undefined &&
+    collectionAmount !== null &&
+    String(collectionAmount).trim() !== "";
+  const parsedCollectionAmount = hasCollectionAmountInput
+    ? parseVndPrice(collectionAmount as number | string)
+    : null;
+  const safeCollectionAmount = sanitizeOptionalDecimal10_2(parsedCollectionAmount);
+  if (hasCollectionAmountInput && safeCollectionAmount == null) {
+    throw new CreateTripError(400, "Thu hộ không hợp lệ");
+  }
   const parsedExpense =
     expense === undefined || expense === null || expense === ""
       ? null
@@ -207,11 +220,20 @@ export async function createTripForAccountInTransaction(
     formulaResult = applyFormula(tripInput, driverProfitRate, matchedFormula);
   }
 
-  const safePointsEarned = sanitizeOptionalDecimal10_2(
+  let safePointsEarned = sanitizeOptionalDecimal10_2(
     formulaResult.pointsEarned
   );
-  const safeProfit = sanitizeOptionalDecimal10_2(formulaResult.profit);
-  const safeProfitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
+  let safeProfit = sanitizeOptionalDecimal10_2(formulaResult.profit);
+  let safeProfitRate = sanitizeOptionalDecimal15_2(formulaResult.profitRate);
+  let matchedFormulaId = formulaResult.matchedFormulaId;
+
+  if (hasCollectionAmountInput) {
+    safePointsEarned = 0;
+    safeProfit = safeCollectionAmount;
+    safeProfitRate = null;
+    matchedFormulaId = null;
+    matchedFormulaName = null;
+  }
 
   let customerId: number | null = null;
   if (customerPhone) {
@@ -253,11 +275,12 @@ export async function createTripForAccountInTransaction(
       totalSeats: parsedTotalSeats,
       status: "scheduled",
       ...(notes ? { notes } : {}),
+      collectionAmount: safeCollectionAmount,
       expense: safeExpense,
       pointsEarned: safePointsEarned,
       profitRate: safeProfitRate,
       profit: safeProfit,
-      matchedFormulaId: formulaResult.matchedFormulaId,
+      matchedFormulaId,
       ...(customerId
         ? {
             customers: {
@@ -293,7 +316,7 @@ export async function createTripForAccountInTransaction(
       pointsEarned: safePointsEarned,
       profit: safeProfit,
       profitRate: safeProfitRate,
-      formulaId: formulaResult.matchedFormulaId,
+      formulaId: matchedFormulaId,
       formulaName: matchedFormulaName,
     });
   }

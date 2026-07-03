@@ -46,6 +46,7 @@ interface DriverTripHistoryRow {
   price: number;
   pointsEarned: number;
   profit: number;
+  collectionAmount: number | null;
   profitRate: number | null;
   formulaId: number | null;
   formulaName: string | null;
@@ -537,6 +538,7 @@ export function DriverReportTab({
                       statusColor: row.statusColor || "slate",
                       pointsEarned: row.pointsEarned,
                       profit: row.profit,
+                      collectionAmount: row.collectionAmount,
                       profitRate: row.profitRate,
                       matchedFormulaId: row.formulaId,
                       matchedFormulaName: row.formulaName,

@@ -108,6 +108,7 @@ export async function GET(
       arrivalTime: trip.arrivalTime,
       price: trip.price,
       profit: trip.profit != null ? Number(trip.profit) : null,
+      collectionAmount: trip.collectionAmount != null ? Number(trip.collectionAmount) : null,
       expense: trip.expense != null ? Number(trip.expense) : null,
       tripDirection: trip.tripDirection,
       tripType: trip.tripType || "ghep",
@@ -157,7 +158,7 @@ export async function PUT(
 
     const body = await request.json();
     const {
-      status, driverId, departure, destination, pickupLocation, dropoffLocation, price, profit, expense,
+      status, driverId, departure, destination, pickupLocation, dropoffLocation, price, profit, collectionAmount, expense,
       title, departureTime, totalSeats, notes,
       customerPhone,
       customerName,
@@ -204,6 +205,7 @@ export async function PUT(
 
     const updateData: Prisma.TripUpdateInput = {};
     let effectiveProfitRate: number | null = null;
+    let assignmentFormulaName: string | null = null;
     const rememberProfitRate = (value: unknown) => {
       const n = Number(value);
       if (Number.isFinite(n) && n > 0) {
@@ -211,6 +213,7 @@ export async function PUT(
       }
     };
     const hasManualProfitInput = profit !== undefined;
+    const hasCollectionAmountInput = collectionAmount !== undefined;
     const applyManualProfitInput = () => {
       if (profit === null || profit === "") {
         updateData.profit = null;
@@ -227,6 +230,28 @@ export async function PUT(
           updateData.profitRate = sanitizeOptionalDecimal15_2(effectiveProfitRate);
         }
       }
+    };
+    const applyCollectionAmountInput = () => {
+      if (collectionAmount === null || collectionAmount === "") {
+        updateData.collectionAmount = null;
+        return;
+      }
+
+      const n = parseVndNumber(collectionAmount);
+      if (!Number.isFinite(n)) {
+        throw new TripMutationError(400, "Thu hộ không hợp lệ");
+      }
+
+      const safeCollectionAmount = sanitizeOptionalDecimal10_2(n);
+      if (safeCollectionAmount == null) {
+        throw new TripMutationError(400, "Thu hộ không hợp lệ");
+      }
+      updateData.collectionAmount = safeCollectionAmount;
+      updateData.profit = safeCollectionAmount;
+      updateData.pointsEarned = 0;
+      updateData.profitRate = null;
+      updateData.matchedFormulaId = null;
+      assignmentFormulaName = null;
     };
 
     // Lock current trip row before deriving event "from" values.
@@ -368,8 +393,6 @@ export async function PUT(
     }
 
     // Recalculate cập nhật điểm/công thức; profit nhập tay sẽ được áp dụng lại sau cùng.
-    let assignmentFormulaName: string | null = null;
-
     if (recalculate === true || driverId !== undefined) {
       // Lấy thông tin trip hiện tại để tính toán
       const currentTrip = await db.trip.findFirst({
@@ -492,6 +515,10 @@ export async function PUT(
 
     if (hasManualProfitInput) {
       applyManualProfitInput();
+    }
+
+    if (hasCollectionAmountInput) {
+      applyCollectionAmountInput();
     }
 
     if (departureTime !== undefined && departureTime) {
@@ -687,6 +714,7 @@ export async function PUT(
       arrivalTime: trip.arrivalTime,
       price: trip.price,
       profit: trip.profit != null ? Number(trip.profit) : null,
+      collectionAmount: trip.collectionAmount != null ? Number(trip.collectionAmount) : null,
       expense: trip.expense != null ? Number(trip.expense) : null,
       tripDirection: trip.tripDirection,
       tripType: trip.tripType || "ghep",

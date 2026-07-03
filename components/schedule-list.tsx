@@ -28,6 +28,7 @@ interface Trip {
   arrivalTime: string | null;
   price: number;
   profit: number | null;
+  collectionAmount: number | null;
   expense: number | null;
   tripDirection?: string;
   tripType?: string;
@@ -313,6 +314,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
     departureTime: "",
     price: "",
     profit: "",
+    collectionAmount: "",
     expense: "",
     totalSeats: "",
     customerName: "",
@@ -417,6 +419,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
   }, [editForm.driverId, drivers, editingTrip]);
 
   const manualProfitValue = parseMoneyInput(editForm.profit);
+  const collectionAmountValue = parseMoneyInput(editForm.collectionAmount);
+  const isCollectionAmountActive = collectionAmountValue != null;
   const manualProfitPoints =
     manualProfitValue != null && selectedDriverProfitRate
       ? manualProfitValue / selectedDriverProfitRate
@@ -893,6 +897,7 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
       departureTime: deptDate.toTimeString().slice(0, 5),
       price: formatMoneyInput(trip.price),
       profit: trip.profit != null ? formatMoneyInput(trip.profit) : "",
+      collectionAmount: trip.collectionAmount != null ? formatMoneyInput(trip.collectionAmount) : "",
       expense: trip.expense != null ? formatMoneyInput(trip.expense) : "",
       totalSeats: totalSeatsForForm,
       customerName: trip.customer?.name || "",
@@ -930,12 +935,16 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
         editForm.profit !== undefined &&
         editForm.profit !== null &&
         String(editForm.profit).trim() !== "";
+      const hasCollectionAmount =
+        editForm.collectionAmount !== undefined &&
+        editForm.collectionAmount !== null &&
+        String(editForm.collectionAmount).trim() !== "";
 
       // Recalculate khi:
       // 1. Có driver + formulas VÀ không nhập profit thủ công → tự tính lại
       // 2. Có driver + formulas VÀ nhận profit thủ công → vẫn tính lại để cập nhật matchedFormulaId
       // NOTE: driver có formulas thì luôn recalculate (formula engine tự match đúng loại hình)
-      const shouldRecalculate = driverHasFormula;
+      const shouldRecalculate = driverHasFormula && !hasCollectionAmount;
 
       const payload = isCompletedLockedEdit
         ? { status: editForm.status }
@@ -955,7 +964,8 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
             tripDirection: editForm.tripDirection,
             tripType: editForm.tripType,
             recalculate: shouldRecalculate,
-            ...(hasManualProfit ? { profit: editForm.profit } : {}),
+            ...(hasManualProfit && !hasCollectionAmount ? { profit: editForm.profit } : {}),
+            collectionAmount: hasCollectionAmount ? editForm.collectionAmount : null,
             expense: String(editForm.expense).trim() === "" ? null : editForm.expense,
           };
 
@@ -1345,6 +1355,11 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                       trip.profit !== null && trip.profit !== undefined ? (
                       <>
                         <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                        {trip.collectionAmount != null && (
+                          <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                            Thu hộ {formatCurrency(trip.collectionAmount)}
+                          </span>
+                        )}
                         {trip.expense != null && trip.expense > 0 && (
                           <span className="text-xs font-medium text-red-500">-{formatCurrency(trip.expense)}</span>
                         )}
@@ -1593,6 +1608,11 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                             trip.profit !== null && trip.profit !== undefined ? (
                               <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                 <span className="text-xs font-medium text-green-600">+{formatCurrency(trip.profit)}</span>
+                                {trip.collectionAmount != null && (
+                                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                    Thu hộ {formatCurrency(trip.collectionAmount)}
+                                  </span>
+                                )}
                                 {trip.expense != null && trip.expense > 0 && (
                                   <span className="text-xs font-medium text-red-500">-{formatCurrency(trip.expense)}</span>
                                 )}
@@ -1830,7 +1850,11 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                     ) : (
                       <span className="text-sm font-medium text-slate-400">Chưa gán Zom</span>
                     )}
-                    {manualProfitValue != null ? (
+                    {collectionAmountValue != null ? (
+                      <span className="text-sm font-bold text-amber-700">
+                        +{formatCurrency(collectionAmountValue)} · 0 điểm · thu hộ
+                      </span>
+                    ) : manualProfitValue != null ? (
                       <span className="text-sm font-bold text-green-600">
                         +{formatCurrency(manualProfitValue)}
                         {manualProfitPoints != null && ` · ${formatPointValue(manualProfitPoints)} điểm`}
@@ -2112,40 +2136,86 @@ export default function ScheduleList({ showToast }: { showToast: (message: strin
                       Bỏ gán
                     </button>
                   </div>
-                  <div>
-                    <label className="block text-xs text-slate-500 mb-1">Lợi nhuận (VNĐ)</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={editForm.profit}
-                        onChange={(e) => setEditForm({ ...editForm, profit: formatMoneyInput(e.target.value) })}
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                        placeholder="Tu tinh theo cong thuc"
-                      />
+                  <div
+                    className={`rounded-xl border p-3 transition-colors ${
+                      isCollectionAmountActive
+                        ? "border-amber-200 bg-amber-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="min-w-0">
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Lợi nhuận</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={editForm.profit}
+                          onChange={(e) => setEditForm({ ...editForm, profit: formatMoneyInput(e.target.value) })}
+                          disabled={isCollectionAmountActive}
+                          className={`h-11 w-full rounded-lg border px-3 text-sm tabular-nums ${
+                            isCollectionAmountActive
+                              ? "border-amber-200 bg-amber-100/60 text-amber-900"
+                              : "border-slate-300 bg-white text-slate-900"
+                          }`}
+                          placeholder="Theo công thức"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <label className="block text-xs font-medium text-amber-700 mb-1">Thu hộ</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={editForm.collectionAmount}
+                          onChange={(e) => {
+                            const formatted = formatMoneyInput(e.target.value);
+                            setEditForm({
+                              ...editForm,
+                              collectionAmount: formatted,
+                              profit: formatted ? formatted : "",
+                            });
+                          }}
+                          className={`h-11 w-full rounded-lg border px-3 text-sm font-semibold tabular-nums ${
+                            isCollectionAmountActive
+                              ? "border-amber-300 bg-white text-amber-900 ring-2 ring-amber-100"
+                              : "border-slate-300 bg-white text-slate-900"
+                          }`}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-start gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          if (editProfitPreview?.reason === null) {
+                          if (editProfitPreview?.reason === null && !isCollectionAmountActive) {
                             setEditForm({ ...editForm, profit: formatMoneyInput(editProfitPreview.profit) });
                           }
                         }}
-                        className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                          editProfitPreview?.reason === null
+                        className={`min-h-11 shrink-0 rounded-lg px-3 text-xs font-medium transition-colors ${
+                          editProfitPreview?.reason === null && !isCollectionAmountActive
                             ? "bg-blue-600 text-white hover:bg-blue-700"
                             : "bg-slate-200 text-slate-400 cursor-not-allowed"
                         }`}
-                        disabled={editProfitPreview?.reason !== null}
+                        disabled={editProfitPreview?.reason !== null || isCollectionAmountActive}
                       >
-                        Tinh lai
+                        Tính lại
                       </button>
+                      <p className={`min-h-11 flex-1 rounded-lg border px-2 py-1.5 text-[11px] leading-snug ${
+                        isCollectionAmountActive
+                          ? "border-amber-200 bg-white text-amber-800"
+                          : "border-slate-200 bg-slate-50 text-slate-500"
+                      }`}>
+                        {isCollectionAmountActive ? (
+                          <>
+                            Thu hộ đang được ưu tiên: <b>lợi nhuận = thu hộ</b>, <b>điểm = 0</b>, không áp dụng công thức.
+                          </>
+                        ) : (
+                          <>
+                            Nhập lợi nhuận để ghi đè, hoặc để trống và bấm tính lại khi Zom có công thức.
+                          </>
+                        )}
+                      </p>
                     </div>
-                    <p className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">
-                      Nếu <b>nhập lợi nhuận</b> thì hệ thống ưu tiên số này.{" "}
-                      <span className="font-semibold">
-                        Nếu <b>để trống</b> và Zom có công thức thì hệ thống sẽ tự tính.
-                      </span>
-                    </p>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Chi phí (VNĐ)</label>
